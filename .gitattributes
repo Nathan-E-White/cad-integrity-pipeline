@@ -1,0 +1,3 @@
+pixi.lock merge=binary linguist-language=YAML linguist-generated=true -diff
+examples/offline_preview.html -whitespace
+reference/simplex_original.txt -whitespace

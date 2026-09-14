@@ -1,0 +1,19 @@
+{
+  "recorded_on": "2026-09-13",
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "packages": {
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "sympy": "1.14.0",
+    "cadquery-ocp": "7.9.3.1.1",
+    "pytest": "9.0.2",
+    "pytest-cov": "7.0.0",
+    "nbformat": "5.10.4",
+    "nbclient": "0.10.4",
+    "plotly": "6.5.2",
+    "setuptools": "82.0.1",
+    "cad-integrity-lab": "0.1.0"
+  },
+  "command": "python -m pytest --cov=cad_integrity --cov-report=term-missing --cov-report=json:docs/evidence/coverage.json --junitxml=docs/evidence/pytest.xml -q"
+}

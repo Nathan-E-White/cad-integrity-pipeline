@@ -1,0 +1,46 @@
+{
+  "recorded_at_utc": "2026-09-14T14:02:33.892401+00:00",
+  "python": "3.13.5 (main, Jul 15 2026, 20:25:40) [GCC 14.2.0]",
+  "platform": "Linux-6.18.44-x86_64-with-glibc2.41",
+  "packages": {
+    "numpy": "2.3.5",
+    "scipy": "1.17.0",
+    "trimesh": "4.11.1",
+    "plotly": "6.5.2",
+    "pytest": "9.0.2",
+    "nbformat": "5.10.4",
+    "nbclient": "0.10.4"
+  },
+  "cad_integrity_version": "0.1.0",
+  "cad_integrity_source": "unchanged source extracted from the earlier cad-integrity-lab.zip",
+  "original_project_zip_sha256": "922312e2c734ed17dea1924f29ffbf5456bf4eebed694252e269072c1ca9045b",
+  "source_file_sha256": {
+    "__init__.py": "80017c560fced53542df5a4f7bbd2a5392d9930c066211f44263c406b06bdc73",
+    "adapters/__init__.py": "6bd3a94fac0450ed9c8b8d5a9445ca6fbd755216ba5dffa5c618ce78eb10d9c7",
+    "adapters/ocp.py": "27b3de05420c0c243c48d52b5ca546293ae6e62d722f12a033b38991f513cc89",
+    "algebra.py": "1e82fdafb9ccd15aecad5ec2fcc37c00869a4f592afb996f6753f5b5b9a853f4",
+    "arrays.py": "7e07524532e710c171831420b930cf5cd0fec03e52d2b96851ce80eac97109ba",
+    "cli.py": "67182354bbb5984bf003e2ee9471dcecd73ea83db0b0a8e63cef6aac3f7ea55b",
+    "errors.py": "782b8da52663920ff323429082f0352d75fd4945dd7d61e114295b3bb410896e",
+    "fixtures.py": "52154d62dc1a901462d4ce980f2596a9dd3f5a33d92fb6194fb12abc1fa6d322",
+    "metrics.py": "830487e8d5779aabd07cba609ea5958511d92ad700ae026ca7f219da2a36cebc",
+    "models.py": "eee78f2ab5d5cff9bae8e16dbf7ff0327a8ef7dba2fcde78d1171bff31bc659d",
+    "numerics.py": "11697daf2fb19be0fd588da7c7f8cec4eecdd0f0cc8f9ed79cdd147a701e4d8b",
+    "pipeline.py": "3950b19455de6d9285f4da4c179e94363ad2f740f49db3dff54da649b2f49b51",
+    "repair.py": "05393f9fb184e8869e255935e07aad24bf82eef53d4512557616c330c987b16c",
+    "serialization.py": "a64ad760680cc9ec1c80e11d0556b58f796a62949ffe0b21e984d44e69bcc329",
+    "simplicial.py": "36777e51a15cfd32eb70d4bbafdf0aababd0eb79547489c8369b21d565d08ffd",
+    "topology.py": "7cb8b18b89d74fc1ede4c9672465a33bb3e1585290ccadb2bb2cee2cc72de9f4",
+    "visualization.py": "e57671762227cd56a38ae4f8d5ba66a162a3db53b297c0cabf8899afb98751ff"
+  },
+  "regression_cases_passed": 19,
+  "executed_notebook_code_cells": 6,
+  "inference_executed": false,
+  "gpu_used_for_geometry_or_tests": false,
+  "native_cad_tests_executed_for_this_pack": false,
+  "limitations": [
+    "No Gradio hosting or end-user browser latency test.",
+    "Plotly figure data and notebook output generated; interactive frontend not tested here.",
+    "No general mesh self-intersection test; exact reference restoration and supporting-plane construction checked."
+  ]
+}

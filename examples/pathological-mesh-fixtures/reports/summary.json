@@ -1,0 +1,74 @@
+{
+  "00_clean_boss": {
+    "vertices": 256,
+    "edges": 762,
+    "triangles": 508,
+    "betti_F2": [
+      1,
+      0,
+      1
+    ],
+    "boundary_edges": 0,
+    "orientation_conflicts": 0,
+    "nonmanifold_vertices": [],
+    "closed_oriented_2manifold": true
+  },
+  "01_detached_reversed_cap": {
+    "vertices": 320,
+    "edges": 826,
+    "triangles": 508,
+    "betti_F2": [
+      2,
+      0,
+      0
+    ],
+    "boundary_edges": 128,
+    "orientation_conflicts": 0,
+    "nonmanifold_vertices": [],
+    "closed_oriented_2manifold": false
+  },
+  "01_welded_not_oriented": {
+    "vertices": 256,
+    "edges": 762,
+    "triangles": 508,
+    "betti_F2": [
+      1,
+      0,
+      1
+    ],
+    "boundary_edges": 0,
+    "orientation_conflicts": 64,
+    "nonmanifold_vertices": [],
+    "closed_oriented_2manifold": false
+  },
+  "01_repaired_cap": {
+    "vertices": 256,
+    "edges": 762,
+    "triangles": 508,
+    "betti_F2": [
+      1,
+      0,
+      1
+    ],
+    "boundary_edges": 0,
+    "orientation_conflicts": 0,
+    "nonmanifold_vertices": [],
+    "closed_oriented_2manifold": true
+  },
+  "02_pinched_vertex": {
+    "vertices": 511,
+    "edges": 1524,
+    "triangles": 1016,
+    "betti_F2": [
+      1,
+      0,
+      2
+    ],
+    "boundary_edges": 0,
+    "orientation_conflicts": 0,
+    "nonmanifold_vertices": [
+      4
+    ],
+    "closed_oriented_2manifold": false
+  }
+}

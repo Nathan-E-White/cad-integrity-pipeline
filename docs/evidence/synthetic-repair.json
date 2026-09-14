@@ -1,0 +1,96 @@
+{
+  "after": {
+    "boundary_edge_ids": [],
+    "collapsed_edge_ids": [],
+    "duplicate_face_ids": [],
+    "edge_count": 12,
+    "face_count": 6,
+    "geometric_self_intersections_checked": false,
+    "homology": {
+      "coefficients": "F2",
+      "euler_characteristic": 2,
+      "groups": [
+        {
+          "betti": 1,
+          "dimension": 0,
+          "torsion": []
+        },
+        {
+          "betti": 0,
+          "dimension": 1,
+          "torsion": []
+        },
+        {
+          "betti": 1,
+          "dimension": 2,
+          "torsion": []
+        }
+      ]
+    },
+    "homology_unavailable_reason": null,
+    "inconsistent_orientation_edge_ids": [],
+    "invalid_face_ids": [],
+    "nonmanifold_edge_ids": [],
+    "nonmanifold_vertex_ids": [],
+    "unused_edge_ids": [],
+    "unused_vertex_ids": [],
+    "vertex_count": 8
+  },
+  "before": {
+    "boundary_edge_ids": [
+      4,
+      5,
+      6,
+      7,
+      9,
+      12,
+      14,
+      15
+    ],
+    "collapsed_edge_ids": [],
+    "duplicate_face_ids": [],
+    "edge_count": 16,
+    "face_count": 6,
+    "geometric_self_intersections_checked": false,
+    "homology": {
+      "coefficients": "F2",
+      "euler_characteristic": 2,
+      "groups": [
+        {
+          "betti": 2,
+          "dimension": 0,
+          "torsion": []
+        },
+        {
+          "betti": 0,
+          "dimension": 1,
+          "torsion": []
+        },
+        {
+          "betti": 0,
+          "dimension": 2,
+          "torsion": []
+        }
+      ]
+    },
+    "homology_unavailable_reason": null,
+    "inconsistent_orientation_edge_ids": [],
+    "invalid_face_ids": [],
+    "nonmanifold_edge_ids": [],
+    "nonmanifold_vertex_ids": [],
+    "unused_edge_ids": [],
+    "unused_vertex_ids": [],
+    "vertex_count": 12
+  },
+  "changes": [
+    "Merged 4 vertices and 4 straight edges",
+    "Reversed complete loops on 1 faces"
+  ],
+  "decision": "topology_checks_passed",
+  "errors": [],
+  "input_sha256": "587a616c65475b1d93bac7dd7c1b12bb31b13374a79e8b77f24b02bd287c47f8",
+  "length_unit": "mm",
+  "maximum_vertex_displacement": 0.002000000000000668,
+  "schema_version": "1.0",
+  "scope": "polygonal_combinatorial_diagnostics_not_CAD_certification"
+}

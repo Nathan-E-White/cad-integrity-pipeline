@@ -1,0 +1,511 @@
+"""Native STEP audit/repair/export using OCP (Open CASCADE Python bindings).
+
+The native TopoDS shape is authoritative. It is never reconstructed from polygonal
+arrays, mesh vertices, or endpoint chords. Supported repair scope is a single part
+or an existing solid collection: ambiguous shell nesting is refused.
+
+This module is an optional, synchronous adapter. Native parsing/meshing is not a
+security sandbox; deploy it in resource-limited worker processes for untrusted uploads.
+"""
+from __future__ import annotations
+
+import hashlib
+import importlib.metadata
+import logging
+import math
+import os
+import tempfile
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+from threading import RLock
+from typing import Any
+
+import numpy as np
+
+from ..arrays import IntArray, positive, readonly
+from ..errors import (
+    ExportRejected,
+    KernelOperationFailed,
+    MissingOptionalDependency,
+    RepairRejected,
+    ResourceLimitExceeded,
+)
+from ..models import TriangleMesh
+from ..pipeline import StageEvent
+
+try:
+    from OCP.BRep import BRep_Tool
+    from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
+    from OCP.BRepAlgoAPI import BRepAlgoAPI_Check
+    from OCP.BRepBuilderAPI import (
+        BRepBuilderAPI_Copy,
+        BRepBuilderAPI_MakeSolid,
+        BRepBuilderAPI_Sewing,
+    )
+    from OCP.BRepCheck import BRepCheck_Analyzer, BRepCheck_NoError, BRepCheck_Shell
+    from OCP.BRepGProp import BRepGProp
+    from OCP.BRepLib import BRepLib
+    from OCP.BRepMesh import BRepMesh_IncrementalMesh
+    from OCP.GProp import GProp_GProps
+    from OCP.IFSelect import IFSelect_RetDone
+    from OCP.ShapeExtend import ShapeExtend_FAIL
+    from OCP.ShapeFix import ShapeFix_Shape
+    from OCP.STEPControl import STEPControl_AsIs, STEPControl_Reader, STEPControl_Writer
+    from OCP.TColStd import TColStd_SequenceOfAsciiString
+    from OCP.TopAbs import (
+        TopAbs_EDGE,
+        TopAbs_FACE,
+        TopAbs_REVERSED,
+        TopAbs_SHELL,
+        TopAbs_SOLID,
+        TopAbs_VERTEX,
+    )
+    from OCP.TopExp import TopExp, TopExp_Explorer
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.TopoDS import TopoDS, TopoDS_Shape
+    from OCP.TopTools import TopTools_IndexedMapOfShape
+except ImportError as exc:
+    raise MissingOptionalDependency("Install cad-integrity-lab[cad] to use the native STEP adapter") from exc
+
+logger = logging.getLogger(__name__)
+# STEP translator configuration has process-global state in OCCT. This module serializes
+# its own translator operations; it cannot protect unrelated OCP calls made by other code.
+_TRANSLATOR_LOCK = RLock()
+
+
+def _map(shape: TopoDS_Shape, kind: Any) -> Any:
+    result = TopTools_IndexedMapOfShape()
+    TopExp.MapShapes_s(shape, kind, result)
+    return result
+
+
+def _shapes(shape: TopoDS_Shape, kind: Any) -> list[TopoDS_Shape]:
+    mapping = _map(shape, kind)
+    return [mapping.FindKey(i) for i in range(1, mapping.Extent()+1)]
+
+
+def _volume(shape: TopoDS_Shape) -> float:
+    properties = GProp_GProps()
+    BRepGProp.VolumeProperties_s(shape, properties)
+    return float(properties.Mass())
+
+
+def _area(shape: TopoDS_Shape) -> float:
+    properties = GProp_GProps()
+    BRepGProp.SurfaceProperties_s(shape, properties)
+    return float(properties.Mass())
+
+
+@dataclass(frozen=True, slots=True)
+class KernelPolicy:
+    precision_mm: float = 1e-6
+    maximum_tolerance_mm: float = 1e-3
+    expected_solids: int = 1
+    run_self_interference_check: bool = True
+    max_input_bytes: int = 50_000_000
+    max_relative_area_change: float = 1e-4
+    max_relative_volume_change: float = 1e-4
+    allow_face_count_change: bool = False
+
+    def __post_init__(self) -> None:
+        positive(self.precision_mm, "precision_mm")
+        positive(self.maximum_tolerance_mm, "maximum_tolerance_mm")
+        positive(self.max_relative_area_change, "max_relative_area_change", allow_zero=True)
+        positive(self.max_relative_volume_change, "max_relative_volume_change", allow_zero=True)
+        if self.precision_mm > self.maximum_tolerance_mm:
+            raise ValueError("precision_mm cannot exceed maximum_tolerance_mm")
+        if any(isinstance(v, bool) or not isinstance(v, int) or v < 1
+               for v in (self.expected_solids, self.max_input_bytes)):
+            raise ValueError("Expected solid count and input-byte budget must be positive integers")
+
+
+@dataclass(frozen=True, slots=True)
+class StepDocument:
+    shape: TopoDS_Shape  # Native handles are mutable; do not share across worker processes.
+    source: Path
+    source_sha256: str
+    source_unit_names: tuple[str, ...]
+    roots_transferred: int
+    length_unit: str = "mm"
+    import_scope: str = "OCCT_imported_shape_not_unmodified_generator_internal_state"
+
+
+@dataclass(frozen=True, slots=True)
+class KernelReport:
+    kernel_binding_version: str
+    valid_by_brepcheck: bool
+    self_interference_check_passed: bool | None
+    vertex_count: int
+    edge_count: int
+    face_count: int
+    shell_count: int
+    solid_count: int
+    free_edge_ids: tuple[int, ...]
+    nonmanifold_edge_ids: tuple[int, ...]
+    unowned_edge_ids: tuple[int, ...]
+    unowned_vertex_ids: tuple[int, ...]
+    degenerate_edge_count: int
+    shells_closed_and_oriented: bool
+    every_face_belongs_to_solid: bool
+    solid_volumes_mm3: tuple[float, ...]
+    surface_area_mm2: float
+    maximum_entity_tolerance_mm: float
+    surface_types: tuple[tuple[str, int], ...]
+    acceptance_reasons: tuple[str, ...]
+    accepted_under_policy: bool
+    homology: None = None
+    homology_scope: str = "not_computed_for_general_trimmed_native_faces"
+    certification: str = "none_kernel_policy_checks_only"
+
+
+def read_step(path: str | Path, *, max_bytes: int = 50_000_000) -> StepDocument:
+    source = Path(path).expanduser().resolve(strict=True)
+    if not source.is_file() or source.suffix.lower() not in {".step", ".stp"}:
+        raise ValueError("Expected a regular .step or .stp file")
+    if source.stat().st_size > max_bytes:
+        raise ResourceLimitExceeded("STEP input exceeds the configured byte budget")
+    # Hash in bounded chunks rather than duplicating a potentially large upload in RAM.
+    digest = hashlib.sha256()
+    with source.open("rb") as stream:
+        while chunk := stream.read(1 << 20):
+            digest.update(chunk)
+    with _TRANSLATOR_LOCK:
+        reader = STEPControl_Reader()
+        if reader.ReadFile(str(source)) != IFSelect_RetDone:
+            raise KernelOperationFailed(f"OCCT could not read STEP input {source.name}")
+        length = TColStd_SequenceOfAsciiString()
+        angle = TColStd_SequenceOfAsciiString()
+        solid_angle = TColStd_SequenceOfAsciiString()
+        reader.FileUnits(length, angle, solid_angle)
+        units = tuple(length.Value(i).ToCString() for i in range(1, length.Length()+1))
+        # OCCT's system-length unit is expressed in millimetres. Normalize to mm.
+        reader.SetSystemLengthUnit(1.0)
+        expected_roots = reader.NbRootsForTransfer()
+        transferred = int(reader.TransferRoots())
+        if expected_roots < 1 or transferred != expected_roots or reader.NbShapes() < 1:
+            raise KernelOperationFailed("STEP transfer was empty or incomplete")
+        shape = reader.OneShape()
+        if shape.IsNull():
+            raise KernelOperationFailed("STEP transfer produced a null shape")
+    return StepDocument(shape, source, digest.hexdigest(), units, transferred)
+
+
+def audit_shape(shape: TopoDS_Shape, policy: KernelPolicy = KernelPolicy()) -> KernelReport:
+    if shape.IsNull():
+        raise KernelOperationFailed("Cannot audit a null shape")
+    vertices = _map(shape, TopAbs_VERTEX)
+    edges = _map(shape, TopAbs_EDGE)
+    faces = _shapes(shape, TopAbs_FACE)
+    shells = _shapes(shape, TopAbs_SHELL)
+    solids = _shapes(shape, TopAbs_SOLID)
+    counts = np.zeros(edges.Extent(), dtype=np.int64)
+    on_faces_vertices: set[int] = set()
+    types: dict[str, int] = {}
+    tolerances = []
+    for face_shape in faces:
+        face = TopoDS.Face_s(face_shape)
+        name = BRepAdaptor_Surface(face).GetType().name
+        types[name] = types.get(name, 0)+1
+        tolerances.append(float(BRep_Tool.Tolerance_s(face)))
+        # Count oriented occurrences, NOT distinct face neighbors. A seam can appear
+        # twice on the SAME periodic face and is not necessarily a free boundary.
+        explorer = TopExp_Explorer(face, TopAbs_EDGE)
+        while explorer.More():
+            edge_id = edges.FindIndex(explorer.Current())-1
+            if edge_id < 0:
+                raise KernelOperationFailed("Inconsistent native edge index map")
+            counts[edge_id] += 1
+            explorer.Next()
+        for vertex in _shapes(face, TopAbs_VERTEX):
+            on_faces_vertices.add(vertices.FindIndex(vertex)-1)
+    degenerated: set[int] = set()
+    for i in range(edges.Extent()):
+        edge = TopoDS.Edge_s(edges.FindKey(i+1))
+        tolerances.append(float(BRep_Tool.Tolerance_s(edge)))
+        if BRep_Tool.Degenerated_s(edge):
+            degenerated.add(i)
+    for i in range(vertices.Extent()):
+        tolerances.append(float(BRep_Tool.Tolerance_s(TopoDS.Vertex_s(vertices.FindKey(i+1)))))
+    max_tolerance = max(tolerances, default=0.0)
+    closed_oriented = bool(shells)
+    for shell in shells:
+        check = BRepCheck_Shell(TopoDS.Shell_s(shell))
+        if check.Closed() != BRepCheck_NoError or check.Orientation() != BRepCheck_NoError:
+            closed_oriented = False
+    solid_faces = TopTools_IndexedMapOfShape()
+    for solid in solids:
+        TopExp.MapShapes_s(solid, TopAbs_FACE, solid_faces)
+    all_faces_owned = bool(faces) and all(solid_faces.Contains(face) for face in faces)
+    checker = BRepCheck_Analyzer(shape, True)
+    checker.SetExactMethod(True)
+    valid = bool(checker.IsValid())
+    interference = (bool(BRepAlgoAPI_Check(shape, True, True).IsValid())
+                    if policy.run_self_interference_check else None)
+    free = tuple(i for i, count in enumerate(counts) if count == 1 and i not in degenerated)
+    multiple = tuple(i for i, count in enumerate(counts) if count > 2 and i not in degenerated)
+    unowned = tuple(int(i) for i in np.flatnonzero(counts == 0))
+    unowned_vertices = tuple(sorted(set(range(vertices.Extent()))-on_faces_vertices))
+    volumes = tuple(_volume(solid) for solid in solids)
+    area = _area(shape)
+    reasons = []
+    if not valid:
+        reasons.append("BRepCheck reported an invalid shape")
+    if interference is not True:
+        reasons.append("Self-interference/Boolean suitability check failed or was not run")
+    if len(solids) != policy.expected_solids:
+        reasons.append(f"Expected {policy.expected_solids} solid(s), found {len(solids)}")
+    if not closed_oriented:
+        reasons.append("Not every shell is closed and coherently oriented")
+    if not all_faces_owned:
+        reasons.append("Some faces do not belong to a solid")
+    if free or multiple or unowned or unowned_vertices:
+        reasons.append("Free, nonmanifold, or unowned topology remains")
+    if not volumes or any(not math.isfinite(v) or v <= 0 for v in volumes):
+        reasons.append("Each accepted solid must have finite positive signed volume")
+    if not math.isfinite(area) or area <= 0:
+        reasons.append("Surface area is nonpositive or nonfinite")
+    if not math.isfinite(max_tolerance) or max_tolerance > policy.maximum_tolerance_mm:
+        reasons.append("Entity tolerance exceeds the configured millimetre budget")
+    return KernelReport(importlib.metadata.version("cadquery-ocp"), valid, interference,
+                        vertices.Extent(), edges.Extent(), len(faces), len(shells), len(solids),
+                        free, multiple, unowned, unowned_vertices, len(degenerated), closed_oriented,
+                        all_faces_owned, volumes, area, max_tolerance, tuple(sorted(types.items())),
+                        tuple(reasons), not reasons)
+
+
+@dataclass(frozen=True, slots=True)
+class NativeRepairResult:
+    candidate: TopoDS_Shape
+    before: KernelReport
+    after: KernelReport
+    operations: tuple[str, ...]
+    geometry_fidelity_certified: bool = False
+
+
+def repair_shape(shape: TopoDS_Shape, policy: KernelPolicy = KernelPolicy(),
+                 *, on_event: Callable[[StageEvent], None] | None = None) -> NativeRepairResult:
+    def event(stage: str, message: str) -> None:
+        logger.info("%s: %s", stage, message)
+        if on_event:
+            on_event(StageEvent(stage, message))
+
+    before = audit_shape(shape, policy)
+    if before.unowned_edge_ids or before.unowned_vertex_ids:
+        raise RepairRejected("Input contains unowned edges or vertices; refusing to discard them")
+    # Copy native topology AND geometry before any mutating healing tool.
+    candidate = BRepBuilderAPI_Copy(shape, True, False).Shape()
+    if before.accepted_under_policy:
+        return NativeRepairResult(candidate, before, audit_shape(candidate, policy), ("No repair needed",))
+    event("shape_fix", "Applying bounded OCCT ShapeFix to a private copy")
+    fixer = ShapeFix_Shape(candidate)
+    fixer.SetPrecision(policy.precision_mm)
+    fixer.SetMinTolerance(min(policy.precision_mm, 1e-7))
+    fixer.SetMaxTolerance(policy.maximum_tolerance_mm)
+    fixer.Perform()
+    if fixer.Status(ShapeExtend_FAIL):
+        raise RepairRejected("OCCT ShapeFix reported a repair failure")
+    candidate = fixer.Shape()
+    operations = ["ShapeFix_Shape on copied native geometry"]
+    # Do not flatten an existing multi-shell solid: its inner shell may be a cavity.
+    # Global sewing of existing solids could also merge distinct assembly members.
+    if not _shapes(candidate, TopAbs_SOLID):
+        event("sew", "Sewing native face boundaries without replacing analytic surfaces")
+        sewing = BRepBuilderAPI_Sewing(policy.precision_mm, True, True, True, False)
+        sewing.SetMaxTolerance(policy.maximum_tolerance_mm)
+        sewing.Add(candidate)
+        sewing.Perform()
+        candidate = sewing.SewedShape()
+        if candidate.IsNull():
+            raise RepairRejected("Sewing produced no candidate shape")
+        operations.append("BRepBuilderAPI_Sewing; nonmanifold mode disabled")
+        shells = _shapes(candidate, TopAbs_SHELL)
+        if len(shells) != 1:
+            raise RepairRejected("Refusing automatic solid construction: shell grouping/nesting is ambiguous")
+        shell = TopoDS.Shell_s(shells[0])
+        if not BRep_Tool.IsClosed_s(shell):
+            raise RepairRejected("Shell remains open; no automatic hole filling is authorized")
+        shell_faces = _map(shell, TopAbs_FACE)
+        all_faces = _shapes(candidate, TopAbs_FACE)
+        if not all(shell_faces.Contains(face) for face in all_faces):
+            raise RepairRejected("Sewing left detached faces; refusing to discard them")
+        maker = BRepBuilderAPI_MakeSolid(shell)
+        if not maker.IsDone():
+            raise RepairRejected("Closed-shell solid construction failed")
+        solid = maker.Solid()
+        if not BRepLib.OrientClosedSolid_s(solid):
+            raise RepairRejected("Cannot establish a valid material orientation")
+        candidate = solid
+        operations.append("One closed shell converted to an oriented solid")
+    after = audit_shape(candidate, policy)
+    if not policy.allow_face_count_change and after.face_count != before.face_count:
+        raise RepairRejected("Face count changed; explicit review is required")
+    if before.surface_area_mm2 > 0:
+        area_change = abs(after.surface_area_mm2/before.surface_area_mm2-1)
+        if area_change > policy.max_relative_area_change:
+            raise RepairRejected("Surface-area change exceeds policy (not a surface-distance proof)")
+    if before.solid_volumes_mm3 and all(v > 0 for v in before.solid_volumes_mm3):
+        volume_before = sum(before.solid_volumes_mm3)
+        change = abs(sum(after.solid_volumes_mm3)/volume_before-1)
+        if change > policy.max_relative_volume_change:
+            raise RepairRejected("Volume change exceeds policy")
+    if not after.accepted_under_policy:
+        raise RepairRejected("Candidate failed kernel policy: " + "; ".join(after.acceptance_reasons))
+    return NativeRepairResult(candidate, before, after, tuple(operations))
+
+
+def _write_native(shape: TopoDS_Shape, path: Path) -> None:
+    with _TRANSLATOR_LOCK:
+        writer = STEPControl_Writer()
+        model = writer.Model()
+        model.SetLocalLengthUnit(1.0)
+        model.SetWriteLengthUnit(1.0)
+        if writer.Transfer(shape, STEPControl_AsIs) != IFSelect_RetDone:
+            raise KernelOperationFailed("STEP writer could not transfer the shape")
+        if writer.Write(str(path)) != IFSelect_RetDone or path.stat().st_size == 0:
+            raise KernelOperationFailed("STEP writer failed to create a nonempty file")
+
+
+@dataclass(frozen=True, slots=True)
+class ExportReport:
+    output: Path
+    output_sha256: str
+    before_serialization: KernelReport
+    after_roundtrip: KernelReport
+    label: str = "STEP_passed_configured_kernel_checks_not_engineering_certification"
+
+
+def export_checked_step(shape: TopoDS_Shape, destination: str | Path,
+                        policy: KernelPolicy = KernelPolicy(), *, overwrite: bool = False) -> ExportReport:
+    """Audit -> temporary STEP -> read back -> audit -> atomic publish.
+
+    No native export from tessellated arrays. No target is published on validation
+    failure. The source and any prior destination are preserved by default.
+    """
+    target = Path(destination).expanduser().resolve()
+    if target.suffix.lower() not in {".step", ".stp"}:
+        raise ValueError("STEP destination needs .step or .stp extension")
+    if not target.parent.is_dir():
+        raise FileNotFoundError(target.parent)
+    if target.exists() and not overwrite:
+        raise FileExistsError(target)
+    before = audit_shape(shape, policy)
+    if not before.accepted_under_policy:
+        raise ExportRejected("Export gate: " + "; ".join(before.acceptance_reasons))
+    fd, temporary_name = tempfile.mkstemp(prefix=".cad-integrity-", suffix=".step", dir=target.parent)
+    os.close(fd)
+    temporary = Path(temporary_name)
+    try:
+        _write_native(shape, temporary)
+        # Re-use the byte-budget check for the generated file as well.
+        reread = read_step(temporary, max_bytes=policy.max_input_bytes)
+        after = audit_shape(reread.shape, policy)
+        if not after.accepted_under_policy:
+            raise ExportRejected("STEP round trip failed: " + "; ".join(after.acceptance_reasons))
+        if (before.solid_count != after.solid_count or before.face_count != after.face_count
+                or before.surface_types != after.surface_types):
+            raise ExportRejected("STEP round trip changed solid/face counts or analytic surface types")
+        if not math.isclose(before.surface_area_mm2, after.surface_area_mm2, rel_tol=1e-7, abs_tol=1e-10):
+            raise ExportRejected("STEP round trip changed measured surface area")
+        if not math.isclose(sum(before.solid_volumes_mm3), sum(after.solid_volumes_mm3),
+                            rel_tol=1e-7, abs_tol=1e-10):
+            raise ExportRejected("STEP round trip changed measured solid volume")
+        with temporary.open("rb") as stream:
+            os.fsync(stream.fileno())
+        if overwrite:
+            os.replace(temporary, target)
+        else:
+            # Hard-link creation is atomic and refuses an existing destination, even
+            # when another caller creates it after the initial exists() check.
+            os.link(temporary, target)
+            temporary.unlink()
+        return ExportReport(target, reread.source_sha256, before, after)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def run_step_pipeline(source: str | Path, destination: str | Path,
+                      policy: KernelPolicy = KernelPolicy(), *, repair: bool = True,
+                      on_event: Callable[[StageEvent], None] | None = None) -> dict[str, Any]:
+    """Local STEP entry point; report sidecars are explicit caller-owned outputs."""
+    if Path(source).resolve() == Path(destination).resolve():
+        raise ValueError("Input and output must differ; this pipeline never overwrites the source")
+    document = read_step(source, max_bytes=policy.max_input_bytes)
+    if repair:
+        candidate = repair_shape(document.shape, policy, on_event=on_event)
+        exported = export_checked_step(candidate.candidate, destination, policy)
+        before, operations = candidate.before, candidate.operations
+    else:
+        before = audit_shape(document.shape, policy)
+        operations = ("Repair disabled",)
+        exported = export_checked_step(document.shape, destination, policy)
+    return {"schema_version": "1.0", "source_sha256": document.source_sha256,
+            "source_unit_names": document.source_unit_names, "normalized_length_unit": "mm",
+            "import_scope": document.import_scope, "policy": policy,
+            "before": before, "operations": operations, "export": exported,
+            "limitations": ("No manufacturing/structural certification", "No CAD feature-history reconstruction",
+                            "No native Betti numbers inferred by treating trimmed faces as disks",
+                            "Area/volume checks are not a continuous surface-fidelity bound")}
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class FaceTessellation:
+    mesh: TriangleMesh
+    triangle_face_ids: IntArray
+    scope: str = "display_only_vertices_are_duplicated_across_native_faces"
+
+
+def tessellate_for_display(shape: TopoDS_Shape, *, linear_deflection_mm: float = 0.05,
+                           angular_deflection: float = 0.3, max_triangles: int = 1_000_000
+                           ) -> FaceTessellation:
+    positive(linear_deflection_mm, "linear_deflection_mm")
+    positive(angular_deflection, "angular_deflection")
+    # Meshing caches triangulations on native shapes. Copy first to avoid mutation.
+    copy = BRepBuilderAPI_Copy(shape, True, False).Shape()
+    mesher = BRepMesh_IncrementalMesh(copy, linear_deflection_mm, False, angular_deflection, False)
+    if not mesher.IsDone():
+        raise KernelOperationFailed("Native display tessellation failed")
+    vertices: list[tuple[float, float, float]] = []
+    triangles: list[tuple[int, int, int]] = []
+    face_ids: list[int] = []
+    for face_id, face_shape in enumerate(_shapes(copy, TopAbs_FACE)):
+        face = TopoDS.Face_s(face_shape)
+        location = TopLoc_Location()
+        triangulation = BRep_Tool.Triangulation_s(face, location)
+        if triangulation is None:
+            raise KernelOperationFailed(f"Face {face_id} has no triangulation")
+        if len(triangles)+triangulation.NbTriangles() > max_triangles:
+            raise ResourceLimitExceeded("Display tessellation exceeds the triangle budget")
+        offset = len(vertices)
+        transform = location.Transformation()
+        for node in range(1, triangulation.NbNodes()+1):
+            point = triangulation.Node(node).Transformed(transform)
+            vertices.append((point.X(), point.Y(), point.Z()))
+        for cell in range(1, triangulation.NbTriangles()+1):
+            ids = [int(i)-1+offset for i in triangulation.Triangle(cell).Get()]
+            if face.Orientation() == TopAbs_REVERSED:
+                ids[1], ids[2] = ids[2], ids[1]
+            triangles.append((ids[0], ids[1], ids[2]))
+            face_ids.append(face_id)
+    mesh = TriangleMesh(np.asarray(vertices, dtype=float).reshape(-1, 3),
+                        np.asarray(triangles, dtype=np.int64).reshape(-1, 3), "mm")
+    return FaceTessellation(mesh, readonly(np.asarray(face_ids, dtype=np.int64)))
+
+
+def sample_edge_polylines(shape: TopoDS_Shape, edge_ids: tuple[int, ...], *, samples: int = 32
+                          ) -> tuple[np.ndarray[Any, Any], ...]:
+    """Local report edge IDs -> 3-D curve samples for defect overlays, not vertex IDs."""
+    if samples < 2:
+        raise ValueError("Need at least two samples per edge")
+    edges = _map(shape, TopAbs_EDGE)
+    lines = []
+    for edge_id in edge_ids:
+        if not 0 <= edge_id < edges.Extent():
+            raise IndexError(edge_id)
+        curve = BRepAdaptor_Curve(TopoDS.Edge_s(edges.FindKey(edge_id+1)))
+        lo, hi = curve.FirstParameter(), curve.LastParameter()
+        if not math.isfinite(lo) or not math.isfinite(hi):
+            raise KernelOperationFailed("Cannot sample an unbounded native edge")
+        points = [curve.Value(float(t)) for t in np.linspace(lo, hi, samples)]
+        lines.append(np.array([(p.X(), p.Y(), p.Z()) for p in points], dtype=float))
+    return tuple(lines)

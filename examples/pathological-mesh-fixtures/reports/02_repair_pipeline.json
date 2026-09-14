@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "input_sha256": "dffb9f011d04e07fe63a7d650367dc00d44d79250eec22d1be6fec4c1b1af31f",
+  "before": {
+    "vertex_count": 511,
+    "edge_count": 1524,
+    "face_count": 1016,
+    "boundary_edge_ids": [],
+    "nonmanifold_edge_ids": [],
+    "inconsistent_orientation_edge_ids": [],
+    "nonmanifold_vertex_ids": [
+      4
+    ],
+    "unused_vertex_ids": [],
+    "unused_edge_ids": [],
+    "invalid_face_ids": [],
+    "duplicate_face_ids": [],
+    "collapsed_edge_ids": [],
+    "homology": {
+      "coefficients": "F2",
+      "groups": [
+        {
+          "dimension": 0,
+          "betti": 1,
+          "torsion": []
+        },
+        {
+          "dimension": 1,
+          "betti": 0,
+          "torsion": []
+        },
+        {
+          "dimension": 2,
+          "betti": 2,
+          "torsion": []
+        }
+      ],
+      "euler_characteristic": 3
+    },
+    "homology_unavailable_reason": null,
+    "geometric_self_intersections_checked": false
+  },
+  "after": null,
+  "decision": "rejected",
+  "changes": [],
+  "maximum_vertex_displacement": 0.0,
+  "length_unit": "mm",
+  "errors": [
+    "Resolve invalid/duplicate/collapsed or nonmanifold input cells before welding"
+  ],
+  "scope": "polygonal_combinatorial_diagnostics_not_CAD_certification"
+}

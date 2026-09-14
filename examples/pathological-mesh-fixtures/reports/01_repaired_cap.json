@@ -1,0 +1,56 @@
+{
+  "vertex_count": 256,
+  "edge_count": 762,
+  "face_count": 508,
+  "boundary_edge_ids": [],
+  "nonmanifold_edge_ids": [],
+  "inconsistent_orientation_edge_ids": [],
+  "nonmanifold_vertex_ids": [],
+  "unused_vertex_ids": [],
+  "unused_edge_ids": [],
+  "invalid_face_ids": [],
+  "duplicate_face_ids": [],
+  "collapsed_edge_ids": [],
+  "homology": {
+    "coefficients": "F2",
+    "groups": [
+      {
+        "dimension": 0,
+        "betti": 1,
+        "torsion": []
+      },
+      {
+        "dimension": 1,
+        "betti": 0,
+        "torsion": []
+      },
+      {
+        "dimension": 2,
+        "betti": 1,
+        "torsion": []
+      }
+    ],
+    "euler_characteristic": 2,
+    "betti_numbers": [
+      1,
+      0,
+      1
+    ]
+  },
+  "homology_unavailable_reason": null,
+  "geometric_self_intersections_checked": false,
+  "is_closed_oriented_2manifold": true,
+  "counts": {
+    "boundary_edge": 0,
+    "nonmanifold_edge": 0,
+    "inconsistent_orientation_edge": 0,
+    "nonmanifold_vertex": 0,
+    "unused_vertex": 0,
+    "unused_edge": 0,
+    "invalid_face": 0,
+    "duplicate_face": 0,
+    "collapsed_edge": 0
+  },
+  "length_unit": "mm",
+  "scope": "combinatorial_diagnostics_not_native_CAD_or_engineering_certification"
+}

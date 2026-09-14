@@ -1,0 +1,23 @@
+[
+  {
+    "id": "P1-detached-cap",
+    "status": "planned_not_generated",
+    "parent": "V1-round-boss",
+    "origin": "deliberate fault injection, not an observed GenCAD defect",
+    "precondition": "Audited, coherently oriented, closed manifold working mesh; recorded import policy.",
+    "recipe": "Select a disk-like surface patch; duplicate its boundary vertex indices; translate the entire patch outward by delta; reverse all its triangles. Record patch IDs and transformations.",
+    "suggested_delta": "1e-3 times the baseline bounding-box diagonal, provided this is small relative to local features",
+    "expected_behavior": "Detect the disconnected/open patch. Test candidate stitching and orientation only under explicit correspondence and displacement budgets. Refuse if ambiguity or geometry checks fail.",
+    "note": "The patch still exists: this is not missing-surface reconstruction. Success has not been measured."
+  },
+  {
+    "id": "P2-pinched-double-boss",
+    "status": "planned_not_generated",
+    "parent": "V1-round-boss",
+    "origin": "deliberate fault injection, not an observed GenCAD defect",
+    "precondition": "Audited closed manifold working mesh, plus a vertex p that uniquely maximizes n dot x for some direction n.",
+    "recipe": "Duplicate the mesh using x'=2*p-x, reverse the copy's triangle winding, and identify only the two copies of p as one shared vertex. Unique support guarantees the copies meet only at p.",
+    "expected_behavior": "Edge-incidence tests alone pass, but the link of the shared vertex has two components. Report nonmanifold; do not accept as one manifold boundary.",
+    "note": "Separating topological vertex IDs does not remove geometric point contact. Choosing two solids versus a physical connection requires an explicit policy."
+  }
+]

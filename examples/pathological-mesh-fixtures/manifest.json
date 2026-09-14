@@ -1,0 +1,172 @@
+{
+  "schema_version": "1.0",
+  "kind": "synthetic_mesh_fixture_pack",
+  "length_units": {
+    "npz": "mm",
+    "obj": "mm",
+    "glb": "m"
+  },
+  "all_fixtures_prebuilt": true,
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 8421,
+      "sha256": "0d34f24629cc075d3a92f7137f51b7bce09a9f934b46849cf085438faf4bbc7d"
+    },
+    {
+      "path": "case_fixtures.py",
+      "bytes": 4509,
+      "sha256": "2bea83dd88268d8bbdaf8c630e3754c4fff8c137865046d88ba948b0aeb3c104"
+    },
+    {
+      "path": "meshes/00_clean_boss.glb",
+      "bytes": 10256,
+      "sha256": "98a74c1370d998dc08bfd6afc9450da4916bc7bbb2de0c162cf0615d4f402b6c"
+    },
+    {
+      "path": "meshes/00_clean_boss.npz",
+      "bytes": 3927,
+      "sha256": "a18a1ec7c7f5b1f39c9651bee08d17adeb0c192ca21d6faa8699f04fee62cbe5"
+    },
+    {
+      "path": "meshes/00_clean_boss.obj",
+      "bytes": 17306,
+      "sha256": "ef499b7938cb7780fbb8870fd2f1151cae44028be5b479191e0dc1bff34f5650"
+    },
+    {
+      "path": "meshes/01_detached_reversed_cap.glb",
+      "bytes": 11044,
+      "sha256": "712f657d47e16604129cb6fe2179b65b659a77c76796da000b65dae237b595b0"
+    },
+    {
+      "path": "meshes/01_detached_reversed_cap.npz",
+      "bytes": 4161,
+      "sha256": "ffb234a25748b02e12a5836f8034f02c53c957fbf26ebe07ae01f1787bb54c0c"
+    },
+    {
+      "path": "meshes/01_detached_reversed_cap.obj",
+      "bytes": 21013,
+      "sha256": "0ee1576b45c578bf589a1c63e85be2b6e257eb319fa66f1dc35b2c15bad832b4"
+    },
+    {
+      "path": "meshes/01_repaired_cap.glb",
+      "bytes": 10260,
+      "sha256": "ee77bd38607049c46a5b0e919b2badf5b82c1f3a1e15cb7b815471fb2333881e"
+    },
+    {
+      "path": "meshes/01_repaired_cap.npz",
+      "bytes": 3942,
+      "sha256": "5ade8da8900e14634536e4d05aa505399dbb36f8554fddc5052222c3ebd87084"
+    },
+    {
+      "path": "meshes/01_repaired_cap.obj",
+      "bytes": 17308,
+      "sha256": "01ff49b6907492917b38044c99bb4827da4d94a1bed3c6725e9d526698c67bcd"
+    },
+    {
+      "path": "meshes/01_welded_not_oriented.glb",
+      "bytes": 10272,
+      "sha256": "dc90d1d6374e0b50eeb945b259ee257a152a9b2d8764e613995c8072e48904d3"
+    },
+    {
+      "path": "meshes/01_welded_not_oriented.npz",
+      "bytes": 3947,
+      "sha256": "aed5e45a60f8c2ff57ead7a8e41296e41828347fa55e6d3817328dd9b61bb50d"
+    },
+    {
+      "path": "meshes/01_welded_not_oriented.obj",
+      "bytes": 17315,
+      "sha256": "a82ffab343c4e7d7aa73a70e5762f3589f25a64c59cadf39ab3d7e8e78aa8ccc"
+    },
+    {
+      "path": "meshes/02_pinched_vertex.glb",
+      "bytes": 19436,
+      "sha256": "f875e0b61624010d7108c0bf599aa0d708472eb23085020ce877aa73540f6ae7"
+    },
+    {
+      "path": "meshes/02_pinched_vertex.npz",
+      "bytes": 7659,
+      "sha256": "90a11ca834c6da2cdf0efd7f0efed7e0ad078747a5f0e44310a37b8250ee4205"
+    },
+    {
+      "path": "meshes/02_pinched_vertex.obj",
+      "bytes": 35308,
+      "sha256": "da0bf037aa6b40a268e37a698cf54a939641c88e6c197067aaac97749db1d586"
+    },
+    {
+      "path": "pathological_cases.ipynb",
+      "bytes": 173701,
+      "sha256": "2756098e8a09dec8095c2671fc373055f4e66b6bccadd1b0e2ea1edbf28b212c"
+    },
+    {
+      "path": "provenance/construction.json",
+      "bytes": 3374,
+      "sha256": "8e446fcf20a0d77ae274686f2444b2fb45af4ac5374cda10c7a15efcf80f97b3"
+    },
+    {
+      "path": "provenance/environment.json",
+      "bytes": 2608,
+      "sha256": "c307e2bea7e8945439947525d9082a2a54c3f6f6020f696432b0cf0ea67d9052"
+    },
+    {
+      "path": "reports/00_clean_boss.json",
+      "bytes": 1230,
+      "sha256": "ea22ec857172afd0c6d7184bf6b722fdaf762a5a3c28d49bfb740f890e5362db"
+    },
+    {
+      "path": "reports/01_detached_reversed_cap.json",
+      "bytes": 2387,
+      "sha256": "331222d01335f308af6fcdc182ccc3f6f1c41f341859592d935b62a0fb550221"
+    },
+    {
+      "path": "reports/01_repair_pipeline.json",
+      "bytes": 3552,
+      "sha256": "2ccd16e8fb0be93c9489750b69d30098db643d8d11edd744aaba5784dae53886"
+    },
+    {
+      "path": "reports/01_repaired_cap.json",
+      "bytes": 1230,
+      "sha256": "ea22ec857172afd0c6d7184bf6b722fdaf762a5a3c28d49bfb740f890e5362db"
+    },
+    {
+      "path": "reports/01_welded_not_oriented.json",
+      "bytes": 1810,
+      "sha256": "232c9cc4927d4a79c7c75094cd51d98e9d4d76c022bc6b0bcaf101aaea066a76"
+    },
+    {
+      "path": "reports/02_pinched_vertex.json",
+      "bytes": 1242,
+      "sha256": "549577a564f30acb84ea66063bcdde2c19c6b1efa541bdb33850b97aa66f32c1"
+    },
+    {
+      "path": "reports/02_repair_pipeline.json",
+      "bytes": 1282,
+      "sha256": "b580165ef7d60c37c8bb34c376a06c42f7e8aa39dca70588e9505b98d198411e"
+    },
+    {
+      "path": "reports/summary.json",
+      "bytes": 1375,
+      "sha256": "0900461547df803850f3db1848d9717998e6559c7cb9a874ad52567b8f22c9d2"
+    },
+    {
+      "path": "reports/test-run.txt",
+      "bytes": 99,
+      "sha256": "24457c95efde0c371a902ec2032529c3fbd5bc08e3bff1050337c829b2022edb"
+    },
+    {
+      "path": "reports/tests.xml",
+      "bytes": 2302,
+      "sha256": "b6a2e1a204defd0770b4cfb00e065696f2ac86be08c8a1194191eb6ea51f4718"
+    },
+    {
+      "path": "tools/build_fixtures.py",
+      "bytes": 11644,
+      "sha256": "7bf8564467091a914924cb180cb0eacd95f75fbe10a3c900c8c7c331f88eddf3"
+    },
+    {
+      "path": "tools/test_fixtures.py",
+      "bytes": 4820,
+      "sha256": "82fdefc8ba984e2e717bbed58c19888f16eeceeae000ce4b00cfd7f79da4df05"
+    }
+  ]
+}

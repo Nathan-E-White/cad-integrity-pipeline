@@ -1,0 +1,160 @@
+{
+  "source_project": "GenCAD",
+  "authors": [
+    "Md Ferdous Alam",
+    "Faez Ahmed"
+  ],
+  "source_site": "https://gencad.github.io/",
+  "source_commit": "cc789e32e0831df4e15ff271fb0a0ffcfb54ef03",
+  "representation": "author-published visualization meshes, not native STEP or raw inference tensors",
+  "audit_status": "not_run",
+  "units": "physical engineering dimensions not established",
+  "license_note": "Upstream README declares website CC BY-SA 4.0. Retain attribution and confirm scope for mesh reuse before public hosting.",
+  "cases": [
+    {
+      "id": "V1-round-boss",
+      "category": "vanilla",
+      "title": "Round base with cylindrical boss",
+      "assets": [
+        {
+          "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/static/images/sample_diversity_2.png",
+          "source_path": "static/images/sample_diversity_2.png",
+          "local_path": "V1-round-boss/input.png",
+          "size_bytes": 5559,
+          "sha256": "8352991a7a0e734384b5a7c294d7ce049711402b9a76015c0671c2751b39d1a0",
+          "git_blob_sha1": "82a4b999e4192c14f3f221885adcc46fae2447c7",
+          "modified": false
+        },
+        {
+          "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/static/mesh/sample_diversity_2_1.glb",
+          "source_path": "static/mesh/sample_diversity_2_1.glb",
+          "local_path": "V1-round-boss/published/sample_diversity_2_1.glb",
+          "size_bytes": 12304,
+          "sha256": "a97ff50bd4676c1e462182ec8d649420937c40b04066595e0c8358271f7129b8",
+          "git_blob_sha1": "c96c7d0d8a06d4def66a84d2ad31b0a2d63ddd8f",
+          "modified": false
+        },
+        {
+          "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/static/mesh/sample_diversity_2_2.glb",
+          "source_path": "static/mesh/sample_diversity_2_2.glb",
+          "local_path": "V1-round-boss/published/sample_diversity_2_2.glb",
+          "size_bytes": 12404,
+          "sha256": "29be57dbe099d09156d27470ad57adfa1ff8a606ff4bfce7a0f1ef487bc5ea6f",
+          "git_blob_sha1": "2284acbe36a302c081fb31f8a846fc920be4a3f2",
+          "modified": false
+        },
+        {
+          "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/static/mesh/sample_diversity_2_3.glb",
+          "source_path": "static/mesh/sample_diversity_2_3.glb",
+          "local_path": "V1-round-boss/published/sample_diversity_2_3.glb",
+          "size_bytes": 5788,
+          "sha256": "08de1afe17eb47f84853d47da79a2160c36e950367bc057ff2091b04231d3dcb",
+          "git_blob_sha1": "e438e35c8eba0459800cf6163574b4e7b8ebc104",
+          "modified": false
+        }
+      ]
+    },
+    {
+      "id": "V2-hex-spacer",
+      "category": "vanilla",
+      "title": "Hexagonal spacer with central bore",
+      "assets": [
+        {
+          "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/static/images/sample_diversity_1.png",
+          "source_path": "static/images/sample_diversity_1.png",
+          "local_path": "V2-hex-spacer/input.png",
+          "size_bytes": 4151,
+          "sha256": "a35732db0b6ae298d8cf4a37570b0c6f72bce5a393db029fe5c3695b3c89c89a",
+          "git_blob_sha1": "4704d9ec1a2a1b84796efb921ba5db60bf0c8d24",
+          "modified": false
+        },
+        {
+          "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/static/mesh/sample_diversity_1_1.glb",
+          "source_path": "static/mesh/sample_diversity_1_1.glb",
+          "local_path": "V2-hex-spacer/published/sample_diversity_1_1.glb",
+          "size_bytes": 4500,
+          "sha256": "66e8adca32d7e576ba00f4fae5db1022a84119801141f1aa921f8172fddd7705",
+          "git_blob_sha1": "b0ccefdc67096988b64a12a96b5aeaa181875382",
+          "modified": false
+        },
+        {
+          "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/static/mesh/sample_diversity_1_2.glb",
+          "source_path": "static/mesh/sample_diversity_1_2.glb",
+          "local_path": "V2-hex-spacer/published/sample_diversity_1_2.glb",
+          "size_bytes": 5172,
+          "sha256": "7cdec0cd73f78f5ea4ad7e869e5f203ae7d7351eb718780c7b2a683f4ac4f6c5",
+          "git_blob_sha1": "8f7359a1c9c55552bbf86fdb6305a307ae18bd31",
+          "modified": false
+        },
+        {
+          "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/static/mesh/sample_diversity_1_3.glb",
+          "source_path": "static/mesh/sample_diversity_1_3.glb",
+          "local_path": "V2-hex-spacer/published/sample_diversity_1_3.glb",
+          "size_bytes": 6340,
+          "sha256": "65a5154c86cc1b393e05eee4b211b569b4a00d0f9871ff9352dada0ed5d35225",
+          "git_blob_sha1": "049d3a3e265f0cc6dc42b30fff58322b9a2a491f",
+          "modified": false
+        }
+      ]
+    },
+    {
+      "id": "N1-slotted-flange",
+      "category": "neat",
+      "title": "Slotted annular part with thin flange",
+      "assets": [
+        {
+          "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/static/images/386.png",
+          "source_path": "static/images/386.png",
+          "local_path": "N1-slotted-flange/input.png",
+          "size_bytes": 6495,
+          "sha256": "a333f8a94355c3bf91fe6dce87ac24166be962d59da3006e1d1aa36007f6ab31",
+          "git_blob_sha1": "b8a34ac6b895fa393eb116c59f0d3ff2ec9b6c68",
+          "modified": false
+        },
+        {
+          "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/static/mesh/386.glb",
+          "source_path": "static/mesh/386.glb",
+          "local_path": "N1-slotted-flange/published/386.glb",
+          "size_bytes": 18224,
+          "sha256": "a33a2c4917a05340c33a77fee953436edee6b8cd78cf9807ffd94cfc4947e128",
+          "git_blob_sha1": "c17b71c315ebb61feff3aa2f694d93d64931863f",
+          "modified": false
+        }
+      ]
+    },
+    {
+      "id": "N2-two-hole-link",
+      "category": "neat",
+      "title": "Two-hole link with raised boss",
+      "assets": [
+        {
+          "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/static/images/390.png",
+          "source_path": "static/images/390.png",
+          "local_path": "N2-two-hole-link/input.png",
+          "size_bytes": 6622,
+          "sha256": "79ffc771acaad702dda885e2a4f822a48acbd231b197c78f567ef662450b8b32",
+          "git_blob_sha1": "b1af4ff3af4c5e5ced072927bb791b52172d5483",
+          "modified": false
+        },
+        {
+          "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/static/mesh/390.glb",
+          "source_path": "static/mesh/390.glb",
+          "local_path": "N2-two-hole-link/published/390.glb",
+          "size_bytes": 14384,
+          "sha256": "40cbcdc962fb9b9c8c9ee4aa310622a0ef29cf4aa168b833d10b760a12828012",
+          "git_blob_sha1": "01958720ca3b027505977369edadeacb5ace449b",
+          "modified": false
+        }
+      ]
+    }
+  ],
+  "source_notice": {
+    "source_url": "https://raw.githubusercontent.com/gencad/gencad.github.io/cc789e32e0831df4e15ff271fb0a0ffcfb54ef03/README.md",
+    "source_path": "README.md",
+    "local_path": "UPSTREAM_README.md",
+    "size_bytes": 829,
+    "sha256": "c30b98dd7fe87d7f976b2b92944a904a7b17c65623922965f922617935a8d219",
+    "git_blob_sha1": "3e4fe474dafe184ddd54f659304d089b7b04a7d5",
+    "modified": false
+  }
+}

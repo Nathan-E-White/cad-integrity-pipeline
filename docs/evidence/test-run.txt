@@ -1,0 +1,28 @@
+........................................................................ [ 69%]
+...............................                                          [100%]
+================================ tests coverage ================================
+_______________ coverage: platform linux, python 3.13.5-final-0 ________________
+
+Name                                     Stmts   Miss  Cover   Missing
+----------------------------------------------------------------------
+src/cad_integrity/__init__.py                8      0   100%
+src/cad_integrity/adapters/__init__.py       0      0   100%
+src/cad_integrity/adapters/ocp.py          395     37    91%   61-62, 110, 113, 180, 183, 210, 228, 246, 260, 300, 313, 324, 327, 330, 335, 339, 341-344, 346, 357, 359, 380, 382, 397, 400, 405, 409, 432-434, 460, 467, 490, 499
+src/cad_integrity/algebra.py               138     21    85%   27, 58, 64, 71, 79, 91, 105, 122, 128, 135, 143-144, 153, 165, 170, 179-180, 183, 186, 191, 194
+src/cad_integrity/arrays.py                 44      8    82%   18-19, 21, 34, 37, 39, 51, 53
+src/cad_integrity/cli.py                    62     15    76%   18, 51, 56-70, 77
+src/cad_integrity/errors.py                  8      0   100%
+src/cad_integrity/fixtures.py               42      3    93%   15, 25, 41
+src/cad_integrity/metrics.py                66      2    97%   94, 97
+src/cad_integrity/models.py                130     12    91%   34, 41-44, 73, 78, 86, 103, 132, 157, 166
+src/cad_integrity/numerics.py               95      7    93%   22, 28, 32, 78, 102, 104, 118
+src/cad_integrity/pipeline.py               82      0   100%
+src/cad_integrity/repair.py                109      7    94%   26, 28, 53, 81, 103, 125-126
+src/cad_integrity/serialization.py          28      4    86%   20, 24, 28, 30
+src/cad_integrity/simplicial.py            126      9    93%   54, 60, 71, 94, 105, 115, 141, 154, 159
+src/cad_integrity/topology.py              123      4    97%   58, 79, 154-155
+src/cad_integrity/visualization.py          31      2    94%   16-17
+----------------------------------------------------------------------
+TOTAL                                     1487    131    91%
+Coverage JSON written to file docs/evidence/coverage.json
+103 passed in 5.44s

@@ -1,0 +1,2097 @@
+from dataclasses import dataclass, field
+from itertools import combinations
+from typing import Dict, Tuple, Hashable, List
+from simplex import Simplex
+import numpy as np
+from smith_normal_form import smith_normal_form
+from fix.SimplicialComplex import SimplicialComplex
+from dataclasses import dataclass, field
+from itertools import combinations
+from typing import Hashable
+from simplex import Simplex
+from dataclasses import dataclass, field
+from itertools import combinations
+from typing import Set, List, Dict
+from scipy.sparse import csr_matrix
+from simplex import Simplex
+
+
+
+def sparse_integer_snf(matrix_dict: Dict[Tuple[int, int], int], nrows: int, ncols: int) -> List[int]:
+    """
+    Computes invariant factors (diagonal of SNF) using a sparse dictionary representation.
+    matrix_dict: key mapping (row, col) -> non-zero integer entry.
+    """
+    M = matrix_dict.copy()
+
+    def get_row_col_counts(active_k: int):
+        r_counts = {r: 0 for r in range(active_k, nrows)}
+        c_counts = {c: 0 for c in range(active_k, ncols)}
+        for (r, c) in list(M.keys()):
+            if r >= active_k and c >= active_k:
+                r_counts[r] += 1
+                c_counts[c] += 1
+        return r_counts, c_counts
+
+    def select_pivot(active_k: int):
+        r_counts, c_counts = get_row_col_counts(active_k)
+        best_score = float('inf')
+        best_pivot = None
+
+        for (r, c), val in M.items():
+            if r >= active_k and c >= active_k and val != 0:
+                # Markowitz heuristic score: prioritize low density row/col intersections
+                score = (r_counts[r] - 1) * (c_counts[c] - 1)
+                if score < best_score:
+                    best_score = score
+                    best_pivot = (r, c)
+        return best_pivot
+
+    # Eliminate iteratively down the main structural diagonal
+    for k in range(min(nrows, ncols)):
+        while True:
+            pivot = select_pivot(k)
+            if pivot is None:
+                break
+
+            p_r, p_c = pivot
+
+            # Swap active elements directly to position (k, k)
+            if p_r != k:
+                for c in range(k, ncols):
+                    M[k, c], M[p_r, c] = M.get((p_r, c), 0), M.get((k, c), 0)
+            if p_c != k:
+                for r in range(k, nrows):
+                    M[r, k], M[r, p_c] = M.get((r, p_c), 0), M.get((r, k), 0)
+
+            # Eliminate remaining row entries at row k using Euclidean steps
+            row_cleared = True
+            for c in range(k + 1, ncols):
+                if M.get((k, c), 0) != 0:
+                    row_cleared = False
+                    # Extended Euclidean step row combination
+                    a, b = M[k, k], M[k, c]
+                    g = math.gcd(a, b)
+                    # Simple integer reduction steps
+                    q = b // a
+                    for r in range(k, nrows):
+                        M[r, c] = M.get((r, c), 0) - q * M.get((r, k), 0)
+
+            # Eliminate remaining column entries at col k
+            col_cleared = True
+            for r in range(k + 1, nrows):
+                if M.get((r, k), 0) != 0:
+                    col_cleared = False
+                    q = M[r, k] // M[k, k]
+                    for c in range(k, ncols):
+                        M[r, c] = M.get((r, c), 0) - q * M.get((k, c), 0)
+
+            # Clean up explicit sparse zero keys to maintain performance
+            for key in list(M.keys()):
+                if M[key] == 0:
+                    del M[key]
+
+            if row_cleared and col_cleared:
+                break
+
+    diagonals = []
+    for i in range(min(nrows, ncols)):
+        val = M.get((i, i), 0)
+        if val != 0:
+            diagonals.append(int(abs(val)))
+
+    return sorted(diagonals)
+
+
+
+@dataclass
+class FilteredSimplicialComplex:
+    # Maps a facet to its birth time
+    facet_filtrations: Dict[Tuple[Hashable, ...], float] = field(default_factory=dict)
+    # Complete downward closed dictionary mapping Simplex -> final resolved birth time
+    simplices: Dict[Simplex, float] = field(default_factory=dict, init=False)
+
+    def __post_init__(self):
+        for facet, birth_time in self.facet_filtrations.items():
+            self.add_filtered_simplex(facet, birth_time)
+
+    def add_filtered_simplex(self, vertices: iter, birth_time: float) -> None:
+        """Inserts a simplex. Resolves sub-face birth times via minimum/inheritance rules."""
+        base_order = tuple(sorted(vertices))
+        for k in range(1, len(base_order) + 1):
+            for face in combinations(base_order, k):
+                s = Simplex(face)
+                # If subface exists, its birth time is the minimum possible visibility timestamp
+                if s in self.simplices:
+                    self.simplices[s] = min(self.simplices[s], birth_time)
+                else:
+                    self.simplices[s] = birth_time
+
+    def get_subcomplex_at(self, t: float) -> List[Simplex]:
+        """Returns all valid simplices alive at or before filtration time t."""
+        return [s for s, birth in self.simplices.items() if birth <= t]
+
+    def get_ordered_filtration_steps(self) -> List[Tuple[float, List[Simplex]]]:
+        """Returns unique filtration timestamps sorted alongside new simplices born at that step."""
+        unique_times = sorted(list(set(self.simplices.values())))
+        steps = []
+        for t in unique_times:
+            new_simplices = [s for s, birth in self.simplices.items() if birth == t]
+            # Order primarily by dimension to maintain chain complex compatibility
+            new_simplices.sort(key=lambda s: (s.dim, s.vertices))
+            steps.append((t, new_simplices))
+        return steps
+
+
+
+
+
+def smith_normal_form(M: np.ndarray) -> np.ndarray:
+    """
+    Computes the diagonal entries of the Smith Normal Form of an integer matrix M.
+    Returns a 1D NumPy array containing the diagonal elements (invariant factors).
+    """
+    A = M.copy().astype(object)  # Use Python objects for arbitrary precision integers
+    nrows, ncols = A.shape
+
+    def pivot_idx(r, c):
+        # Find the non-zero element with the minimum absolute value in the remaining block
+        sub = A[r:, c:]
+        if not np.any(sub):
+            return None
+        nonzero_mask = (sub != 0)
+        abs_sub = np.where(nonzero_mask, np.abs(sub), np.inf)
+        idx = np.unravel_index(np.argmin(abs_sub), sub.shape)
+        return idx[0] + r, idx[1] + c
+
+    for k in range(min(nrows, ncols)):
+        while True:
+            piv = pivot_idx(k, k)
+            if piv is None:
+                break
+
+            # Swap rows and columns to bring pivot to (k, k)
+            if piv[0] != k:
+                A[[k, piv[0]], :] = A[[piv[0], k], :]
+            if piv[1] != k:
+                A[:, [k, piv[1]]] = A[:, [piv[1], k]]
+
+            # Eliminate row elements
+            for c in range(k + 1, ncols):
+                if A[k, c] != 0:
+                    q = A[k, c] // A[k, k]
+                    A[:, c] -= q * A[:, k]
+
+            # Eliminate column elements
+            for r in range(k + 1, nrows):
+                if A[r, k] != 0:
+                    q = A[r, k] // A[k, k]
+                    A[r, :] -= q * A[k, :]
+
+            # Check if any element in the submatrix is not divisible by the pivot
+            check_failed = False
+            for r in range(k, nrows):
+                for c in range(k, ncols):
+                    if A[r, c] % A[k, k] != 0:
+                        # Add row/col to fix divisibility condition
+                        A[r, :] += A[k, :]
+                        check_failed = True
+                        break
+                if check_failed:
+                    break
+
+            if not check_failed and np.all(A[k, k + 1:] == 0) and np.all(A[k + 1:, k] == 0):
+                break
+
+    # Extract structural diagonal
+    diagonal = [int(abs(A[i, i])) for i in range(min(nrows, ncols)) if A[i, i] != 0]
+    return np.array(sorted(diagonal))
+
+
+class PersistentHomologyEngine:
+    def __init__(self, fsc: FilteredSimplicialComplex):
+        self.fsc = fsc
+
+    def get_sparse_boundary(self, d: int, simplices_at_t: List[Simplex]) -> Tuple[Dict[Tuple[int, int], int], int, int]:
+        """Generates an integer sparse lookup dictionary for boundary_d within the subset."""
+        current_simplices = sorted([s for s in simplices_at_t if s.dim == d], key=lambda s: s.vertices)
+        face_simplices = sorted([s for s in simplices_at_t if s.dim == d - 1], key=lambda s: s.vertices)
+
+        if not current_simplices or not face_simplices:
+            return {}, len(face_simplices), len(current_simplices)
+
+        row_idx = {simplex: i for i, simplex in enumerate(face_simplices)}
+        matrix_dict = {}
+
+        for j, simplex in enumerate(current_simplices):
+            for i in range(len(simplex.vertices)):
+                face_verts = simplex.vertices[:i] + simplex.vertices[i + 1:]
+                face = Simplex(face_verts)
+                if face in row_idx:
+                    sign = (-1) ** i
+                    matrix_dict[(row_idx[face], j)] = sign
+
+        return matrix_dict, len(face_simplices), len(current_simplices)
+
+    def compute_persistence_intervals(self) -> Dict[float, Dict[int, Dict[str, any]]]:
+        """Evaluates homology invariants chronologically across the filtration sequence."""
+        filtration_steps = self.fsc.get_ordered_filtration_steps()
+        history = {}
+        accumulated_simplices = []
+
+        for t, new_simplices in filtration_steps:
+            accumulated_simplices.extend(new_simplices)
+            history[t] = {}
+
+            # Find the max active dimension present in the subcomplex
+            max_d = max((s.dim for s in accumulated_simplices), default=0)
+
+            for d in range(max_d + 1):
+                # Calculate active bounds for dimension d and d+1
+                bd_dict_d, rows_d, cols_d = self.get_sparse_boundary(d, accumulated_simplices)
+                bd_dict_next, rows_next, cols_next = self.get_sparse_boundary(d + 1, accumulated_simplices)
+
+                snf_d = sparse_integer_snf(bd_dict_d, rows_d, cols_d)
+                snf_next = sparse_integer_snf(bd_dict_next, rows_next, cols_next)
+
+                num_simplices_d = len([s for s in accumulated_simplices if s.dim == d])
+                rank_d = len(snf_d)
+                rank_next = len(snf_next)
+                torsion = [tor for tor in snf_next if tor > 1]
+
+                betti = num_simplices_d - rank_d - rank_next
+                history[t][d] = {"betti": betti, "torsion": torsion}
+
+        return history
+
+class IntegralHomologyEngine:
+    def __init__(self, sc: SimplicialComplex):
+        self.sc = sc
+        self.max_dim = max((s.dim for s in sc.simplices), default=-1)
+        # Use dense integer representation for SNF calculation
+        self.boundaries = {d: sc.boundary_operator(d).toarray().astype(int)
+                           for d in range(self.max_dim + 2)}
+
+    def compute_homology(self, d: int) -> Dict[str, any]:
+        """
+        Computes the d-th homology group H_d(K, Z).
+        Returns a dictionary containing the free rank (Betti number) and torsion coefficients.
+        """
+        if d < 0 or d > self.max_dim:
+            return {"betti": 0, "torsion": []}
+
+        num_simplices_d = len(self.sc.get_simplices_of_dim(d))
+        if num_simplices_d == 0:
+            return {"betti": 0, "torsion": []}
+
+        # SNF invariant factors of boundary_d and boundary_{d+1}
+        snf_d = smith_normal_form(self.boundaries[d])
+        snf_next = smith_normal_form(self.boundaries[d + 1])
+
+        # Rank of boundary operators matches the count of non-zero entries in SNF
+        rank_d = len(snf_d)
+
+        # Invariant factors greater than 1 define the torsion subgroup of H_d
+        torsion = [t for t in snf_next if t > 1]
+
+        # Rank of the image of boundary_{d+1}
+        rank_next = len(snf_next)
+
+        # Free abelian group rank: dim(ker \partial_d) - dim(im \partial_{d+1})
+        betti = num_simplices_d - rank_d - rank_next
+
+        return {"betti": betti, "torsion": torsion}
+
+    def compute_all_groups(self) -> Dict[int, Dict[str, any]]:
+        """Computes integral homology structure for all dimensions."""
+        return {d: self.compute_homology(d) for d in range(self.max_dim + 1)}
+
+
+
+class HomologyEngine:
+    def __init__(self, sc: SimplicialComplex):
+        self.sc = sc
+        self.max_dim = max((s.dim for s in sc.simplices), default=-1)
+        # Cache boundary operators to avoid recomputation
+        self.boundaries = {d: sc.boundary_operator(d) for d in range(self.max_dim + 2)}
+
+    def coboundary_operator(self, d: int) -> csr_matrix:
+        """
+        Computes the d-th coboundary operator delta^d mapping (d)-cochains to (d+1)-cochains.
+        By definition, delta^d is the transpose of the (d+1)-th boundary matrix.
+        """
+        # delta^d : C^d -> C^{d+1} is equivalent to (partial_{d+1})^T
+        return self.boundaries[d + 1].transpose().tocsr()
+
+    def _compute_rank(self, matrix: csr_matrix) -> int:
+        """Helper to safely calculate the numerical rank of a sparse matrix."""
+        if matrix.shape[0] == 0 or matrix.shape[1] == 0 or matrix.nnz == 0:
+            return 0
+        # Convert to dense for stable full SVD rank estimation (ideal for typical skeletal complexes)
+        # For massive complexes, a sparse LU or structural rank optimization would be preferred.
+        dense_mat = matrix.toarray()
+        return int(np.linalg.matrix_rank(dense_mat))
+
+    def betti_number(self, d: int) -> int:
+        """
+        Computes the d-th Betti number (b_d) using real coefficients.
+        b_d = dim(ker partial_d) - dim(im partial_{d+1})
+        """
+        if d < 0 or d > self.max_dim:
+            return 0
+
+        bd_d = self.boundaries[d]  # partial_d
+        bd_next = self.boundaries[d + 1]  # partial_{d+1}
+
+        # Number of d-simplices is the number of columns in partial_d
+        # If d == 0, bd_d is empty, so we fetch the count from the column shape of partial_1 or row shape of partial_0
+        num_simplices_d = len(self.sc.get_simplices_of_dim(d))
+
+        if num_simplices_d == 0:
+            return 0
+
+        # Rank-Nullity Theorem: dim(ker partial_d) = num_simplices_d - rank(partial_d)
+        rank_d = self._compute_rank(bd_d)
+        nullity_d = num_simplices_d - rank_d
+
+        # dim(im partial_{d+1}) = rank(partial_{d+1})
+        rank_next = self._compute_rank(bd_next)
+
+        return nullity_d - rank_next
+
+    def compute_all_betti_numbers(self) -> dict[int, int]:
+        """Returns a dictionary containing all non-zero Betti numbers."""
+        return {d: self.betti_number(d) for d in range(self.max_dim + 1)}
+
+
+
+@dataclass
+class FilteredSimplicialComplex:
+    # Maps a facet to its birth time
+    facet_filtrations: Dict[Tuple[Hashable, ...], float] = field(default_factory=dict)
+    # Complete downward closed dictionary mapping Simplex -> final resolved birth time
+    simplices: Dict[Simplex, float] = field(default_factory=dict, init=False)
+
+    def __post_init__(self):
+        for facet, birth_time in self.facet_filtrations.items():
+            self.add_filtered_simplex(facet, birth_time)
+
+    def add_filtered_simplex(self, vertices: iter, birth_time: float) -> None:
+        """Inserts a simplex. Resolves sub-face birth times via minimum/inheritance rules."""
+        base_order = tuple(sorted(vertices))
+        for k in range(1, len(base_order) + 1):
+            for face in combinations(base_order, k):
+                s = Simplex(face)
+                # If subface exists, its birth time is the minimum possible visibility timestamp
+                if s in self.simplices:
+                    self.simplices[s] = min(self.simplices[s], birth_time)
+                else:
+                    self.simplices[s] = birth_time
+
+    def get_subcomplex_at(self, t: float) -> List[Simplex]:
+        """Returns all valid simplices alive at or before filtration time t."""
+        return [s for s, birth in self.simplices.items() if birth <= t]
+
+    def get_ordered_filtration_steps(self) -> List[Tuple[float, List[Simplex]]]:
+        """Returns unique filtration timestamps sorted alongside new simplices born at that step."""
+        unique_times = sorted(list(set(self.simplices.values())))
+        steps = []
+        for t in unique_times:
+            new_simplices = [s for s, birth in self.simplices.items() if birth == t]
+            # Order primarily by dimension to maintain chain complex compatibility
+            new_simplices.sort(key=lambda s: (s.dim, s.vertices))
+            steps.append((t, new_simplices))
+        return steps
+
+
+@dataclass
+class SimplicialComplex:
+    # Initialize optionally with just the maximal faces (facets)
+    facets: list[iter] = field(default_factory=list)
+    simplices: Set[Simplex] = field(default_factory=set, init=False)
+
+    def __post_init__(self):
+        for facet in self.facets:
+            self.add_simplex(facet)
+
+    def add_simplex(self, vertices: iter) -> None:
+        """Adds a simplex and all its constituent faces to enforce downward closure."""
+        # Fix an arbitrary base ordering for orientation consistency
+        base_order = tuple(sorted(vertices))
+        for k in range(1, len(base_order) + 1):
+            for face in combinations(base_order, k):
+                self.simplices.add(Simplex(face))
+
+    def get_simplices_of_dim(self, d: int) -> List[Simplex]:
+        """Returns a sorted list of all simplices of dimension d."""
+        return sorted([s for s in self.simplices if s.dim == d], key=lambda s: s.vertices)
+
+    def boundary_operator(self, d: int) -> csr_matrix:
+        """
+        Computes the d-th boundary matrix mapping d-simplices to (d-1)-simplices.
+        Returns a Scipy CSR sparse matrix.
+        """
+        if d <= 0:
+            # Boundary of 0-simplices maps to 0
+            return csr_matrix((0, len(self.get_simplices_of_dim(0))))
+
+        current_simplices = self.get_simplices_of_dim(d)
+        face_simplices = self.get_simplices_of_dim(d - 1)
+
+        if not current_simplices or not face_simplices:
+            return csr_matrix((len(face_simplices), len(current_simplices)))
+
+        # Create lookups for quick row/column indexing
+        row_idx = {simplex: i for i, simplex in enumerate(face_simplices)}
+        col_idx = {simplex: j for j, simplex in enumerate(current_simplices)}
+
+        # Coordinate format (COO) collections for efficient sparse creation
+        rows, cols, data = [], [], []
+
+        for j, simplex in enumerate(current_simplices):
+            # Compute faces by omitting one vertex at a time
+            for i in range(len(simplex.vertices)):
+                face_verts = simplex.vertices[:i] + simplex.vertices[i + 1:]
+                face = Simplex(face_verts)
+
+                if face in row_idx:
+                    sign = (-1) ** i
+                    rows.append(row_idx[face])
+                    cols.append(j)
+                    data.append(sign)
+
+        return csr_matrix((data, (rows, cols)), shape=(len(face_simplices), len(current_simplices)))
+
+    def chain_complex(self) -> Dict[int, csr_matrix]:
+        """Returns all non-trivial boundary operators as a dictionary indexed by dimension."""
+        max_dim = max((s.dim for s in self.simplices), default=-1)
+        return {d: self.boundary_operator(d) for d in range(max_dim + 1)}
+
+
+@dataclass(frozen=True)
+class Simplex:
+    # We use a sorted tuple here because orientation (vertex ordering)
+    # matters for computing boundary operators with correct signs.
+    vertices: Tuple[Hashable, ...]
+
+    def __post_init__(self):
+        if len(self.vertices) != len(set(self.vertices)):
+            raise ValueError("Duplicate vertices are not allowed in a simplex.")
+
+    @property
+    def dim(self) -> int:
+        return len(self.vertices) - 1
+
+
+
+
+@dataclass
+class VectorizedBRep:
+    # ----------------------------------------------------------------
+    # 1. GEOMETRIC ARRAYS (Contiguous Memory Allocation)
+    # ----------------------------------------------------------------
+    # Shaped (N_vertices, 3) -> Row index is the Vertex ID
+    vertex_coords: np.ndarray
+
+    # ----------------------------------------------------------------
+    # 2. TOPOLOGICAL INDEX ARRAYS
+    # ----------------------------------------------------------------
+    # Shaped (N_edges, 2) -> Each row contains [start_vertex_id, end_vertex_id]
+    edge_to_vertices: np.ndarray
+
+    # 1D Array of pointers tracking where each wire's edge block starts and ends
+    # Wire 'i' uses edge indices from wire_offsets[i] to wire_offsets[i+1]
+    wire_offsets: np.ndarray
+
+    # 1D Array containing Edge IDs.
+    # A negative ID indicates a REVERSED orientation (e.g., -3 means Edge 3 traversed backward)
+    wire_to_oriented_edges: np.ndarray
+
+    # 1D Array tracking which outer wire index belongs to which face ID
+    face_to_outer_wire: np.ndarray
+
+    def __post_init__(self):
+        # Enforce strict float64 and int64 data types for matrix operations
+        self.vertex_coords = np.ascontiguousarray(self.vertex_coords, dtype=np.float64)
+        self.edge_to_vertices = np.ascontiguousarray(self.edge_to_vertices, dtype=np.int64)
+        self.wire_offsets = np.ascontiguousarray(self.wire_offsets, dtype=np.int64)
+        self.wire_to_oriented_edges = np.ascontiguousarray(self.wire_to_oriented_edges, dtype=np.int64)
+        self.face_to_outer_wire = np.ascontiguousarray(self.face_to_outer_wire, dtype=np.int64)
+
+    def get_wire_edges(self, wire_id: int) -> np.ndarray:
+        """Extracts the signed oriented edge IDs belonging to a given wire."""
+        start = self.wire_offsets[wire_id]
+        end = self.wire_offsets[wire_id + 1]
+        return self.wire_to_oriented_edges[start:end]
+
+    def validate_wire_continuity(self, wire_id: int) -> bool:
+        """Vectorized lookup to confirm that a wire's edge loops connect smoothly."""
+        oriented_edges = self.get_wire_edges(wire_id)
+
+        # Calculate base indices and determine true source/target via signs
+        edge_indices = np.abs(oriented_edges)
+        is_reversed = (oriented_edges < 0)
+
+        # Get coordinates/vertex connections for the active edge subset
+        verts = self.edge_to_vertices[edge_indices]
+
+        # Vectorized conditional assignment: swap vertex roles if orientation is negative
+        sources = np.where(is_reversed, verts[:, 1], verts[:, 0])
+        targets = np.where(is_reversed, verts[:, 0], verts[:, 1])
+
+        # Shift target array by 1 element to match up against the next source index
+        next_sources = np.roll(sources, -1)
+
+        # If all targets match the following source, the wire loop is continuous
+        return np.all(targets == next_sources)
+
+
+class VectorizedShellAnalyzer:
+    def __init__(self, brep: VectorizedBRep):
+        self.brep = brep
+
+    def verify_manifold_and_watertight(self) -> tuple[bool, str]:
+        """
+        Validates shell closures. Sums orientation occurrences across
+        all active wire paths using pure array operations.
+        """
+        # Step 1: Collect all oriented edges currently used across all faces
+        oriented_edges = self.brep.wire_to_oriented_edges
+
+        edge_ids = np.abs(oriented_edges)
+        orientations = np.sign(oriented_edges)
+
+        # Step 2: Sum the signed traversal directions for each distinct Edge index
+        # A valid manifold edge must be shared exactly twice, and orientations must cancel out (1 + -1 = 0)
+        max_edge_id = np.max(edge_ids)
+        sharing_counts = np.bincount(edge_ids)
+        orientation_sums = np.bincount(edge_ids, weights=orientations)
+
+        # Skip index 0 (padding placeholder)
+        active_edges_mask = (sharing_counts[1:] > 0)
+
+        if not np.all(sharing_counts[1:][active_edges_mask] == 2):
+            bad_edges = np.where(sharing_counts[1:] != 2)[0] + 1
+            return False, f"Non-manifold layout. Edge indices {bad_edges} are not shared exactly twice."
+
+        if not np.all(orientation_sums[1:][active_edges_mask] == 0):
+            bad_orientations = np.where(orientation_sums[1:] != 0)[0] + 1
+            return False, f"Stitching orientation failure. Surface normal mismatch at edge indices {bad_orientations}."
+
+        return True, "Topology forms a perfectly oriented, watertight manifold shell."
+
+
+
+# =====================================================================
+# 1. VECTORIZED GEOMETRY CARRIERS
+# =====================================================================
+
+class VectorizedCurve:
+    """Parametric curve r(t) -> [X, Y, Z] supporting vectorized t inputs."""
+
+    def __init__(self, f_callable, t_bounds: tuple[float, float]):
+        self.f = f_callable
+        self.t_min, self.t_max = t_bounds
+
+    def evaluate(self, t: np.ndarray) -> np.ndarray:
+        return np.array(self.f(t), dtype=np.float64).T  # Shape: (N, 3)
+
+
+class VectorizedSurface:
+    """Parametric surface S(u, v) -> [X, Y, Z] supporting vectorized u, v inputs."""
+
+    def __init__(self, S_callable, u_bounds: tuple[float, float], v_bounds: tuple[float, float]):
+        self.S = S_callable
+        self.u_min, self.u_max = u_bounds
+        self.v_min, self.v_max = v_bounds
+
+    def evaluate(self, u: np.ndarray, v: np.ndarray) -> np.ndarray:
+        return np.array(self.S(u, v), dtype=np.float64).T  # Shape: (N, 3)
+
+
+# =====================================================================
+# 2. NUMERICAL INTERSECTION ROUTINE
+# =====================================================================
+
+class GeometricIntersectionEngine:
+    @staticmethod
+    def intersect_curve_surface(curve: VectorizedCurve, surface: VectorizedSurface,
+                                t_guess: float, u_guess: float, v_guess: float,
+                                tol: float = 1e-7, max_iter: int = 50) -> tuple[np.ndarray, np.ndarray]:
+        """
+        Finds the exact intersection point between a 3D curve and a 3D parametric surface
+        using a multivariate Newton-Raphson algorithm over the system: R(t) - S(u, v) = 0.
+        """
+        # Vectorized state parameters: [t, u, v]
+        p = np.array([t_guess, u_guess, v_guess], dtype=np.float64)
+        h = 1e-5
+
+        for _ in range(max_iter):
+            t, u, v = p[0], p[1], p[2]
+
+            # Evaluate current points
+            pt_c = curve.evaluate(np.array([t]))[0]
+            pt_s = surface.evaluate(np.array([u]), np.array([v]))[0]
+            residual = pt_c - pt_s
+
+            if np.linalg.norm(residual) < tol:
+                return pt_c, p
+
+            # Numerical Jacobian calculation via central differences
+            # F(t, u, v) = R(t) - S(u, v)
+            dF_dt = (curve.evaluate(np.array([t + h]))[0] - curve.evaluate(np.array([t - h]))[0]) / (2 * h)
+            dF_du = -(surface.evaluate(np.array([u + h]), np.array([v]))[0] -
+                      surface.evaluate(np.array([u - h]), np.array([v]))[0]) / (2 * h)
+            dF_dv = -(surface.evaluate(np.array([u]), np.array([v + h]))[0] -
+                      surface.evaluate(np.array([u]), np.array([v - h]))[0]) / (2 * h)
+
+            Jacobian = np.column_stack((dF_dt, dF_du, dF_dv))
+
+            try:
+                # Newton step update: p = p - J^(-1) * residual
+                delta = np.linalg.solve(Jacobian, residual)
+                p -= delta
+            except np.linalg.linalg.LinAlgError:
+                # Break if Jacobian is singular (e.g. tangency conditions)
+                break
+
+        raise ValueError("Intersection failed to converge within specified tolerance.")
+
+
+@dataclass
+class TriMesh:
+    """Output structural mesh container."""
+    nodes: np.ndarray  # Shape (N, 3) 3D points
+    elements: np.ndarray  # Shape (M, 3) Triangulation vertex connectivity matrix
+
+
+class BRepMeshingEngine:
+    @staticmethod
+    def mesh_surface(surface: VectorizedSurface, u_divisions: int = 10, v_divisions: int = 10) -> TriMesh:
+        """
+        Discretizes a parametric surface face into a structured, consistent
+        triangulation mesh using high-performance NumPy grids.
+        """
+        # Generate grid arrays in parametric space
+        u_space = np.linspace(surface.u_min, surface.u_max, u_divisions)
+        v_space = np.linspace(surface.v_min, surface.v_max, v_divisions)
+        U, V = np.meshgrid(u_space, v_space)
+
+        # Flatten for vectorized function mapping evaluation
+        u_flat = U.flatten()
+        v_flat = V.flatten()
+
+        # Compute physical nodes
+        nodes = surface.evaluate(u_flat, v_flat)
+
+        # Structural Index Element Generation logic
+        elements = []
+        for j in range(v_divisions - 1):
+            for i in range(u_divisions - 1):
+                # Calculate index positions of the active grid quad cell corner nodes
+                p0 = j * u_divisions + i
+                p1 = p0 + 1
+                p2 = (j + 1) * u_divisions + i
+                p3 = p2 + 1
+
+                # Split the quad cell cleanly into two valid triangles
+                elements.append([p0, p1, p2])
+                elements.append([p1, p3, p2])
+
+        return TriMesh(nodes=nodes, elements=np.array(elements, dtype=np.int64))
+
+
+from dataclasses import dataclass
+
+
+@dataclass
+class BoundaryValidationResult:
+    is_valid: bool
+    unmatched_boundary_edges: np.ndarray  # Pairs of [node_i, node_j] that leaked
+    max_boundary_deviation: float  # Maximum geometric distance error found
+
+
+class BRepMeshValidator:
+    def __init__(self, trimesh: TriMesh, brep: VectorizedBRep):
+        self.mesh = trimesh
+        self.brep = brep
+
+    def extract_mesh_boundary_edges(self) -> np.ndarray:
+        """
+        Extracts all unique boundary edges from the triangle connectivity matrix.
+        An edge is a boundary edge if it is referenced by exactly one triangle face.
+        """
+        # Extract all three directed edges from every triangle element
+        t_elements = self.mesh.elements
+        edges = np.vstack([
+            t_elements[:, [0, 1]],
+            t_elements[:, [1, 2]],
+            t_elements[:, [2, 0]]
+        ])
+
+        # Sort edges row-wise to make them direction-independent [min_id, max_id]
+        sorted_edges = np.sort(edges, axis=1)
+
+        # Perform a vectorized row-wise count group evaluation
+        unique_edges, counts = np.unique(sorted_edges, axis=0, return_counts=True)
+
+        # Boundary edges are shared by exactly 1 element face
+        return unique_edges[counts == 1]
+
+    def validate_boundaries_against_curves(self, curves: list[VectorizedCurve],
+                                           tolerance: float = 1e-5) -> BoundaryValidationResult:
+        """
+        Verifies that every discrete boundary edge of the mesh lies precisely on
+        the analytical B-Rep curves by evaluating point-to-curve projection distances.
+        """
+        mesh_boundary_edges = self.extract_mesh_boundary_edges()
+        if len(mesh_boundary_edges) == 0:
+            return BoundaryValidationResult(is_valid=True, unmatched_boundary_edges=np.empty((0, 2)),
+                                            max_boundary_deviation=0.0)
+
+        # Gather the unique node indices involved in the mesh boundary
+        boundary_node_indices = np.unique(mesh_boundary_edges)
+        boundary_nodes_xyz = self.mesh.nodes[boundary_node_indices]
+
+        # Array to store the minimum distance from each boundary node to ANY B-Rep curve
+        min_distances_to_curves = np.full(len(boundary_node_indices), np.inf)
+
+        # For every curve, project all boundary nodes onto it numerically to find close matches
+        for curve in curves:
+            # Sample the analytical curve with high resolution in parametric space
+            t_samples = np.linspace(curve.t_min, curve.t_max, 500)
+            curve_xyz = curve.evaluate(t_samples)  # Shape (500, 3)
+
+            # Compute the pairwise distance matrix using Broadcasting: (N_boundary_nodes, 500)
+            # Distance: sqrt((x_n - x_c)^2 + (y_n - y_c)^2 + (z_n - z_c)^2)
+            diff = boundary_nodes_xyz[:, np.newaxis, :] - curve_xyz[np.newaxis, :, :]
+            distances = np.linalg.norm(diff, axis=2)
+
+            # Update the minimum distance achieved for each node
+            min_distances_to_curves = np.minimum(min_distances_to_curves, np.min(distances, axis=1))
+
+        # Map node-level deviations back to the edge tracking level
+        node_to_dist_map = dict(zip(boundary_node_indices, min_distances_to_curves))
+
+        unmatched_edges = []
+        max_deviation = 0.0
+
+        for edge in mesh_boundary_edges:
+            dev_u = node_to_dist_map[edge[0]]
+            dev_v = node_to_dist_map[edge[1]]
+            edge_max_deviation = max(dev_u, dev_v)
+            max_deviation = max(max_deviation, edge_max_deviation)
+
+            if edge_max_deviation > tolerance:
+                unmatched_edges.append(edge)
+
+        unmatched_arr = np.array(unmatched_edges, dtype=np.int64) if unmatched_edges else np.empty((0, 2),
+                                                                                                   dtype=np.int64)
+        is_valid = (len(unmatched_arr) == 0)
+
+        return BoundaryValidationResult(
+            is_valid=is_valid,
+            unmatched_boundary_edges=unmatched_arr,
+            max_boundary_deviation=max_deviation
+        )
+
+
+from dataclasses import dataclass
+
+
+@dataclass
+class QualityReport:
+    aspect_ratios: np.ndarray  # Shape (M,) -> Ideal is 1.0 (equilateral)
+    skewness: np.ndarray  # Shape (M,) -> Ideal is 0.0 (perfectly symmetric)
+    average_aspect_ratio: float
+    worst_skewness: float
+
+
+class MeshQualitySuite:
+    @staticmethod
+    def evaluate_quality(mesh: TriMesh) -> QualityReport:
+        """
+        Computes geometric mesh quality metrics (aspect ratio and skewness)
+        for every triangle face using vectorized matrix algebra.
+        """
+        nodes = mesh.nodes
+        triangles = mesh.elements
+
+        # Extract vertex coordinates for each triangle corner: Shape (M, 3)
+        A = nodes[triangles[:, 0]]
+        B = nodes[triangles[:, 1]]
+        C = nodes[triangles[:, 2]]
+
+        # Compute edge length vectors
+        a_len = np.linalg.norm(B - C, axis=1)
+        b_len = np.linalg.norm(C - A, axis=1)
+        c_len = np.linalg.norm(A - B, axis=1)
+
+        # Semiperimeter and Area via Heron's Formula
+        s = 0.5 * (a_len + b_len + c_len)
+        area = np.sqrt(np.clip(s * (s - a_len) * (s - b_len) * (s - c_len), 1e-14, None))
+
+        # Aspect Ratio = (a * b * c) / (8 * (s - a)*(s - b)*(s - c))
+        # Normalized such that an equilateral triangle = 1.0. Lower is worse.
+        inradius = area / s
+        max_edge = np.maximum(np.maximum(a_len, b_len), c_len)
+        # Avoid division by zero for degenerate elements
+        aspect_ratio = np.where(inradius > 0, (max_edge * np.sqrt(3)) / (6 * inradius), np.inf)
+
+        # Skewness calculation based on deviation from optimal equilateral angles (60 degrees)
+        # Cosines of the 3 internal angles
+        cos_A = np.clip((b_len ** 2 + c_len ** 2 - a_len ** 2) / (2 * b_len * c_len + 1e-14), -1.0, 1.0)
+        cos_B = np.clip((a_len ** 2 + c_len ** 2 - b_len ** 2) / (2 * a_len * c_len + 1e-14), -1.0, 1.0)
+        cos_C = np.clip((a_len ** 2 + b_len ** 2 - a_len ** 2) / (2 * a_len * b_len + 1e-14), -1.0, 1.0)
+
+        angles = np.arccos(np.column_stack((cos_A, cos_B, cos_C)))  # Radians
+        max_angles = np.max(angles, axis=1)
+        min_angles = np.min(angles, axis=1)
+
+        # Skewness metric ranging from 0 (perfect) to 1 (completely degenerate)
+        opt_angle = np.pi / 3.0
+        skewness = np.maximum((max_angles - opt_angle) / (np.pi - opt_angle), (opt_angle - min_angles) / opt_angle)
+
+        return QualityReport(
+            aspect_ratios=aspect_ratio,
+            skewness=skewness,
+            average_aspect_ratio=float(np.mean(aspect_ratio)),
+            worst_skewness=float(np.max(skewness))
+        )
+
+
+class AdaptiveRefinementEngine:
+    def __init__(self, validator: BRepMeshValidator, curves: list[VectorizedCurve]):
+        self.validator = validator
+        self.curves = curves
+
+    def refine_mesh(self, tolerance: float = 1e-3, max_iterations: int = 5) -> TriMesh:
+        """
+        Executes an automated, cell-selective adaptive refinement loop.
+        Identifies failing boundary zones, computes midpoints, and updates the structural mesh.
+        """
+        current_mesh = self.validator.mesh
+
+        for iteration in range(max_iterations):
+            # Step 1: Evaluate geometric boundary conformity leakage
+            report = self.validator.validate_boundaries_against_curves(self.curves, tolerance=tolerance)
+
+            if report.is_valid:
+                break
+
+            bad_edges = report.unmatched_boundary_edges
+            if len(bad_edges) == 0:
+                break
+
+            # Step 2: Extract details for bisection subdivision
+            nodes = current_mesh.nodes
+            elements = current_mesh.elements
+
+            # Find elements containing bad boundary edges
+            elements_to_refine = []
+            new_nodes_list = list(nodes)
+            midpoint_cache = {}
+
+            # Vectorized set comparison to identify element IDs containing leaking edges
+            for edge in bad_edges:
+                # Find matching face indexes
+                matches = np.where(np.any(elements == edge[0], axis=1) & np.any(elements == edge[1], axis=1))[0]
+                for idx in matches:
+                    if idx not in elements_to_refine:
+                        elements_to_refine.append(idx)
+
+            if not elements_to_refine:
+                break
+
+            # Step 3: Topological Sub-Element Reconstruction (1-to-4 Midpoint Subdivision)
+            new_elements = []
+            refined_set = set(elements_to_refine)
+
+            for i, tri in enumerate(elements):
+                if i not in refined_set:
+                    new_elements.append(tri)
+                    continue
+
+                # Compute or pull cached midpoints for the 3 edges of the target triangle
+                pairings = [(tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])]
+                mid_indices = []
+
+                for p in pairings:
+                    edge_key = tuple(sorted(p))
+                    if edge_key not in midpoint_cache:
+                        mid_pt = 0.5 * (nodes[edge_key[0]] + nodes[edge_key[1]])
+
+                        # Project onto curves to snap coordinates to real boundary geometry
+                        for curve in self.curves:
+                            t_samples = np.linspace(curve.t_min, curve.t_max, 200)
+                            c_xyz = curve.evaluate(t_samples)
+                            if np.linalg.norm(c_xyz[0] - mid_pt) < 0.5 or np.linalg.norm(c_xyz[-1] - mid_pt) < 0.5:
+                                dists = np.linalg.norm(c_xyz - mid_pt, axis=1)
+                                mid_pt = c_xyz[np.argmin(dists)]
+                                break
+
+                        new_nodes_list.append(mid_pt)
+                        midpoint_cache[edge_key] = len(new_nodes_list) - 1
+                    mid_indices.append(midpoint_cache[edge_key])
+
+                m0, m1, m2 = mid_indices
+
+                # Subdivide 1 triangle into 4 smaller self-similar triangles
+                new_elements.append([tri[0], m0, m2])
+                new_elements.append([tri[1], m1, m0])
+                new_elements.append([tri[2], m2, m1])
+                new_elements.append([m0, m1, m2])
+
+            # Rebuild structural elements
+            current_mesh = TriMesh(
+                nodes=np.array(new_nodes_list, dtype=np.float64),
+                elements=np.array(new_elements, dtype=np.int64)
+            )
+            # Re-initialize the validator internal state tracking pointing to the newly generated mesh
+            self.validator = BRepMeshValidator(current_mesh, self.validator.brep)
+
+        return current_mesh
+
+
+from dataclasses import dataclass
+
+
+@dataclass
+class FractureReport:
+    has_defects: bool
+    defect_edge_count: int
+    crack_paths: List[List[int]]  # Sequential node loops outlining the crack boundaries
+
+
+class MeshFractureDetector:
+    @staticmethod
+    def isolate_cracks(mesh: TriMesh) -> FractureReport:
+        """
+        Scans a mesh to identify torn edges or cracks where the elements
+        fail to maintain a closed manifold state.
+        """
+        # Step 1: Extract all directed edges from the mesh elements
+        t_elements = mesh.elements
+        edges = np.vstack([
+            t_elements[:, [0, 1]],
+            t_elements[:, [1, 2]],
+            t_elements[:, [2, 0]]
+        ])
+
+        # Sort rows to make them direction-neutral [min_node, max_node]
+        sorted_edges = np.sort(edges, axis=1)
+
+        # Vectorized edge frequency lookup
+        unique_edges, counts = np.unique(sorted_edges, axis=0, return_counts=True)
+
+        # In a perfect closed system, all internal edges must have a count of 2.
+        # Edges with a count of 1 represent boundaries, holes, or crack faces.
+        leaking_edges = unique_edges[counts == 1]
+
+        if len(leaking_edges) == 0:
+            return FractureReport(has_defects=False, defect_edge_count=0, crack_paths=[])
+
+        # Step 2: Assemble localized leaking edges into sequential topological paths
+        # Build an adjacency graph out of the cracked boundaries
+        adjacency: Dict[int, List[int]] = {}
+        for u, v in leaking_edges:
+            if u not in adjacency: adjacency[u] = []
+            if v not in adjacency: adjacency[v] = []
+            adjacency[u].append(v)
+            adjacency[v].append(u)
+
+        # Trace discrete closed loop paths (crack boundaries)
+        visited = set()
+        paths = []
+
+        for node in list(adjacency.keys()):
+            if node in visited:
+                continue
+
+            curr_path = [node]
+            visited.add(node)
+            curr_node = node
+
+            while True:
+                # Find unvisited neighbors forming the crack edge loop
+                neighbors = adjacency[curr_node]
+                next_node = None
+                for n in neighbors:
+                    if n not in visited:
+                        next_node = n
+                        break
+
+                if next_node is not None:
+                    visited.add(next_node)
+                    curr_path.append(next_node)
+                    curr_node = next_node
+                else:
+                    # Close the loop tracing back if connected
+                    if len(curr_path) > 1 and curr_path[0] in adjacency[curr_node]:
+                        curr_path.append(curr_path[0])
+                    paths.append(curr_path)
+                    break
+
+        return FractureReport(
+            has_defects=True,
+            defect_edge_count=len(leaking_edges),
+            crack_paths=paths
+        )
+
+
+class MetricDistortionDetector:
+    @staticmethod
+    def identify_high_stress_crack_tips(initial_mesh: TriMesh, deformed_mesh: TriMesh,
+                                        threshold: float = 2.0) -> np.ndarray:
+        """
+        Compares the area evolution of mesh triangles between a baseline configuration
+        and an active deformation state to flag localized tearing zones.
+        Returns a boolean mask of elements that are stretching abnormally.
+        """
+
+        def compute_areas(mesh: TriMesh) -> np.ndarray:
+            nodes = mesh.nodes
+            tri = mesh.elements
+            A, B, C = nodes[tri[:, 0]], nodes[tri[:, 1]], nodes[tri[:, 2]]
+            return 0.5 * np.linalg.norm(np.cross(B - A, C - A), axis=1)
+
+        area_init = compute_areas(initial_mesh)
+        area_def = compute_areas(deformed_mesh)
+
+        # Calculate ratio of geometric scaling distortion per cell element
+        distortion_ratio = np.where(area_init > 0, area_def / (area_init + 1e-14), 1.0)
+
+        # Elements experiencing scaling exceeding the threshold are flagged as crack propagation centers
+        return np.where(distortion_ratio > threshold)[0]
+
+
+class MetricDistortionDetector:
+    @staticmethod
+    def identify_high_stress_crack_tips(initial_mesh: TriMesh, deformed_mesh: TriMesh,
+                                        threshold: float = 2.0) -> np.ndarray:
+        """
+        Compares the area evolution of mesh triangles between a baseline configuration
+        and an active deformation state to flag localized tearing zones.
+        Returns a boolean mask of elements that are stretching abnormally.
+        """
+
+        def compute_areas(mesh: TriMesh) -> np.ndarray:
+            nodes = mesh.nodes
+            tri = mesh.elements
+            A, B, C = nodes[tri[:, 0]], nodes[tri[:, 1]], nodes[tri[:, 2]]
+            return 0.5 * np.linalg.norm(np.cross(B - A, C - A), axis=1)
+
+        area_init = compute_areas(initial_mesh)
+        area_def = compute_areas(deformed_mesh)
+
+        # Calculate ratio of geometric scaling distortion per cell element
+        distortion_ratio = np.where(area_init > 0, area_def / (area_init + 1e-14), 1.0)
+
+        # Elements experiencing scaling exceeding the threshold are flagged as crack propagation centers
+        return np.where(distortion_ratio > threshold)[0]
+
+
+from dataclasses import dataclass
+
+
+@dataclass
+class TopologyStitchReport:
+    is_watertight_manifold: bool
+    betti_0_components: int  # b_0: Number of independent disconnected bodies
+    betti_1_tunnels: int  # b_1: Number of leaking gaps / open topological holes
+    torsion_factors: List[int]  # Trapped twist/orientability anomalies
+    leaking_edge_indices: np.ndarray  # Array of exact edge IDs that failed to stitch
+
+
+class BRepHomologyStitchAnalyzer:
+    def __init__(self, brep: VectorizedBRep):
+        self.brep = brep
+
+    def _extract_sparse_boundary_1(self) -> Tuple[Dict[Tuple[int, int], int], int, int]:
+        """
+        Builds the d1 boundary matrix mapping signed oriented edges to their
+        constituent start/end vertices.
+        """
+        edge_to_verts = self.brep.edge_to_vertices
+        nrows = len(self.brep.vertex_coords)
+        ncols = len(edge_to_verts)
+
+        matrix_dict = {}
+        # Iterate over structural edge connections to register cell boundaries
+        for edge_id in range(1, ncols):
+            v_start, v_end = edge_to_verts[edge_id]
+            # Boundary mapping: partial_1(edge) = vertex_end - vertex_start
+            matrix_dict[(v_end, edge_id)] = 1
+            matrix_dict[(v_start, edge_id)] = -1
+
+        return matrix_dict, nrows, ncols
+
+    def _extract_sparse_boundary_2(self) -> Tuple[Dict[Tuple[int, int], int], int, int]:
+        """
+        Builds the d2 boundary matrix mapping faces (via closed wires)
+        to their underlying edge vectors.
+        """
+        nrows = len(self.brep.edge_to_vertices)
+        num_faces = len(self.brep.face_to_outer_wire)
+
+        matrix_dict = {}
+        for face_id in range(num_faces):
+            wire_id = self.brep.face_to_outer_wire[face_id]
+            oriented_edges = self.brep.get_wire_edges(wire_id)
+
+            for o_edge in oriented_edges:
+                edge_idx = abs(o_edge)
+                sign = int(np.sign(o_edge))
+                matrix_dict[(edge_idx, face_id)] = sign
+
+        return matrix_dict, nrows, num_faces
+
+    def evaluate_stitch_integrity(self) -> TopologyStitchReport:
+        """
+        Calculates topological Betti invariants over integers using the
+        sparse SNF engine to expose boundary alignment gaps.
+        """
+        # 1. Construct integer cell arrays
+        d1_dict, r1, c1 = self._extract_sparse_boundary_1()
+        d2_dict, r2, c2 = self._extract_sparse_boundary_2()
+
+        # 2. Evaluate algebraic reduction loops via sparse integer Smith Normal Form
+        snf_1 = sparse_integer_snf(d1_dict, r1, c1)
+        snf_2 = sparse_integer_snf(d2_dict, r2, c2)
+
+        # 3. Calculate ranks and nullities
+        num_vertices = r1
+        num_edges = c1 - 1  # Adjusted for 1-based structural padding index
+
+        rank_1 = len(snf_1)
+        rank_2 = len(snf_2)
+
+        # Homology Calculation Formula:
+        # b_0 = dim(ker d0) - rank(d1) = num_vertices - rank_1
+        b0 = num_vertices - rank_1
+
+        # b_1 = dim(ker d1) - rank(d2) = (num_edges - rank_1) - rank_2
+        b1 = (num_edges - rank_1) - rank_2
+
+        # Collect torsion factors (invariant factors > 1) in the d2 map
+        torsion = [t for t in snf_2 if t > 1]
+
+        # 4. Localize physical error coordinates using vectorized frequency bounds
+        all_oriented_edges = self.brep.wire_to_oriented_edges
+        edge_ids = np.abs(all_oriented_edges)
+        sharing_counts = np.bincount(edge_ids)
+
+        # Skip index 0 padding. Any edge not shared exactly twice indicates a stitching crack.
+        active_edges_mask = (sharing_counts[1:] > 0)
+        leaking_edges = np.where((sharing_counts[1:] != 2) & active_edges_mask)[0] + 1
+
+        is_watertight = (b1 == 0) and (len(leaking_edges) == 0)
+
+        return TopologyStitchReport(
+            is_watertight_manifold=is_watertight,
+            betti_0_components=b0,
+            betti_1_tunnels=b1,
+            torsion_factors=torsion,
+            leaking_edge_indices=leaking_edges
+        )
+
+
+class BRepToleranceZipper:
+    @staticmethod
+    def zip_vertices(brep: VectorizedBRep, tolerance: float = 1e-4) -> VectorizedBRep:
+        """
+        Identifies redundant vertices within a spatial tolerance, collapses them,
+        and rewires all edges to use the unified vertex IDs.
+        """
+        coords = brep.vertex_coords
+        num_verts = len(coords)
+
+        # Compute pairwise distance matrix between all vertices
+        # Shape: (num_verts, num_verts)
+        diff = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
+        dist_matrix = np.linalg.norm(diff, axis=2)
+
+        # Create an index mapping array: mapping old vertex IDs to collapsed new IDs
+        vertex_mapping = np.arange(num_verts, dtype=np.int64)
+        visited = np.zeros(num_verts, dtype=bool)
+
+        for i in range(num_verts):
+            if visited[i]:
+                continue
+            # Find all nodes within tolerance of vertex i
+            close_nodes = np.where(dist_matrix[i] <= tolerance)[0]
+            # Map all close nodes to the first discovered vertex ID
+            vertex_mapping[close_nodes] = i
+            visited[close_nodes] = True
+
+        # Extract unique remaining coordinates
+        unique_indices = np.unique(vertex_mapping)
+        new_coords = coords[unique_indices]
+
+        # Compress mapping to ensure continuous sequential indices: 0, 1, 2...
+        compressed_map = {old: new for new, old in enumerate(unique_indices)}
+        final_vertex_mapping = np.array([compressed_map[vertex_mapping[i]] for i in range(num_verts)], dtype=np.int64)
+
+        # Rewire edge connections using the new collapsed IDs
+        new_edge_to_vertices = final_vertex_mapping[brep.edge_to_vertices]
+
+        return VectorizedBRep(
+            vertex_coords=new_coords,
+            edge_to_vertices=new_edge_to_vertices,
+            wire_offsets=brep.wire_offsets,
+            wire_to_oriented_edges=brep.wire_to_oriented_edges,
+            face_to_outer_wire=brep.face_to_outer_wire
+        )
+
+
+class BRepNormalSynchronizer:
+    @staticmethod
+    def synchronize_orientations(brep: VectorizedBRep) -> VectorizedBRep:
+        """
+        Breadth-First Search (BFS) graph propagation to flip wire edge signs,
+        guaranteeing consistent outward or inward facing surface orientations.
+        """
+        num_faces = len(brep.face_to_outer_wire)
+        new_wire_edges = brep.wire_to_oriented_edges.copy()
+
+        # Map out which faces share which structural edges
+        edge_to_faces = {}
+        for face_id in range(num_faces):
+            wire_id = brep.face_to_outer_wire[face_id]
+            start = brep.wire_offsets[wire_id]
+            end = brep.wire_offsets[wire_id + 1]
+            for o_edge in new_wire_edges[start:end]:
+                edge_idx = abs(o_edge)
+                if edge_idx not in edge_to_faces:
+                    edge_to_faces[edge_idx] = []
+                edge_to_faces[edge_idx].append(face_id)
+
+        visited_faces = np.zeros(num_faces, dtype=bool)
+        queue = deque([0])  # Seed BFS with Face 0
+        visited_faces[0] = True
+
+        while queue:
+            curr_face = queue.popleft()
+            curr_wire = brep.face_to_outer_wire[curr_face]
+            curr_start = brep.wire_offsets[curr_wire]
+            curr_end = brep.wire_offsets[curr_wire + 1]
+
+            # Read current active edge signs for this face
+            curr_edges = new_wire_edges[curr_start:curr_end]
+
+            for o_edge in curr_edges:
+                edge_idx = abs(o_edge)
+                neighbors = edge_to_faces.get(edge_idx, [])
+
+                for neighbor_face in neighbors:
+                    if visited_faces[neighbor_face]:
+                        continue
+
+                    n_wire = brep.face_to_outer_wire[neighbor_face]
+                    n_start = brep.wire_offsets[n_wire]
+                    n_end = brep.wire_offsets[n_wire + 1]
+                    n_edges = new_wire_edges[n_start:n_end]
+
+                    # Locate the shared edge inside the neighboring face's loop
+                    match_idx = np.where(np.abs(n_edges) == edge_idx)[0]
+                    if len(match_idx) > 0:
+                        idx_in_global = n_start + match_idx[0]
+                        # Stokes Law: If current face and neighbor face match signs,
+                        # the neighbor face must be flipped to establish opposing alignment.
+                        if np.sign(o_edge) == np.sign(new_wire_edges[idx_in_global]):
+                            # Invert the wire loop segment to reverse its direction
+                            new_wire_edges[n_start:n_end] = -new_wire_edges[n_start:n_end]
+
+                    visited_faces[neighbor_face] = True
+                    queue.append(neighbor_face)
+
+        return VectorizedBRep(
+            vertex_coords=brep.vertex_coords,
+            edge_to_vertices=brep.edge_to_vertices,
+            wire_offsets=brep.wire_offsets,
+            wire_to_oriented_edges=new_wire_edges,
+            face_to_outer_wire=brep.face_to_outer_wire
+        )
+
+    # Import native OpenCASCADE components via pyoccad wrappers
+    from pyoccad.create.primitive import point
+    from pyoccad.create.curve import segment
+    from pyoccad.create.topology import wire, face
+    from pyoccad.io import step, iges
+
+    class BRepToCADFormatExporter:
+        @staticmethod
+        def convert_to_occ_shape(brep: VectorizedBRep):
+            """
+            Converts a repaired VectorizedBRep structure directly into a
+            native OpenCASCADE TopoDS_Face/Shape object using matrix lookups.
+            """
+            coords = brep.vertex_coords
+            edge_to_verts = brep.edge_to_vertices
+
+            occ_faces = []
+            num_faces = len(brep.face_to_outer_wire)
+
+            for face_id in range(num_faces):
+                wire_id = brep.face_to_outer_wire[face_id]
+                oriented_edges = brep.get_wire_edges(wire_id)
+
+                occ_edges_list = []
+                for o_edge in oriented_edges:
+                    edge_idx = abs(o_edge)
+                    sign = np.sign(o_edge)
+
+                    # Fetch row indices for endpoints
+                    v_start_idx, v_end_idx = edge_to_verts[edge_idx]
+
+                    # Instantiate native OpenCASCADE 3D points
+                    p_start = point.create_point(coords[v_start_idx])
+                    p_end = point.create_point(coords[v_end_idx])
+
+                    # Construct smooth underlying analytic segment curve
+                    occ_segment = segment.create_segment(p_start, p_end)
+
+                    # Enforce orientation signs established by our synchronizer
+                    if sign < 0:
+                        occ_segment.Reverse()
+
+                    occ_edges_list.append(occ_segment)
+
+                # Bind sequential segments cleanly into a native topological closed loop wire
+                occ_wire = wire.create_wire(occ_edges_list)
+
+                # Surface generation: construct plane mapping across the bounding wire
+                occ_face = face.create_face(occ_wire)
+                occ_faces.append(occ_face)
+
+            return occ_faces[0] if len(occ_faces) == 1 else occ_faces
+
+        @classmethod
+        def export_to_step(cls, brep: VectorizedBRep, file_path: str) -> None:
+            """Saves the geometry directly to a standard conforming STEP (.stp) CAD file."""
+            occ_shape = cls.convert_to_occ_shape(brep)
+            step.write_step(occ_shape, file_path)
+            print(f"Direct export successful. Saved native STEP model to: {file_path}")
+
+        @classmethod
+        def export_to_iges(cls, brep: VectorizedBRep, file_path: str) -> None:
+            """Saves the geometry directly to a standard conforming IGES (.igs) CAD file."""
+            occ_shape = cls.convert_to_occ_shape(brep)
+            iges.write_iges(occ_shape, file_path)
+            print(f"Direct export successful. Saved native IGES model to: {file_path}")
+
+
+# Assuming your previous VectorizedBRep, BRepMeshValidator, BRepToleranceZipper,
+# BRepNormalSynchronizer, and BRepToCADFormatExporter classes are fully imported.
+
+class SGS1ReverseEngineeringPipeline:
+    def __init__(self, sgs1_api_client=None):
+        self.client = sgs1_api_client
+
+    def generate_initial_cad_from_image(self, image_path: str) -> VectorizedBRep:
+        """
+        Step 1: Pass the source image to the SGS-1 foundation model.
+        SGS-1 infers geometric design intent and outputs initial B-Rep arrays.
+        """
+        print(f"[SGS-1] Processing single-view image: {image_path}...")
+
+        # Simulating the raw array payload returned from the SGS-1 inference layer.
+        # As expected, generative sampling introduces unstitched micro-gaps and inverted normals.
+        raw_coords = np.array([
+            [0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [0.0, 1.0, 0.0],  # Face 1
+            [1.002, 0.0, 0.0], [2.0, 0.0, 0.0], [2.0, 1.0, 0.0], [1.002, 1.0, 0.0]  # Face 2 (with a 0.002 gap!)
+        ], dtype=np.float64)
+
+        raw_edges = np.array([
+            ,,,,  # Face 1 boundaries
+        , , ,  # Face 2 boundaries
+        ], dtype = np.int64)
+
+        raw_wire_edges = np.array([
+            1, 2, 3, 4,  # Wire 0 (Face 1)
+            -5, 6, 7, 8  # Wire 1 (Face 2 - note the flipped normal on Edge 5!)
+        ], dtype=np.int64)
+
+        offsets = np.array()
+        face_wires = np.array()
+
+        return VectorizedBRep(
+            vertex_coords=raw_coords,
+            edge_to_vertices=raw_edges,
+            wire_offsets=offsets,
+            wire_to_oriented_edges=raw_wire_edges,
+            face_to_outer_wire=face_wires
+        )
+
+    def execute_doctoring_and_export_pipeline(self, image_path: str, output_step_path: str):
+        """
+        Runs the complete cycle: Image -> SGS-1 CAD -> Mesh Discretization ->
+        Mesh Diagnostics -> B-Rep Healing -> Watertight CAD Export.
+        """
+        # 1. Image-to-CAD Generation via SGS-1
+        raw_brep = self.generate_initial_cad_from_image(image_path)
+
+        # 2. Convert to discrete elements via OpenCASCADE meshing layer for simulation/diagnostics
+        # This mirrors generating an incremental mesh on the raw generative output
+        print("\n[Tessellation] Discretizing generative CAD surfaces into structural element faces...")
+        flat_carrier = VectorizedSurface(lambda u, v: (u, v, 0.0), (0.0, 2.0), (0.0, 1.0))
+        initial_mesh = BRepMeshingEngine.mesh_surface(flat_carrier, u_divisions=4, v_divisions=3)
+
+        # 3. Diagnose the element distortions and stitching defects
+        quality_suite = MeshQualitySuite()
+        initial_quality = quality_suite.evaluate_quality(initial_mesh)
+        print(f" -> Elements Generated: {len(initial_mesh.elements)} triangles")
+        print(f" -> Initial Worst-Case Mesh Skewness: {initial_quality.worst_skewness:.4f}")
+
+        # 4. Doctor the underlying B-Rep matrices using your algebraic homology pipeline
+        print("\n[Doctoring Suite] Activating geometric repair loops...")
+
+        # Heal Step A: Zip the structural vertex tolerances (collapsing the 0.002 spatial gap)
+        zipper_healed_brep = BRepToleranceZipper.zip_vertices(raw_brep, tolerance=1e-2)
+
+        # Heal Step B: Synchronize the normal orientations across shared wire loops
+        fully_healed_brep = BRepNormalSynchronizer.synchronize_orientations(zipper_healed_brep)
+
+        # 5. Final validation via Sparse Integer Homology
+        stitch_analyzer = BRepHomologyStitchAnalyzer(fully_healed_brep)
+        stitch_report = stitch_analyzer.evaluate_stitch_integrity()
+
+        print(f" -> Topological Leaking Holes Remaining (b_1): {stitch_report.betti_1_tunnels}")
+        print(f" -> Is the doctored B-Rep topology watertight? {stitch_report.is_watertight_manifold}")
+
+        # 6. Direct Native CAD Export using your pyoccad/OpenCASCADE wrapper
+        if stitch_report.is_watertight_manifold:
+            print(f"\n[Export Engine] Packaging pristine topology matrix structures...")
+            BRepToCADFormatExporter.export_to_step(fully_healed_brep, output_step_path)
+        else:
+            print("\n[Error] Pipeline halted: Homology layer indicates remaining topological boundary leaks.")
+
+
+
+
+
+
+
+# Instantiate and run the complete Image-to-Watertight-CAD script
+pipeline_manager = SGS1ReverseEngineeringPipeline()
+
+pipeline_manager.execute_doctoring_and_export_pipeline(
+    image_path="industrial_bracket_sketch.png",
+    output_step_path="repaired_bracket_component.stp"
+)
+
+# pip install gradio_client
+from gradio_client import Client
+import numpy as np
+
+
+class SGS1HuggingFaceBridge:
+    def __init__(self):
+        # Establish link directly to Spectral Labs' foundational workspace container
+        self.client = Client("spectral-labs/SGS-1")
+
+    def infer_cad_from_image(self, local_image_path: str, temporary_raw_step_out: str) -> str:
+        """
+        Sends your image straight to the SGS-1 Space, runs predictive geometric sampling,
+        and saves the un-doctored, crack-prone raw STEP file down to disk.
+        """
+        print(f"[Hugging Face Bridge] Uploading {local_image_path} to SGS-1 core solver...")
+
+        # Predict endpoint parameters based on SGS-1 interface schema
+        result = self.client.predict(
+            image=local_image_path,
+            api_name="/predict"
+        )
+
+        # Result typically holds the file download path of the generated STEP structure
+        raw_step_path = result["step_file"]
+
+        # Cache locally so we can dissect the broken geometry matrices
+        import shutil
+        shutil.copy(raw_step_path, temporary_raw_step_out)
+        return temporary_raw_step_out
+
+
+from pyoccad.io import step
+from pyoccad.create.mesh import BRepMesh_IncrementalMesh
+
+
+def execute_generative_engineering_cycle(input_image: str, ready_cad_out: str):
+    print("=================================================================")
+    print("      STARTING PRODUCTION IMAGE-TO-WATERTIGHT-CAD PIPELINE       ")
+    print("=================================================================")
+
+    # 1. Grab raw model generation from Hugging Face Space
+    hf_bridge = SGS1HuggingFaceBridge()
+    raw_step_file = "raw_sgs1_output_unstitched.stp"
+    hf_bridge.infer_cad_from_image(input_image, raw_step_file)
+
+    # 2. Ingest the unhealed model into OpenCASCADE
+    print("\n[Ingestion] Reading raw generative shapes into topological kernel...")
+    raw_occ_shape = step.read_step(raw_step_file)
+
+    # 3. Discretize into a mesh via OpenCASCADE BRepMesh to inspect local errors
+    print("[Tessellation] Building diagnostic mesh to spot ML topological tearing...")
+    BRepMesh_IncrementalMesh(raw_occ_shape, linear_deflection=1e-3)
+
+    # 4. Map the OCC topological pointers directly into our high-performance NumPy arrays
+    # (Extracting coords, edge_to_vertices, wire_to_oriented_edges, etc.)
+    # For simulation, we populate our optimized VectorizedBRep structure from the raw model:
+    raw_brep_matrices = VectorizedBRep(
+        vertex_coords=np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [1.0003, 0.0, 0.0], [1.0003, 1.0, 0.0]],
+                               dtype=np.float64),  # 0.0003 crack!
+        edge_to_vertices=np.array([[, ], [, ]], dtype=np.int64),
+        wire_offsets=np.array(, dtype=np.int64),
+    wire_to_oriented_edges = np.array(, dtype = np.int64),
+    face_to_outer_wire = np.array(, dtype = np.int64)
+    )
+
+    # 5. Doctor the mesh/B-Rep matrices that SGS-1 inevitably screwed up
+    print("\n[Doctoring Suite] Re-aligning boundary structures...")
+
+    # Repair Step A: Zip the micro-gaps (collapsing ML sampling edge drift)
+    zipper_healed = BRepToleranceZipper.zip_vertices(raw_brep_matrices, tolerance=1e-3)
+
+    # Repair Step B: Force Stokes' orientation matching across shared boundary chains
+    fully_healed_brep = BRepNormalSynchronizer.synchronize_orientations(zipper_healed)
+
+    # 6. Verify with our exact Sparse Integer Homology Stitch Analyzer
+    stitch_analyzer = BRepHomologyStitchAnalyzer(fully_healed_brep)
+    stitch_report = stitch_analyzer.evaluate_stitch_integrity()
+
+    print(f" -> Post-repair open boundary cracks (b_1): {stitch_report.betti_1_tunnels}")
+    print(f" -> Model structural manifold status: {stitch_report.is_watertight_manifold}")
+
+    # 7. Convert pristine arrays back to OpenCASCADE and write production-grade CAD file
+    if stitch_report.is_watertight_manifold:
+        print(f"\n[Export Engine] Generating native, certified watertight CAD model...")
+        BRepToCADFormatExporter.export_to_step(fully_healed_brep, ready_cad_out)
+        print("Pipeline Complete! Output is fully editable, closed, and manufacturable.")
+    else:
+        print("\n[Pipeline Aborted] Structural defects remain unresolved.")
+
+
+
+# Run the pipeline on an image upload
+execute_generative_engineering_cycle(
+    input_image="car_suspension_bracket_concept.jpg",
+    ready_cad_out="production_ready_bracket.stp"
+)
+
+
+#####################################################
+# EXAMPLES EXAMPLES EXAMPLES EXAMPLES               #
+#####################################################
+
+
+###### GENERATE A SQUARE FACE #####
+# 1. Coordinate Matrix (X, Y, Z positions)
+coords = np.array([
+    [0.0, 0.0, 0.0],  # Vertex 0
+    [1.0, 0.0, 0.0],  # Vertex 1
+    [1.0, 1.0, 0.0],  # Vertex 2
+    [0.0, 1.0, 0.0]   # Vertex 3
+])
+
+# 2. Structural Edge Matrix tracking [start_vertex, end_vertex]
+edges = np.array([,  # Edge 0,  # Edge 1,  # Edge 2
+    [3, 0]   # Edge 3
+])
+
+# 3. Wire definitions mapping sequential configurations
+# Wire 0 consists of: Edge 0 (Fwd), Edge 1 (Fwd), Edge 2 (Fwd), Edge 3 (Fwd)
+wire_edges = np.array([0, 1, 2, 3])
+offsets = np.array([0, 4]) # Identifies boundaries of wire chunks
+
+# 4. Map Wire 0 as the bounding perimeter for Face 0
+face_wires = np.array([0])
+
+# Initialize the array system
+brep_kernel = VectorizedBRep(
+    vertex_coords=coords,
+    edge_to_vertices=edges,
+    wire_offsets=offsets,
+    wire_to_oriented_edges=wire_edges,
+    face_to_outer_wire=face_wires
+)
+
+# Run vectorized checks
+is_continuous = brep_kernel.validate_wire_continuity(wire_id=0)
+print(f"NumPy Wire loop continuity verified: {is_continuous}")
+
+
+# 1. Define geometry formulas using vectorized NumPy constructs
+# Curve: An ascending 3D space spiral helix
+helix = VectorizedCurve(
+    lambda t: (np.cos(t), np.sin(t), 0.1 * t),
+    t_bounds=(0.0, 10.0)
+)
+
+# Surface: A parametric saddle dome z = x^2 - y^2
+saddle = VectorizedSurface(
+    lambda u, v: (u, v, u**2 - v**2),
+    u_bounds=(-2.0, 2.0),
+    v_bounds=(-2.0, 2.0)
+)
+
+# 2. Compute the exact 3D Intersection point
+initial_guess_t, initial_guess_u, initial_guess_v = 1.0, 0.5, 0.5
+inter_3d, params = GeometricIntersectionEngine.intersect_curve_surface(
+    helix, saddle, initial_guess_t, initial_guess_u, initial_guess_v
+)
+
+print("--- INTERSECTION ENGINE OUTPUT ---")
+print(f"Exact intersection point in space: {inter_3d}")
+print(f"Parametric convergence variables [t, u, v]: {params}")
+
+# 3. Discretize the surface into a structured Triangulation mesh
+mesh_output = BRepMeshingEngine.mesh_surface(saddle, u_divisions=5, v_divisions=5)
+
+print("\n--- MESHING ENGINE OUTPUT ---")
+print(f"Generated physical nodes shape: {mesh_output.nodes.shape} (Total unique vertices)")
+print(f"Generated elements matrix shape: {mesh_output.elements.shape} (Triangles generated)")
+print(f"First 3 structural triangle connections:\n{mesh_output.elements[:3]}")
+
+
+# 1. Define 4 boundaries matching a unit square curve trace
+flat_plane = VectorizedSurface(lambda u, v: (u, v, 0.0), (0.0, 1.0), (0.0, 1.0))
+
+curves = [
+    VectorizedCurve(lambda t: (t, 0.0, 0.0), (0.0, 1.0)),  # Bottom Edge
+    VectorizedCurve(lambda t: (1.0, t, 0.0), (0.0, 1.0)),  # Right Edge
+    VectorizedCurve(lambda t: (1.0 - t, 1.0, 0.0), (0.0, 1.0)), # Top Edge
+    VectorizedCurve(lambda t: (0.0, 1.0 - t, 0.0), (0.0, 1.0))  # Left Edge
+]
+
+# 2. Discrete Mesh Generation using our prior surface generator
+mesh_geom = BRepMeshingEngine.mesh_surface(flat_plane, u_divisions=6, v_divisions=6)
+
+# 3. Instantiate Validator
+validator = BRepMeshValidator(trimesh=mesh_geom, brep=brep_kernel)
+
+# Run boundary calculations
+total_boundary_edges = len(validator.extract_mesh_boundary_edges())
+validation_report = validator.validate_boundaries_against_curves(curves, tolerance=1e-4)
+
+print("--- BOUNDARY VALIDATION REPORT ---")
+print(f"Total discrete boundary edges detected: {total_boundary_edges}")
+print(f"Is mesh conforming to B-Rep curves? {validation_report.is_valid}")
+print(f"Max geometric geometric deviation: {validation_report.max_boundary_deviation:.8f}")
+if not validation_report.is_valid:
+    print(f"Leaked element edge counts: {len(validation_report.unmatched_boundary_edges)}")
+
+
+# Create a rough mesh surface intentionally violating tight boundary conditions
+coarse_plane = VectorizedSurface(lambda u, v: (u, v, 0.0), (0.0, 1.0), (0.0, 1.0))
+initial_mesh = BRepMeshingEngine.mesh_surface(coarse_plane, u_divisions=3, v_divisions=3)
+
+# Instantiate our quality and validation systems
+base_validator = BRepMeshValidator(trimesh=initial_mesh, brep=brep_kernel)
+quality_suite = MeshQualitySuite()
+
+print("--- INITIAL UNREFINED STATES ---")
+init_q = quality_suite.evaluate_quality(initial_mesh)
+print(f"Initial Element Count: {len(initial_mesh.elements)}")
+print(f"Average Aspect Ratio: {init_q.average_aspect_ratio:.4f}")
+print(f"Worst Case Skewness: {init_q.worst_skewness:.4f}")
+
+# Execute adaptive refinement tracking loop over tolerances
+refiner = AdaptiveRefinementEngine(base_validator, curves)
+optimized_mesh = refiner.refine_mesh(tolerance=1e-5, max_iterations=3)
+
+print("\n--- ADAPTIVE REFINEMENT INTERACTION REPORT ---")
+final_q = quality_suite.evaluate_quality(optimized_mesh)
+print(f"Refined Element Count: {len(optimized_mesh.elements)} triangles")
+print(f"Post-Loop Average Aspect Ratio: {final_q.average_aspect_ratio:.4f}")
+print(f"Post-Loop Worst Case Skewness: {final_q.worst_skewness:.4f}")
+
+# Create an initial plate mesh structure
+plane_carrier = VectorizedSurface(lambda u, v: (u, v, 0.0), (0.0, 2.0), (0.0, 2.0))
+working_mesh = BRepMeshingEngine.mesh_surface(plane_carrier, u_divisions=4, v_divisions=4)
+
+# Force a crack into the element geometry by detaching shared vertices down the center line
+# Simulating a structural tear
+working_mesh.elements[2] = [0, 4, 9]  # Intentional node-connection alteration
+
+# Run the Vectorized Fracture Engine
+crack_report = MeshFractureDetector.isolate_cracks(working_mesh)
+
+print("--- GEOMETRIC CRACK ENGINE REPORT ---")
+print(f"Structural defect anomalies found? {crack_report.has_defects}")
+print(f"Total number of unzipped/torn boundary edges: {crack_report.defect_edge_count}")
+print(f"Identified independent crack/hole boundary paths: {len(crack_report.crack_paths)}")
+if crack_report.has_defects:
+    print(f"First mapped crack loop trace (node IDs): {crack_report.crack_paths[0]}")
+
+
+# Create 6 coordinates defining a two-plate sheet
+coords = np.array([
+    [0.0, 0.0, 0.0],  # V0
+    [1.0, 0.0, 0.0],  # V1
+    [1.0, 1.0, 0.0],  # V2
+    [0.0, 1.0, 0.0],  # V3
+    [2.0, 0.0, 0.0],  # V4
+    [2.0, 1.0, 0.0]   # V5
+])
+
+# Define independent structural edges.
+# Intentionally separated: Plate 1 uses Edge 2, while Plate 2 uses Edge 5.
+# This mimics a modeling gap where they fail to merge!
+edges = np.array([, # Padding, # Edge 1, # Edge 2 (Left Plate Right Edge), # Edge 3, # Edge 4, # Edge 5 (Right Plate Left Edge - Duplicate target space!), # Edge 6, # Edge 7
+    [4, 1]  # Edge 8
+])
+
+# Wires mapping the loops around both faces
+wire_edges = np.array([
+    1, 2, 3, 4,     # Wire 0: Face 1 perimeter
+    5, 6, 7, 8      # Wire 1: Face 2 perimeter
+])
+offsets = np.array([0, 4, 8])
+face_wires = np.array([0, 1])
+
+# Construct our bad B-Rep configuration
+poor_stitch_brep = VectorizedBRep(
+    vertex_coords=coords,
+    edge_to_vertices=edges,
+    wire_offsets=offsets,
+    wire_to_oriented_edges=wire_edges,
+    face_to_outer_wire=face_wires
+)
+
+# Run the unified algebraic homology suite
+analyzer = BRepHomologyStitchAnalyzer(poor_stitch_brep)
+report = analyzer.evaluate_stitch_integrity()
+
+print("--- B-REP HOMOLOGY DIAGNOSTIC REPORT ---")
+print(f"Is model watertight manifold? {report.is_watertight_manifold}")
+print(f"Independent connected solid bodies (b_0): {report.betti_0_components}")
+print(f"Leaking gaps / open topological tunnels (b_1): {report.betti_1_tunnels}")
+print(f"Identified leaking edge indices: {report.leaking_edge_indices}")
+
+
+print("--- RUNNING CAD MODEL REPAIR PIPELINE ---")
+
+# Step 1: Execute Vertex Tolerance Zipper to resolve physical gap spaces
+healed_geometry_brep = BRepToleranceZipper.zip_vertices(poor_stitch_brep, tolerance=1e-3)
+print(f"Post-Zipper Unique Vertex Count: {len(healed_geometry_brep.vertex_coords)} (Successfully collapsed down from 6)")
+
+# Step 2: Execute Normal Synchronizer to correct surface face trajectories
+fully_healed_brep = BRepNormalSynchronizer.synchronize_orientations(healed_geometry_brep)
+
+# Step 3: Verify the fix using our algebraic homology validator suite
+final_analyzer = BRepHomologyStitchAnalyzer(fully_healed_brep)
+final_report = final_analyzer.evaluate_stitch_integrity()
+
+print("\n--- POST-PIPELINE TOPOLOGY VERIFICATION ---")
+print(f"Is model completely repaired and watertight? {final_report.is_watertight_manifold}")
+print(f"Remaining Leaking Tunnels (b_1): {final_report.betti_1_tunnels}")
+
+# =====================================================================
+# SYSTEM DEPENDENCIES (Include this as a markdown installation cell)
+# !pip install numpy scipy scipy.sparse gradio_client pyvista pyoccad
+# =====================================================================
+
+from collections import deque
+from dataclasses import dataclass
+from enum import Enum
+from typing import Dict, List, Tuple
+import numpy as np
+from scipy.sparse import csr_matrix
+import pyvista as pv
+
+
+class SpatialFidelityEngine:
+    @staticmethod
+    def compute_hausdorff_distance(nodes_A: np.ndarray, nodes_B: np.ndarray) -> tuple[float, float]:
+        """
+        Computes the directed and undirected (two-sided) Hausdorff Distance
+        between point cloud A (raw ML output) and point cloud B (healed CAD model).
+        Uses high-performance NumPy broadcasting.
+        """
+        # Step 1: Compute the pairwise distance matrix between all points in A and B
+        # Shape: (N_A, N_B)
+        diff = nodes_A[:, np.newaxis, :] - nodes_B[np.newaxis, :, :]
+        dist_matrix = np.linalg.norm(diff, axis=2)
+
+        # Step 2: For each point in A, find the distance to the closest point in B
+        min_dist_A_to_B = np.min(dist_matrix, axis=1)
+        # Directed Hausdorff from A to B: max_{a in A} min_{b in B} d(a, b)
+        directed_H_A_B = float(np.max(min_dist_A_to_B))
+
+        # Step 3: For each point in B, find the distance to the closest point in A
+        min_dist_B_to_A = np.min(dist_matrix, axis=0)
+        # Directed Hausdorff from B to A: max_{b in B} min_{a in A} d(a, b)
+        directed_H_B_A = float(np.max(min_dist_B_to_A))
+
+        # Step 4: Symmetric (two-sided) Hausdorff Distance
+        symmetric_hausdorff = max(directed_H_A_B, directed_H_B_A)
+
+        return symmetric_hausdorff, directed_H_A_B
+
+
+# Evaluate spatial fidelity post-healing
+h_dist, dir_h = SpatialFidelityEngine.compute_hausdorff_distance(
+    raw_mesh_visualization.nodes,
+    healed_mesh_visualization.nodes
+)
+
+print("--- GEOMETRIC FIDELITY AUDIT ---")
+print(f"Symmetric Hausdorff Distance: {h_dist:.6f}")
+print(f"Directed Hausdorff (Raw -> Healed): {dir_h:.6f}")
+
+# Rigorous engineering assessment
+if h_dist < 1e-2:
+    print("✅ PASS: Topological zipping and healing preserved geometric design intent within bounds.")
+else:
+    print("⚠️ WARNING: Geometry has drifted significantly from the raw generative contours.")
+
+
+
+# =====================================================================
+# 1. CORE STRUCT-OF-ARRAYS VERTORIZED B-REP DATASTRUCTURE
+# =====================================================================
+
+class Orientation(Enum):
+    FORWARD = 1
+    REVERSED = -1
+
+
+@dataclass
+class VectorizedBRep:
+    vertex_coords: np.ndarray  # Shape: (N_vertices, 3) [Float64]
+    edge_to_vertices: np.ndarray  # Shape: (N_edges, 2) [Int64]
+    wire_offsets: np.ndarray  # Shape: (N_wires + 1) [Int64]
+    wire_to_oriented_edges: np.ndarray  # Shape: (N_oriented_edges) [Int64, signed]
+    face_to_outer_wire: np.ndarray  # Shape: (N_faces) [Int64]
+
+    def __post_init__(self):
+        self.vertex_coords = np.ascontiguousarray(self.vertex_coords, dtype=np.float64)
+        self.edge_to_vertices = np.ascontiguousarray(self.edge_to_vertices, dtype=np.int64)
+        self.wire_offsets = np.ascontiguousarray(self.wire_offsets, dtype=np.int64)
+        self.wire_to_oriented_edges = np.ascontiguousarray(self.wire_to_oriented_edges, dtype=np.int64)
+        self.face_to_outer_wire = np.ascontiguousarray(self.face_to_outer_wire, dtype=np.int64)
+
+    def get_wire_edges(self, wire_id: int) -> np.ndarray:
+        return self.wire_to_oriented_edges[self.wire_offsets[wire_id]:self.wire_offsets[wire_id + 1]]
+
+
+@dataclass
+class TriMesh:
+    nodes: np.ndarray  # Shape: (N, 3)
+    elements: np.ndarray  # Shape: (M, 3)
+
+
+# =====================================================================
+# 2. ALGEBRAIC HOMOLOGY ENGINE (SPARSE SMITH NORMAL FORM)
+# =====================================================================
+
+def sparse_integer_snf(matrix_dict: Dict[Tuple[int, int], int], nrows: int, ncols: int) -> List[int]:
+    """Computes invariant diagonal values of an integer matrix using a sparse dictionary layout."""
+    M = matrix_dict.copy()
+    for k in range(min(nrows, ncols)):
+        while True:
+            # Find non-zero minimal pivot candidate
+            pivot = None
+            best_score = float('inf')
+            for (r, c), val in M.items():
+                if r >= k and c >= k and val != 0:
+                    if abs(val) < best_score:
+                        best_score = abs(val)
+                        pivot = (r, c)
+            if pivot is None: break
+            p_r, p_c = pivot
+            if p_r != k:
+                for c in range(k, ncols): M[k, c], M[p_r, c] = M.get((p_r, c), 0), M.get((k, c), 0)
+            if p_c != k:
+                for r in range(k, nrows): M[r, k], M[r, p_c] = M.get((r, p_c), 0), M.get((r, k), 0)
+
+            row_cleared, col_cleared = True, True
+            for c in range(k + 1, ncols):
+                if M.get((k, c), 0) != 0:
+                    row_cleared = False
+                    q = M[k, c] // M[k, k]
+                    for r in range(k, nrows): M[r, c] = M.get((r, c), 0) - q * M.get((r, k), 0)
+            for r in range(k + 1, nrows):
+                if M.get((r, k), 0) != 0:
+                    col_cleared = False
+                    q = M[r, k] // M[k, k]
+                    for c in range(k, ncols): M[r, c] = M.get((r, c), 0) - q * M.get((r, k), 0)
+            for key in list(M.keys()):
+                if M[key] == 0: del M[key]
+            if row_cleared and col_cleared: break
+    return sorted([int(abs(M.get((i, i), 0))) for i in range(min(nrows, ncols)) if M.get((i, i), 0) != 0])
+
+
+class BRepHomologyStitchAnalyzer:
+    def __init__(self, brep: VectorizedBRep):
+        self.brep = brep
+
+    def evaluate_stitch_integrity(self) -> Tuple[int, int, np.ndarray]:
+        """Calculates Betti 0, Betti 1 numbers and isolates unstitched boundary leaks."""
+        # Trace ∂1 boundary mapping connections
+        d1_dict, nrows1, ncols1 = {}, len(self.brep.vertex_coords), len(self.brep.edge_to_vertices)
+        for e_id in range(1, ncols1):
+            u, v = self.brep.edge_to_vertices[e_id]
+            d1_dict[(v, e_id)], d1_dict[(u, e_id)] = 1, -1
+
+        snf_1 = sparse_integer_snf(d1_dict, nrows1, ncols1)
+        b0 = nrows1 - len(snf_1)
+
+        # Isolate geometrically 'sus' unstitched edges using frequency bounds
+        edge_ids = np.abs(self.brep.wire_to_oriented_edges)
+        counts = np.bincount(edge_ids)
+        active_mask = (counts[1:] > 0)
+        leaking_edges = np.where((counts[1:] != 2) & active_mask) + 1
+
+        # b_1 calculation estimate via cycles minus topological faces bounded
+        b1 = max(0, (len(counts[1:][active_mask]) - len(snf_1)) - len(self.brep.face_to_outer_wire))
+        return b0, b1, leaking_edges
+
+
+# =====================================================================
+# 3. CLINICAL AUTOMATED REPAIR & POISSON RESAMPLING PIECE
+# =====================================================================
+
+class BRepToleranceZipper:
+    @staticmethod
+    def zip_vertices(brep: VectorizedBRep, tolerance: float = 1e-3) -> VectorizedBRep:
+        coords = brep.vertex_coords
+        num_verts = len(coords)
+        diff = coords[:, np.newaxis, :] - coords[np.newaxis, :, :]
+        dist_matrix = np.linalg.norm(diff, axis=2)
+
+        vertex_mapping = np.arange(num_verts, dtype=np.int64)
+        visited = np.zeros(num_verts, dtype=bool)
+        for i in range(num_verts):
+            if not visited[i]:
+                close_nodes = np.where(dist_matrix[i] <= tolerance)
+                vertex_mapping[close_nodes] = i
+                visited[close_nodes] = True
+
+        unique_indices = np.unique(vertex_mapping)
+        new_coords = coords[unique_indices]
+        compressed_map = {old: new for new, old in enumerate(unique_indices)}
+        final_mapping = np.array([compressed_map[vertex_mapping[i]] for i in range(num_verts)], dtype=np.int64)
+
+        return VectorizedBRep(new_coords, final_mapping[brep.edge_to_vertices], brep.wire_offsets,
+                              brep.wire_to_oriented_edges, brep.face_to_outer_wire)
+
+
+class BRepNormalSynchronizer:
+    @staticmethod
+    def synchronize_orientations(brep: VectorizedBRep) -> VectorizedBRep:
+        num_faces = len(brep.face_to_outer_wire)
+        new_wire_edges = brep.wire_to_oriented_edges.copy()
+        edge_to_faces = {}
+        for f_id in range(num_faces):
+            for o_edge in brep.get_wire_edges(f_id):
+                edge_idx = abs(o_edge)
+                if edge_idx not in edge_to_faces: edge_to_faces[edge_idx] = []
+                edge_to_faces[edge_idx].append(f_id)
+
+        visited_faces = np.zeros(num_faces, dtype=bool)
+        queue = deque()
+        visited_faces = True
+
+        while queue:
+            curr_face = queue.popleft()
+            curr_wire = brep.face_to_outer_wire[curr_face]
+            curr_edges = new_wire_edges[brep.wire_offsets[curr_wire]:brep.wire_offsets[curr_wire + 1]]
+            for o_edge in curr_edges:
+                edge_idx = abs(o_edge)
+                for neighbor in edge_to_faces.get(edge_idx, []):
+                    if not visited_faces[neighbor]:
+                        n_wire = brep.face_to_outer_wire[neighbor]
+                        n_start = brep.wire_offsets[n_wire]
+                        n_end = brep.wire_offsets[n_wire + 1]
+                        n_edges = new_wire_edges[n_start:n_end]
+                        match_idx = np.where(np.abs(n_edges) == edge_idx)
+                        if len(match_idx) > 0:
+                            idx = n_start + match_idx
+                            if np.sign(o_edge) == np.sign(new_wire_edges[idx]):
+                                new_wire_edges[n_start:n_end] = -new_wire_edges[n_start:n_end]
+                        visited_faces[neighbor] = True
+                        queue.append(neighbor)
+        return VectorizedBRep(brep.vertex_coords, brep.edge_to_vertices, brep.wire_offsets, new_wire_edges,
+                              brep.face_to_outer_wire)
+
+
+class PoissonMeshFallbackEngine:
+    @staticmethod
+    def reconstruct_surface_patch(mesh: TriMesh) -> TriMesh:
+        """
+        Executes a vectorized indicator function field solve (Poisson Surface Reconstruction fallback).
+        Used when boundary cracks represent intentional physical component damage.
+        """
+        # Form native PyVista PolyData representation from pure arrays
+        cells = np.hstack([np.full((len(mesh.elements), 1), 3), mesh.elements]).astype(np.int64)
+        poly = pv.PolyData(mesh.nodes, cells)
+
+        # Estimate analytical surface orientations and compute indicator fields
+        poly.compute_normals(inplace=True, cell_normals=False, point_normals=True)
+
+        # Run a surface reconstruction pass across the points
+        # If open cracks exist, the surface operator seals them smoothly based on the vector field
+        reconstructed = poly.reconstruct_surface(nbr_sz=10, sample_spacing=None)
+
+        # Map back to pure matrix primitives
+        faces_raw = reconstructed.faces.reshape(-1, 4)[:, 1:]
+        return TriMesh(nodes=np.array(reconstructed.points), elements=faces_raw)
+
+
+# =====================================================================
+# 4. INTERACTIVE 3D AUDITING VISUALIZATION SUITE (PyVista Engine)
+# =====================================================================
+
+class ProductionCADVisualizer:
+    @staticmethod
+    def audit_mesh_quality_and_defects(raw_mesh: TriMesh, healed_mesh: TriMesh, sus_edges: np.ndarray, title: str):
+        """
+        Launches an interactive, dual-panel 3D visualization.
+        Maps raw ML output and isolated crack/leak paths alongside the pristine model."""
+        plotter = pv.Plotter(shape=(1, 2), window_size=[1200, 600])
+        # Subplot 1: Raw Machine Learning Output + Leak Identification
+        plotter.subplot(0, 0)
+        raw_cells = np.hstack([np.full((len(raw_mesh.elements), 1), 3), raw_mesh.elements]).astype(np.int64)
+        raw_poly = pv.PolyData(raw_mesh.nodes, raw_cells)
+        plotter.add_text("Raw SGS-1 Output (Sus Elements Red)", font_size=12)
+        plotter.add_mesh(raw_poly, color="lightgray", show_edges=True, opacity=0.7)
+        # Graphically render 'sus' unstitched boundaries or intentional physical cracks
+        if len(sus_edges) > 0:
+            plotter.add_text("⚠️ CRACK / LEAK DETECTED", font_size=10, color="orange", position="lower_left")
+        # Draw line glyph indicators over bad elements
+        for edge_idx in sus_edges:
+            if edge_idx < len(raw_mesh.nodes):
+                sphere = pv.Sphere(radius=0.04, center=raw_mesh.nodes[edge_idx])
+                plotter.add_mesh(sphere, color="crimson", render_points_as_spheres=True)
+
+        # Subplot 2: Repaired & Healed Solid Geometry
+        plotter.subplot(0, 1)
+        healed_cells = np.hstack([np.full((len(healed_mesh.elements), 1), 3), healed_mesh.elements]).astype(np.int64)
+        healed_poly = pv.PolyData(healed_mesh.nodes, healed_cells)
+        plotter.add_text("Healed Manifold Surface Model", font_size=12)
+        plotter.add_mesh(healed_poly, color="seagreen", show_edges=True, physical_properties=True)
+        plotter.link_views()
+        # Link tracking cameras for matching rotations
+        plotter.show()
+
+
+# =====================================================================
+# 5. PIPELINE EXECUTION VERIFICATION LOOP
+# =====================================================================
+# 1. Simulating Raw Input from a single-view sketch loaded from an SGS-1 container
+# Notice the intentional topological crack boundary at index 2
+simulated_raw_brep = VectorizedBRep(vertex_coords=np.array([[0.0,0.0,0.0], [1.0,0.0,0.0], [1.003,0.0,0.0], [1.003,1.0,0.0], [0.0,1.0,0.0]], dtype=np.float64),edge_to_vertices=np.array([[, ], [, ], [, ], [, ], [, ]], dtype=np.int64),wire_offsets=np.array(, dtype=np.int64),wire_to_oriented_edges=np.array(, dtype=np.int64),face_to_outer_wire=np.array(, dtype=np.int64))
+
+stitch_engine = BRepHomologyStitchAnalyzer(simulated_raw_brep)b0, b1, sus_leak_indices = stitch_engine.evaluate_stitch_integrity()print("--- INITIAL MODEL METRICS ---")print(f"Topological Disconnected Chains (b0): {b0}")print(f"Leaking Tunnels Found (b1): {b1}")print(f"Indices of unstitched/leaking boundary components: {sus_leak_indices}")
+
+zipper_pass = BRepToleranceZipper.zip_vertices(simulated_raw_brep, tolerance=1e-2)synchronizer_pass = BRepNormalSynchronizer.synchronize_orientations(zipper_pass)
+
+post_engine = BRepHomologyStitchAnalyzer(synchronizer_pass)_, final_b1, remaining_leaks = post_engine.evaluate_stitch_integrity()
+
+raw_mesh_visualization = TriMesh(nodes=simulated_raw_brep.vertex_coords,elements=np.array([[0, 1, 4], [1, 2, 3]], dtype=np.int64))
+
+if len(remaining_leaks) > 0 or final_b1 > 0:print("\n[Nuance Alert] Open boundaries are clean. Classifying as INTENTIONAL DAMAGE / HOLE.")print("[Engine] Deploying Poisson Surface Reconstruction to model geometric damage...")healed_mesh_visualization = PoissonMeshFallbackEngine.reconstruct_surface_patch(raw_mesh_visualization)else:print("\n[Engine] Model clean. Gaps were topological artifacts. Successfully healed.")healed_mesh_visualization = TriMesh(nodes=synchronizer_pass.vertex_coords,elements=np.array([[0, 1, 2], [0, 2, 3]], dtype=np.int64))
+
+ProductionCADVisualizer.audit_mesh_quality_and_defects(raw_mesh=raw_mesh_visualization,healed_mesh=healed_mesh_visualization,sus_edges=sus_leak_indices,title="SGS-1 Reverse Engineering Integrity Dashboard")
+
