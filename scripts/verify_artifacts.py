@@ -40,7 +40,7 @@ def gencad_entries(payload: dict[str, object]) -> dict[str, str]:
 
 def project_entries() -> dict[str, str]:
     ignored = {".git", ".idea", ".pixi", "__pycache__", ".pytest_cache", ".mypy_cache",
-               ".ruff_cache", ".coverage", "htmlcov", "build", "dist"}
+               ".ruff_cache", ".coverage", "htmlcov", "build", "dist", "mutants"}
     entries = {}
     for path in ROOT.rglob("*"):
         relative = path.relative_to(ROOT)

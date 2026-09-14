@@ -30,6 +30,26 @@ testpaths = ["tests"]
 addopts = "-ra"
 markers = ["cad: requires the optional OCP geometry kernel"]
 
+[tool.mutmut]
+paths_to_mutate = ["src/cad_integrity"]
+do_not_mutate = [
+    "src/cad_integrity/__init__.py",
+    "src/cad_integrity/adapters/*",
+    "src/cad_integrity/arrays.py",
+    "src/cad_integrity/cli.py",
+    "src/cad_integrity/errors.py",
+    "src/cad_integrity/fixtures.py",
+    "src/cad_integrity/metrics.py",
+    "src/cad_integrity/models.py",
+    "src/cad_integrity/numerics.py",
+    "src/cad_integrity/pipeline.py",
+    "src/cad_integrity/repair.py",
+    "src/cad_integrity/serialization.py",
+    "src/cad_integrity/topology.py",
+    "src/cad_integrity/visualization.py",
+]
+tests_dir = ["tests/test_algebra.py", "tests/test_math_sea_trials.py"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py313"
