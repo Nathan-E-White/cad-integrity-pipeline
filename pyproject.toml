@@ -7,7 +7,7 @@ name = "cad-integrity-lab"
 version = "0.1.0"
 description = "Auditable topology diagnostics and conservative CAD repair experiments"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = ["numpy>=1.26,<3", "scipy>=1.12,<2"]
 
 [project.optional-dependencies]
@@ -32,7 +32,7 @@ markers = ["cad: requires the optional OCP geometry kernel"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py313"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]

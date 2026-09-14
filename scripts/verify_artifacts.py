@@ -40,11 +40,12 @@ def gencad_entries(payload: dict[str, object]) -> dict[str, str]:
 
 def project_entries() -> dict[str, str]:
     ignored = {".git", ".idea", ".pixi", "__pycache__", ".pytest_cache", ".mypy_cache",
-               ".ruff_cache", "build", "dist"}
+               ".ruff_cache", ".coverage", "htmlcov", "build", "dist"}
     entries = {}
     for path in ROOT.rglob("*"):
         relative = path.relative_to(ROOT)
-        if any(part in ignored for part in relative.parts) or not path.is_file():
+        if (any(part in ignored or part.endswith(".egg-info") for part in relative.parts)
+                or not path.is_file()):
             continue
         if relative.as_posix() == "SHA256SUMS.json":
             continue
@@ -61,6 +62,11 @@ def main() -> int:
     package_manifest = ROOT / "SHA256SUMS.json"
     package_entries = json.loads(package_manifest.read_text())
     errors = verify_mapping(ROOT, package_manifest, package_entries)
+    expected_entries = project_entries()
+    for relative in sorted(set(package_entries) - set(expected_entries)):
+        errors.append(f"{package_manifest}: unexpected or ignored entry {relative}")
+    for relative in sorted(set(expected_entries) - set(package_entries)):
+        errors.append(f"{package_manifest}: unrecorded artifact {relative}")
 
     for relative in (
         "examples/gencad/manifest.json",
