@@ -17,7 +17,7 @@ from typing import Any
 from .adapters.ocp import ExportReport, KernelPolicy, KernelReport
 from .errors import IntegrityError, MissingOptionalDependency
 from .models import PolyhedralBRep
-from .pipeline import RepairPipeline, RepairPolicy
+from .pipeline import RepairPipeline, RepairPolicy, fingerprint
 from .repair import WeldPolicy
 from .serialization import dumps
 from .visualization import mesh_figure, polygonal_audit_figure
@@ -135,14 +135,14 @@ def kernel_policy_from_controls(precision_mm: float, maximum_tolerance_mm: float
     )
 
 
-def _kernel_row(report: KernelReport) -> str:
+def _kernel_cells(report: KernelReport) -> tuple[str, ...]:
     free_edges = len(report.free_edge_ids)
     nonmanifold_edges = len(report.nonmanifold_edge_ids)
     volume = sum(report.solid_volumes_mm3)
     return (
-        f"| {report.solid_count} | {report.face_count} | {free_edges} | "
-        f"{nonmanifold_edges} | {report.maximum_entity_tolerance_mm:.6g} | "
-        f"{report.surface_area_mm2:,.6g} | {volume:,.6g} |"
+        str(report.solid_count), str(report.face_count), str(free_edges), str(nonmanifold_edges),
+        f"{report.maximum_entity_tolerance_mm:.6g}", f"{report.surface_area_mm2:,.6g}",
+        f"{volume:,.6g}",
     )
 
 
@@ -177,8 +177,8 @@ def project_step_evidence(result: dict[str, Any]) -> DecisionBrief:
         "## Before / after",
         "| | Solids | Faces | Free edges | Nonmanifold edges | Max tolerance (mm) | Area (mm²) | Volume (mm³) |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
-        f"| Before | {_kernel_row(before)[2:]}",
-        f"| After round trip | {_kernel_row(after)[2:]}",
+        f"| Before | {' | '.join(_kernel_cells(before))} |",
+        f"| After round trip | {' | '.join(_kernel_cells(after))} |",
         "",
         "## What happened",
         *(f"- {operation}" for operation in operations),
@@ -212,7 +212,7 @@ def project_step_refusal(before: KernelReport, policy: KernelPolicy, source_sha2
         "## Original audit",
         "| Solids | Faces | Free edges | Nonmanifold edges | Max tolerance (mm) | Area (mm²) | Volume (mm³) |",
         "| ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
-        _kernel_row(before),
+        f"| {' | '.join(_kernel_cells(before))} |",
         "",
         "## Configured policy",
         *_policy_lines(policy),
@@ -313,12 +313,12 @@ def run_step_workbench(upload: str | Path, policy: KernelPolicy, *,
     )
 
 
-def _topology_row(report: Any) -> str:
+def _topology_cells(report: Any) -> tuple[str, ...]:
     homology = report.homology.betti_numbers if report.homology is not None else "not computed"
     return (
-        f"| {report.vertex_count} | {report.edge_count} | {report.face_count} | "
-        f"{len(report.boundary_edge_ids)} | {len(report.nonmanifold_edge_ids)} | "
-        f"{len(report.inconsistent_orientation_edge_ids)} | `{homology}` |"
+        str(report.vertex_count), str(report.edge_count), str(report.face_count),
+        str(len(report.boundary_edge_ids)), str(len(report.nonmanifold_edge_ids)),
+        str(len(report.inconsistent_orientation_edge_ids)), f"`{homology}`",
     )
 
 
@@ -327,7 +327,8 @@ def project_polygonal_evidence(result: Any, fixture_name: str, policy: RepairPol
     report = result.report
     passed = report.decision == "topology_checks_passed"
     outcome = "Candidate passed configured combinatorial checks" if passed else "Fixture requires review"
-    after_rows = _topology_row(report.after) if report.after is not None else "| — | — | — | — | — | — | `—` |"
+    after_cells = _topology_cells(report.after) if report.after is not None else ("—",) * 6 + ("`—`",)
+    candidate_fingerprint = fingerprint(result.candidate) if result.candidate is not None else None
     markdown = "\n".join([
         "## Decision",
         f"{outcome}.",
@@ -337,8 +338,8 @@ def project_polygonal_evidence(result: Any, fixture_name: str, policy: RepairPol
         "## Before / after",
         "| | Vertices | Edges | Faces | Boundary edges | Nonmanifold edges | Winding conflicts | Betti numbers over F₂ |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
-        f"| Before | {_topology_row(report.before)[2:]}",
-        f"| After | {after_rows[2:]}",
+        f"| Before | {' | '.join(_topology_cells(report.before))} |",
+        f"| After | {' | '.join(after_cells)} |",
         "",
         "## What happened",
         *((tuple(f"- {change}" for change in report.changes))
@@ -353,6 +354,8 @@ def project_polygonal_evidence(result: Any, fixture_name: str, policy: RepairPol
         "",
         "## Evidence",
         f"- Input SHA-256: `{report.input_sha256}`",
+        (f"- Candidate canonical-array fingerprint: `{candidate_fingerprint}`"
+         if candidate_fingerprint is not None else "- No candidate artifact was produced."),
         f"- Length unit: `{report.length_unit}`",
         "",
         "## Limitations",

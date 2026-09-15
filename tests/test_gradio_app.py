@@ -129,6 +129,10 @@ def test_polygonal_fixture_lab_qualifies_each_distinct_fixture_outcome(
 
     assert outcome.decision_brief.outcome == outcome_text
     assert (outcome.candidate_figure is not None) is candidate_expected
+    if candidate_expected:
+        assert "Candidate canonical-array fingerprint" in outcome.decision_brief.markdown
+    else:
+        assert "No candidate artifact was produced" in outcome.decision_brief.markdown
 
 
 def test_step_workbench_keeps_evidence_when_display_rendering_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -194,3 +198,4 @@ def test_polygonal_fixture_lab_repairs_the_qualified_detached_cap(tmp_path: Path
     assert outcome.json_path.is_file()
     assert "Input SHA-256" in outcome.decision_brief.markdown
     assert "Weld tolerance" in outcome.decision_brief.markdown
+    assert "Candidate canonical-array fingerprint" in outcome.decision_brief.markdown
