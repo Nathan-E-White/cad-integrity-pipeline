@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 from scipy.spatial import cKDTree
@@ -9,7 +10,10 @@ from scipy.spatial import cKDTree
 from .arrays import IntArray, positive, readonly
 from .errors import InvalidGeometry, RepairRejected, ResourceLimitExceeded
 from .models import PolyhedralBRep
-from .topology import BRepHomologyStitchAnalyzer, orientation_solution
+from .topology import TopologyReport, orientation_solution
+
+if TYPE_CHECKING:
+    from .repair_transition import RepairPolicy
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,9 +41,16 @@ class WeldResult:
     removed_edge_count: int
     maximum_displacement: float
     length_unit: str
+    before: TopologyReport | None = None
+    after: TopologyReport | None = None
+
+    def with_audits(self, before: TopologyReport, after: TopologyReport) -> WeldResult:
+        return WeldResult(self.candidate, self.old_to_new_vertex, self.old_to_new_edge,
+                          self.removed_vertex_count, self.removed_edge_count,
+                          self.maximum_displacement, self.length_unit, before, after)
 
 
-def weld_vertices(brep: PolyhedralBRep, policy: WeldPolicy) -> WeldResult:
+def _weld_vertices(brep: PolyhedralBRep, policy: WeldPolicy, before: TopologyReport) -> WeldResult:
     """Radius-to-representative clustering; deterministic for fixed input ordering.
 
     Not transitive single-linkage: a chain of near neighbors cannot drift arbitrarily.
@@ -47,7 +58,6 @@ def weld_vertices(brep: PolyhedralBRep, policy: WeldPolicy) -> WeldResult:
     Refuse collapsed faces/edges and newly introduced nonmanifold/duplicate topology.
     The caller, not this function, decides whether nearby surfaces SHOULD be joined.
     """
-    before = BRepHomologyStitchAnalyzer(brep).evaluate_stitch_integrity()
     if (before.invalid_face_ids or before.collapsed_edge_ids or before.duplicate_face_ids
             or before.nonmanifold_edge_ids or before.nonmanifold_vertex_ids):
         raise RepairRejected("Resolve invalid/duplicate/collapsed or nonmanifold input cells before welding")
@@ -98,16 +108,29 @@ def weld_vertices(brep: PolyhedralBRep, policy: WeldPolicy) -> WeldResult:
     tokens = np.sign(brep.face_coedges) * edge_directions[old_ids] * (edge_map[old_ids]+1)
     candidate = PolyhedralBRep(new_vertices, np.asarray(new_edges, dtype=np.int64).reshape(-1, 2),
                                brep.face_offsets, tokens, brep.length_unit)
-    after = BRepHomologyStitchAnalyzer(candidate).evaluate_stitch_integrity()
-    if after.invalid_face_ids or after.duplicate_face_ids or after.collapsed_edge_ids:
+    from .polygonal_cells import admit_polygonal_cells
+    after_admission = admit_polygonal_cells(candidate)
+    if (after_admission.invalid_face_ids or after_admission.duplicate_face_ids
+            or after_admission.collapsed_edge_ids):
         raise RepairRejected("Welding would create an invalid or duplicate face/edge")
     # Edge/vertex IDs may change: compare defect counts, not incomparable IDs.
-    if (len(after.nonmanifold_edge_ids) > len(before.nonmanifold_edge_ids)
-            or len(after.nonmanifold_vertex_ids) > len(before.nonmanifold_vertex_ids)):
+    if (len(after_admission.nonmanifold_edge_ids) > len(before.nonmanifold_edge_ids)
+            or len(after_admission.nonmanifold_vertex_ids) > len(before.nonmanifold_vertex_ids)):
         raise RepairRejected("Welding would introduce additional nonmanifold topology")
     return WeldResult(candidate, readonly(inverse.astype(np.int64)), readonly(edge_map),
                       len(brep.vertices)-len(new_vertices), len(brep.edges)-len(new_edges),
                       max_move, brep.length_unit)
+
+
+def weld_vertices(
+    brep: PolyhedralBRep, policy: WeldPolicy, *, repair_policy: RepairPolicy
+) -> WeldResult:
+    """Approved direct weld; its audit policy is explicit rather than implicit."""
+    from .repair_transition import RepairPipeline, RepairPolicy
+
+    if not isinstance(repair_policy, RepairPolicy):
+        raise TypeError("repair_policy must be a RepairPolicy")
+    return RepairPipeline(repair_policy).weld(brep, policy)
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,9 +138,14 @@ class OrientationResult:
     candidate: PolyhedralBRep
     flipped_face_ids: tuple[int, ...]
     guarantee: str = "coherent_only_not_outward"
+    before: TopologyReport | None = None
+    after: TopologyReport | None = None
+
+    def with_audits(self, before: TopologyReport, after: TopologyReport) -> OrientationResult:
+        return OrientationResult(self.candidate, self.flipped_face_ids, self.guarantee, before, after)
 
 
-def synchronize_orientations(brep: PolyhedralBRep) -> OrientationResult:
+def _synchronize_orientations(brep: PolyhedralBRep) -> OrientationResult:
     for f in range(brep.face_count):
         brep.face_vertices(f)
     try:
@@ -135,3 +163,14 @@ def synchronize_orientations(brep: PolyhedralBRep) -> OrientationResult:
             flipped.append(face)
     candidate = PolyhedralBRep(brep.vertices, brep.edges, brep.face_offsets, tokens, brep.length_unit)
     return OrientationResult(candidate, tuple(flipped))
+
+
+def synchronize_orientations(
+    brep: PolyhedralBRep, *, repair_policy: RepairPolicy
+) -> OrientationResult:
+    """Approved direct orientation repair; its audit policy is explicit."""
+    from .repair_transition import RepairPipeline, RepairPolicy
+
+    if not isinstance(repair_policy, RepairPolicy):
+        raise TypeError("repair_policy must be a RepairPolicy")
+    return RepairPipeline(repair_policy).synchronize_orientations(brep)

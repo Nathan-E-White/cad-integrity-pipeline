@@ -11,6 +11,9 @@ from cad_integrity.pipeline import fingerprint
 from cad_integrity.repair import synchronize_orientations, weld_vertices
 
 
+DIRECT_POLICY = RepairPolicy()
+
+
 def report(brep):
     return BRepHomologyStitchAnalyzer(brep).evaluate_stitch_integrity()
 
@@ -87,7 +90,7 @@ def test_broken_wire_report_does_not_fabricate_betti():
 def test_reversal_must_reverse_order_and_signs():
     b = cube(reversed_face=1)
     assert report(b).inconsistent_orientation_edge_ids
-    corrected = synchronize_orientations(b)
+    corrected = synchronize_orientations(b, repair_policy=DIRECT_POLICY)
     assert corrected.flipped_face_ids
     assert report(corrected.candidate).is_closed_oriented_2manifold
     for f in range(corrected.candidate.face_count):
@@ -100,7 +103,7 @@ def test_all_disconnected_components_oriented():
     polygons = [left.face_vertices(i) for i in range(left.face_count)]
     polygons += [tuple(v+8 for v in right.face_vertices(i)) for i in range(right.face_count)]
     combined = PolyhedralBRep.from_polygons(points, polygons)
-    corrected = synchronize_orientations(combined)
+    corrected = synchronize_orientations(combined, repair_policy=DIRECT_POLICY)
     after = report(corrected.candidate)
     assert after.is_closed_oriented_2manifold
     assert after.homology.betti_numbers == (2, 0, 2)
@@ -121,25 +124,25 @@ def test_nonorientable_mobius_strip_rejected():
         polygons.extend(((a, c, b), (b, c, d)))
     strip = PolyhedralBRep.from_polygons(np.array(points), polygons)
     with pytest.raises(RepairRejected, match="inconsistent"):
-        synchronize_orientations(strip)
+        synchronize_orientations(strip, repair_policy=DIRECT_POLICY)
 
 
 def test_vertex_weld_also_deduplicates_edges():
     b = cracked_cube()
     before = fingerprint(b)
-    welded = weld_vertices(b, WeldPolicy(0.005, 0.005))
+    welded = weld_vertices(b, WeldPolicy(0.005, 0.005), repair_policy=DIRECT_POLICY)
     assert welded.removed_vertex_count == 4
     assert welded.removed_edge_count == 4
     assert welded.maximum_displacement == pytest.approx(0.002)
     assert fingerprint(b) == before
     assert len(welded.old_to_new_vertex) == len(b.vertices)
-    assert report(synchronize_orientations(welded.candidate).candidate).is_closed_oriented_2manifold
+    assert report(synchronize_orientations(welded.candidate, repair_policy=DIRECT_POLICY).candidate).is_closed_oriented_2manifold
 
 
 def test_welding_idempotent():
     policy = WeldPolicy(0.005, 0.005)
-    first = weld_vertices(cracked_cube(), policy)
-    second = weld_vertices(first.candidate, policy)
+    first = weld_vertices(cracked_cube(), policy, repair_policy=DIRECT_POLICY)
+    second = weld_vertices(first.candidate, policy, repair_policy=DIRECT_POLICY)
     assert second.removed_vertex_count == 0
     assert second.removed_edge_count == 0
     assert second.maximum_displacement == 0
@@ -155,17 +158,17 @@ def test_distance_chain_does_not_transitively_collapse():
     # Joining only at a vertex would create a pinch, so the conservative repair rejects
     # this candidate rather than presenting a geometrically close but nonmanifold result.
     with pytest.raises(RepairRejected, match="nonmanifold"):
-        weld_vertices(b, WeldPolicy(1.0, 1.0))
+        weld_vertices(b, WeldPolicy(1.0, 1.0), repair_policy=DIRECT_POLICY)
 
 
 def test_welding_rejects_collapsed_edge():
     with pytest.raises(RepairRejected, match="collapse"):
-        weld_vertices(disk(), WeldPolicy(2, 2))
+        weld_vertices(disk(), WeldPolicy(2, 2), repair_policy=DIRECT_POLICY)
 
 
 def test_weld_resource_limit():
     with pytest.raises(ResourceLimitExceeded):
-        weld_vertices(cracked_cube(), WeldPolicy(.005, .005, max_candidate_visits=1))
+        weld_vertices(cracked_cube(), WeldPolicy(.005, .005, max_candidate_visits=1), repair_policy=DIRECT_POLICY)
 
 
 def test_duplicate_faces_not_accepted():

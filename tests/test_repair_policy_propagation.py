@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 import pytest
 
@@ -66,18 +68,23 @@ def test_pipeline_propagates_coefficients_to_torsion_bearing_before_and_after_ev
     assert result.report.after.homology.groups[1].torsion == torsion
 
 
-def test_weld_and_orientation_preserve_source_and_pipeline_records_permitted_changes() -> None:
+def test_direct_operations_and_pipeline_share_policy_bound_audit_evidence() -> None:
     source = cracked_cube()
     source_hash = fingerprint(source)
-    welded = weld_vertices(source, WeldPolicy(0.005, 0.005))
+    policy = RepairPolicy(weld=WeldPolicy(0.005, 0.005))
+    welded = weld_vertices(source, WeldPolicy(0.005, 0.005), repair_policy=policy)
     welded_hash = fingerprint(welded.candidate)
-    oriented = synchronize_orientations(welded.candidate)
-    result = RepairPipeline(RepairPolicy(weld=WeldPolicy(0.005, 0.005))).run(source)
+    oriented = synchronize_orientations(welded.candidate, repair_policy=policy)
+    result = RepairPipeline(policy).run(source)
 
     assert fingerprint(source) == source_hash
     assert fingerprint(welded.candidate) == welded_hash
     assert welded.maximum_displacement == pytest.approx(0.002)
     assert oriented.candidate is not source
+    assert welded.before.homology == result.report.before.homology
+    assert welded.after.homology is not None
+    assert oriented.before == welded.after
+    assert oriented.after == result.report.after
     assert result.report.input_sha256 == source_hash
     assert result.report.changes == (
         "Merged 4 vertices and 4 straight edges",
@@ -93,16 +100,83 @@ def test_rejected_weld_returns_no_candidate_or_after_evidence() -> None:
     assert result.report.after is None
 
 
-def test_direct_weld_currently_has_no_channel_for_the_pipeline_reduction_budget() -> None:
-    """Characterize the default-policy detour which Stage 6 must remove."""
-    limited = RepairPipeline(
-        RepairPolicy(reduction_budget=ReductionBudget(max_columns=1))
-    ).run(cracked_cube())
+def test_direct_weld_requires_the_same_policy_and_preserves_audit_limit_evidence() -> None:
+    """Stage 6 removes the direct helper's hidden default-audit detour."""
+    policy = RepairPolicy(reduction_budget=ReductionBudget(max_columns=1))
+    direct = weld_vertices(cracked_cube(), WeldPolicy(0.005, 0.005), repair_policy=policy)
 
-    direct = weld_vertices(cracked_cube(), WeldPolicy(0.005, 0.005))
+    assert direct.before.homology is None
+    assert direct.after.homology is None
+    assert direct.before.homology_unavailable_reason == (
+        "F_2 input exceeds the configured reduction budget"
+    )
+    assert direct.after.homology_unavailable_reason == (
+        "F_2 input exceeds the configured reduction budget"
+    )
 
-    assert limited.report.before.homology is None
-    assert direct.removed_vertex_count == 4
+
+@pytest.mark.parametrize(
+    ("source", "policy", "expected_events", "expected_decision"),
+    [
+        (cube, RepairPolicy(synchronize_orientation=False), (
+            ("analyze", "Analyzing the input polygonal boundary"),
+            ("verify", "Re-running diagnostics on the candidate"),
+            ("complete", "topology_checks_passed")),
+         "topology_checks_passed"),
+        (cracked_cube, RepairPolicy(weld=WeldPolicy(.005, .005), synchronize_orientation=False),
+         (("analyze", "Analyzing the input polygonal boundary"),
+          ("weld", "Attempting explicitly authorized boundary-vertex welding"),
+          ("verify", "Re-running diagnostics on the candidate"), ("complete", "needs_review")),
+         "needs_review"),
+        (lambda: cube(reversed_face=1), RepairPolicy(), (
+            ("analyze", "Analyzing the input polygonal boundary"),
+            ("orient", "Solving orientation constraints across every component"),
+            ("verify", "Re-running diagnostics on the candidate"),
+            ("complete", "topology_checks_passed")),
+         "topology_checks_passed"),
+        (cracked_cube, RepairPolicy(weld=WeldPolicy(.005, .005)),
+         (("analyze", "Analyzing the input polygonal boundary"),
+          ("weld", "Attempting explicitly authorized boundary-vertex welding"),
+          ("orient", "Solving orientation constraints across every component"),
+          ("verify", "Re-running diagnostics on the candidate"),
+          ("complete", "topology_checks_passed")), "topology_checks_passed"),
+        (cracked_cube, RepairPolicy(weld=WeldPolicy(.005, .005, max_candidate_visits=1)),
+         (("analyze", "Analyzing the input polygonal boundary"),
+          ("weld", "Attempting explicitly authorized boundary-vertex welding"),
+          ("rejected", "Weld neighborhood search exceeds the candidate budget")), "rejected"),
+        (disk, RepairPolicy(weld=WeldPolicy(2, 2)), (
+            ("analyze", "Analyzing the input polygonal boundary"),
+            ("weld", "Attempting explicitly authorized boundary-vertex welding"),
+            ("rejected", "Welding would collapse an edge; candidate was not applied")), "rejected"),
+    ],
+    ids=["noop", "weld-only", "orientation-only", "compound", "resource-limit", "rejection"],
+)
+def test_transition_emits_complete_ordered_stage_trace_and_payloads(
+    source: Callable[[], PolyhedralBRep],
+    policy: RepairPolicy,
+    expected_events: tuple[tuple[str, str], ...],
+    expected_decision: str,
+) -> None:
+    events = []
+    result = RepairPipeline(policy).run(source(), on_event=events.append)
+
+    assert result.report.decision == expected_decision
+    assert tuple((event.stage, event.message) for event in events) == expected_events
+
+
+def test_compound_transition_has_deterministic_hash_displacement_report_and_trace() -> None:
+    policy = RepairPolicy(weld=WeldPolicy(.005, .005))
+    traces = []
+    first = RepairPipeline(policy).run(cracked_cube(), on_event=traces.append)
+    second_events = []
+    second = RepairPipeline(policy).run(cracked_cube(), on_event=second_events.append)
+
+    assert first.candidate is not None and second.candidate is not None
+    assert first.report.input_sha256 == second.report.input_sha256
+    assert fingerprint(first.candidate) == fingerprint(second.candidate)
+    assert first.report.maximum_vertex_displacement == second.report.maximum_vertex_displacement
+    assert first.report == second.report
+    assert traces == second_events
 
 
 def test_pipeline_rejects_a_nearby_but_distinct_weld_that_would_create_a_pinch() -> None:

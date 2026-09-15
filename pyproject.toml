@@ -42,14 +42,13 @@ do_not_mutate = [
     "src/cad_integrity/fixtures.py",
     "src/cad_integrity/metrics.py",
     "src/cad_integrity/numerics.py",
-    "src/cad_integrity/pipeline.py",
-    "src/cad_integrity/repair.py",
+    "src/cad_integrity/polygonal_cells.py",
     "src/cad_integrity/serialization.py",
     "src/cad_integrity/algebra.py",
     "src/cad_integrity/simplicial.py",
     "src/cad_integrity/visualization.py",
 ]
-tests_dir = ["tests/test_topology_repair.py", "tests/test_polygonal_cell_admission.py"]
+tests_dir = ["tests"]
 
 [tool.ruff]
 line-length = 100
