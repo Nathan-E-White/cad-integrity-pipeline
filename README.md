@@ -131,13 +131,35 @@ src/cad_integrity/
 
 There are no implicit downloads, API calls, servers, model inference, or example runs at package import. Typed reports are JSON-serializable. Native handles remain mutable kernel objects; keep them confined to an individual worker. Array objects own their data and are read-only by default.
 
-## Before adding Gradio
+## Run the local Gradio lab
 
-The intended seam is a synchronous core operation plus `on_event(StageEvent)` progress callbacks, returning a candidate and evidence. The UI should orchestrate per-request storage and render these results, not implement geometry algorithms.
+The Gradio app is a **local developer lab**. It binds only to `127.0.0.1`, does
+not enable sharing, and is not a public-upload deployment boundary.
 
-**External dependency status checked September 13, 2026:** the official `spectral-labs/SGS-1` Space's current `app.py` says the research demo has ended and announces SGS-2 for Q3 2026. The current application is an announcement page, not the inference endpoint assumed by the prototype. No working SGS client is claimed or included. Use a local STEP upload initially; see `docs/GRADIO_HANDOFF.md`.
+```bash
+pixi run gradio
+```
 
-Official source: https://huggingface.co/spaces/spectral-labs/SGS-1/raw/main/app.py
+The **Local STEP workbench** accepts a local `.step` or `.stp` file, displays an
+original audit, and attempts only the configured conservative native repair. Its
+collapsed Advanced repair policy panel exposes precision, maximum entity
+tolerance, expected solid count, self-interference checking, relative
+area/volume limits, and face-count-change permission. A checked STEP download
+appears only after the existing native export and round-trip checks pass.
+
+The **Polygonal fixture lab** runs the five qualified, checked-in pathological
+fixtures under their recorded policy. It accepts no arbitrary mesh upload:
+GLB/OBJ-to-analysis conversion would need a separately qualified topology
+admission contract.
+
+Each result renders a human-readable Decision Brief: outcome, metrics,
+acceptance/refusal reasons, changes, policy, hashes, and limitations. Markdown
+is downloadable for people; the strict JSON sidecar remains available as raw
+technical evidence. Neither report establishes design intent, certification, or
+continuous geometric fidelity.
+
+There is no SGS client or external inference integration. The earlier SGS-1
+research demo is not treated as an API contract; see `docs/GRADIO_HANDOFF.md`.
 
 ## Limits and reproducibility
 
