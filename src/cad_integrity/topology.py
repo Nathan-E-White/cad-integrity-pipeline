@@ -145,8 +145,8 @@ class BRepHomologyStitchAnalyzer:
                           if u == v or np.array_equal(b.vertices[u], b.vertices[v]))
         homology = None
         reason = None
-        if invalid or duplicates:
-            reason = "Invalid or duplicate face cells: refusing a misleading homology result"
+        if invalid or duplicates or collapsed:
+            reason = "Invalid, duplicate, or collapsed face cells: refusing a misleading homology result"
         else:
             try:
                 homology = compute_homology(b.to_chain_complex(), coefficients=self.coefficients,
