@@ -136,3 +136,4 @@ def test_visualization_uses_edge_endpoints():
     figure = polygonal_audit_figure(b,BRepHomologyStitchAnalyzer(b).evaluate_stitch_integrity(),title="test")
     assert len(figure.data) == 2
     assert len(figure.data[1].x) == 4*3  # Two endpoints and a None separator per edge.
+    assert figure.data[1].name == "Boundary edges (4)"

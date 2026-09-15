@@ -80,6 +80,7 @@ _FIXTURE_NAMES = (
     "01_repaired_cap",
     "02_pinched_vertex",
 )
+_NO_CANDIDATE_NOTICE = "## No candidate published\nThe audit did not publish a candidate for review or download."
 
 
 def _fixture_root() -> Path:
@@ -385,7 +386,7 @@ def _step_ui_action(upload: str | None, precision_mm: float, maximum_tolerance_m
                     expected_solids: float, run_self_interference_check: bool,
                     max_relative_area_change: float, max_relative_volume_change: float,
                     allow_face_count_change: bool, *, artifact_store: ArtifactStore
-                    ) -> tuple[str, Any | None, Any | None, str | None, str | None, str | None]:
+                    ) -> tuple[str, Any | None, Any, Any, str | None, str | None, str | None]:
     try:
         if upload is None:
             raise ValueError("Choose a local STEP file before running the workbench")
@@ -397,28 +398,38 @@ def _step_ui_action(upload: str | None, precision_mm: float, maximum_tolerance_m
         return (
             outcome.decision_brief.markdown,
             outcome.original_figure,
-            outcome.candidate_figure,
+            *candidate_display(outcome.candidate_figure),
             str(outcome.candidate_step) if outcome.candidate_step is not None else None,
             str(outcome.markdown_path),
             str(outcome.json_path),
         )
     except (IntegrityError, OSError, ValueError) as exc:
-        return (f"## Decision\nRequest not run: {exc}", None, None, None, None, None)
+        return (f"## Decision\nRequest not run: {exc}", None, *candidate_display(None), None, None, None)
 
 
 def _fixture_ui_action(name: str, *, artifact_store: ArtifactStore
-                       ) -> tuple[str, Any | None, Any | None, str | None, str | None]:
+                       ) -> tuple[str, Any | None, Any, Any, str | None, str | None]:
     try:
         outcome = run_polygonal_fixture(name, artifact_store=artifact_store)
         return (
             outcome.decision_brief.markdown,
             outcome.original_figure,
-            outcome.candidate_figure,
+            *candidate_display(outcome.candidate_figure),
             str(outcome.markdown_path),
             str(outcome.json_path),
         )
     except (IntegrityError, OSError, ValueError) as exc:
-        return (f"## Decision\nFixture not run: {exc}", None, None, None, None)
+        return (f"## Decision\nFixture not run: {exc}", None, *candidate_display(None), None, None)
+
+
+def candidate_display(figure: Any | None) -> tuple[Any, Any]:
+    """Return mutually exclusive Gradio components for published and absent candidates."""
+    import gradio as gr
+
+    return (
+        gr.Plot(value=figure, visible=figure is not None),
+        gr.Markdown(_NO_CANDIDATE_NOTICE, visible=figure is None),
+    )
 
 
 def build_app() -> Any:
@@ -449,8 +460,8 @@ def build_app() -> Any:
                 with gr.Tab("Original"):
                     original_plot = gr.Plot(label="Original diagnostic view", min_width=320)
                 with gr.Tab("Candidate"):
-                    gr.Markdown("Candidate panels are populated only when a candidate is published.")
-                    candidate_plot = gr.Plot(label="Candidate diagnostic view", min_width=320)
+                    candidate_notice = gr.Markdown(_NO_CANDIDATE_NOTICE)
+                    candidate_plot = gr.Plot(label="Candidate diagnostic view", min_width=320, visible=False)
             with gr.Row():
                 checked_step = gr.File(label="Checked STEP download")
                 step_markdown = gr.File(label="Decision brief download")
@@ -459,7 +470,8 @@ def build_app() -> Any:
                 lambda *inputs: _step_ui_action(*inputs, artifact_store=artifact_store),
                 inputs=[step_upload, precision, maximum_tolerance, expected_solids, self_interference,
                         area_change, volume_change, allow_face_count],
-                outputs=[step_brief, original_plot, candidate_plot, checked_step, step_markdown, step_json],
+                outputs=[step_brief, original_plot, candidate_plot, candidate_notice,
+                         checked_step, step_markdown, step_json],
             )
         with gr.Tab("Polygonal fixture lab"):
             fixture_name = gr.Dropdown(
@@ -473,8 +485,10 @@ def build_app() -> Any:
                 with gr.Tab("Original"):
                     fixture_original_plot = gr.Plot(label="Original fixture view", min_width=320)
                 with gr.Tab("Candidate"):
-                    gr.Markdown("Candidate panels are populated only when a candidate is published.")
-                    fixture_candidate_plot = gr.Plot(label="Candidate fixture view", min_width=320)
+                    fixture_candidate_notice = gr.Markdown(_NO_CANDIDATE_NOTICE)
+                    fixture_candidate_plot = gr.Plot(
+                        label="Candidate fixture view", min_width=320, visible=False
+                    )
             with gr.Row():
                 fixture_markdown = gr.File(label="Fixture decision brief download")
                 fixture_json = gr.File(label="Fixture raw JSON evidence")
@@ -482,6 +496,7 @@ def build_app() -> Any:
                 lambda name: _fixture_ui_action(name, artifact_store=artifact_store),
                 inputs=[fixture_name],
                 outputs=[fixture_brief, fixture_original_plot, fixture_candidate_plot,
+                         fixture_candidate_notice,
                          fixture_markdown, fixture_json],
             )
     return app

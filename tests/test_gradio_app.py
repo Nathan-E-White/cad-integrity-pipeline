@@ -92,7 +92,7 @@ def test_build_app_uses_full_width_focused_diagnostic_tabs() -> None:
     }
     assert sum(
         component.get("props", {}).get("value")
-        == "Candidate panels are populated only when a candidate is published."
+        == "## No candidate published\nThe audit did not publish a candidate for review or download."
         for component in config["components"]
     ) == 2
 
@@ -108,7 +108,22 @@ def test_mesh_figure_has_a_deterministic_diagnostic_presentation() -> None:
     assert figure.layout.scene.camera.projection.type == "orthographic"
     assert figure.layout.scene.camera.eye.to_plotly_json() == {"x": 1.6, "y": -1.6, "z": 1.2}
     assert figure.layout.scene.bgcolor == "#f6f8fb"
-    assert figure.layout.annotations[0].text == "No flagged edges in this audit"
+    assert figure.layout.annotations[0].text == "4 triangles · No flagged edges in this audit"
+    assert figure.data[0].lighting.ambient == 0.55
+
+
+def test_candidate_display_replaces_an_absent_candidate_with_an_explicit_notice() -> None:
+    import gradio as gr
+
+    from cad_integrity.gradio_app import candidate_display
+
+    plot, notice = candidate_display(None)
+
+    assert isinstance(plot, gr.Plot)
+    assert not plot.visible
+    assert isinstance(notice, gr.Markdown)
+    assert notice.visible
+    assert "No candidate published" in notice.value
 
 
 def test_main_announces_the_loopback_url_before_serving(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
@@ -268,5 +283,5 @@ def test_fixture_ui_action_returns_file_paths_gradio_can_serialize(tmp_path: Pat
         "01_detached_reversed_cap", artifact_store=ArtifactStore(tmp_path / "artifacts")
     )
 
-    assert all(isinstance(value, str) for value in result[3:])
-    assert all(gr.File().postprocess(value) is not None for value in result[3:])
+    assert all(isinstance(value, str) for value in result[-2:])
+    assert all(gr.File().postprocess(value) is not None for value in result[-2:])

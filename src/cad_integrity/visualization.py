@@ -1,6 +1,7 @@
 """Optional Plotly views. Building a figure does not display it or start a server."""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -18,6 +19,15 @@ _DIAGNOSTIC_CAMERA = {
 _DIAGNOSTIC_HEIGHT = 520
 
 
+@dataclass(frozen=True, slots=True)
+class EdgeOverlay:
+    """A named, colour-coded class of diagnostic edges."""
+
+    label: str
+    polylines: tuple[np.ndarray[Any, Any], ...]
+    color: str
+
+
 def _go() -> Any:
     try:
         import plotly.graph_objects as go
@@ -28,28 +38,37 @@ def _go() -> Any:
 
 def mesh_figure(mesh: TriangleMesh, *, title: str = "Surface diagnostic",
                 color: str = "lightgray", edge_polylines: tuple[np.ndarray[Any, Any], ...] = (),
-                edge_color: str = "crimson") -> Any:
+                edge_color: str = "crimson",
+                edge_overlays: tuple[EdgeOverlay, ...] = ()) -> Any:
     """Render actual edge polylines; edge IDs are never mistaken for vertex IDs."""
     go = _go()
     xyz = mesh.vertices
     triangles = mesh.triangles
-    figure = go.Figure(go.Mesh3d(x=xyz[:, 0], y=xyz[:, 1], z=xyz[:, 2],
-                                 i=triangles[:, 0], j=triangles[:, 1], k=triangles[:, 2],
-                                 color=color, opacity=0.85, flatshading=True, name="Surface",
-                                 hovertemplate="Surface triangle<extra></extra>"))
-    if edge_polylines:
+    figure = go.Figure(go.Mesh3d(
+        x=xyz[:, 0], y=xyz[:, 1], z=xyz[:, 2], i=triangles[:, 0], j=triangles[:, 1],
+        k=triangles[:, 2], color=color, opacity=0.85, flatshading=True, name="Surface",
+        lighting={"ambient": 0.55, "diffuse": 0.75, "roughness": 0.85, "specular": 0.1},
+        hovertemplate="Surface triangle<extra></extra>",
+    ))
+    if edge_polylines and edge_overlays:
+        raise ValueError("Use either generic edge polylines or named edge overlays, not both")
+    overlays = edge_overlays or ((EdgeOverlay("Flagged edges", edge_polylines, edge_color),)
+                                 if edge_polylines else ())
+    for overlay in overlays:
         coordinates = []
-        for points in edge_polylines:
+        for points in overlay.polylines:
             coordinates.extend(points.tolist())
             coordinates.append([None, None, None])
         x, y, z = zip(*coordinates, strict=True)
         figure.add_trace(go.Scatter3d(x=x, y=y, z=z, mode="lines",
-                                      line={"color": edge_color, "width": 7},
-                                      name=f"Flagged edges ({len(edge_polylines)})",
+                                      line={"color": overlay.color, "width": 7},
+                                      name=f"{overlay.label} ({len(overlay.polylines)})",
                                       hovertemplate="Flagged edge<extra></extra>"))
+    flagged_edge_count = sum(len(overlay.polylines) for overlay in overlays)
     overlay_summary = (
-        f"{len(edge_polylines)} flagged edge{'s' if len(edge_polylines) != 1 else ''} highlighted"
-        if edge_polylines else "No flagged edges in this audit"
+        f"{len(triangles):,} triangles · {flagged_edge_count} flagged edge"
+        f"{'s' if flagged_edge_count != 1 else ''} highlighted"
+        if overlays else f"{len(triangles):,} triangles · No flagged edges in this audit"
     )
     figure.update_layout(
         title={"text": title, "x": 0.02, "xanchor": "left"},
@@ -79,9 +98,14 @@ def mesh_figure(mesh: TriangleMesh, *, title: str = "Surface diagnostic",
 
 
 def polygonal_audit_figure(brep: PolyhedralBRep, report: TopologyReport, *, title: str) -> Any:
-    flagged = sorted(set(report.boundary_edge_ids + report.nonmanifold_edge_ids
-                          + report.inconsistent_orientation_edge_ids))
-    polylines = tuple(brep.vertices[brep.edges[edge_id]] for edge_id in flagged)
+    overlays = tuple(
+        EdgeOverlay(label, tuple(brep.vertices[brep.edges[edge_id]] for edge_id in edge_ids), color)
+        for label, edge_ids, color in (
+            ("Boundary edges", report.boundary_edge_ids, "#d1495b"),
+            ("Nonmanifold edges", report.nonmanifold_edge_ids, "#e58f2a"),
+            ("Winding conflicts", report.inconsistent_orientation_edge_ids, "#6950a1"),
+        ) if edge_ids
+    )
     color = "seagreen" if report.is_closed_oriented_2manifold else "lightgray"
     return mesh_figure(brep.triangulate_convex_faces(), title=title, color=color,
-                       edge_polylines=polylines)
+                       edge_overlays=overlays)
