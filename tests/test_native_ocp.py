@@ -9,12 +9,13 @@ pytest.importorskip("OCP")
 pytestmark = pytest.mark.cad
 
 from OCP.BRep import BRep_Builder
+from OCP.BRepAdaptor import BRepAdaptor_Curve
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Copy, BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakeVertex
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox, BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeSphere, BRepPrimAPI_MakeTorus
 from OCP.gp import gp_Pln, gp_Pnt
-from OCP.TopAbs import TopAbs_FACE, TopAbs_VERTEX
-from OCP.TopoDS import TopoDS_Compound, TopoDS_Shape
+from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_VERTEX
+from OCP.TopoDS import TopoDS, TopoDS_Compound, TopoDS_Shape
 
 from cad_integrity.adapters import ocp
 from cad_integrity.errors import ExportRejected, KernelOperationFailed, RepairRejected, ResourceLimitExceeded
@@ -64,11 +65,58 @@ def test_analytic_roundtrip(factory, surface_type, volume, tmp_path):
 
 def test_sphere_poles_and_periodic_seams_are_not_leaks():
     sphere = ocp.audit_shape(BRepPrimAPI_MakeSphere(2).Shape())
+    cylinder = ocp.audit_shape(BRepPrimAPI_MakeCylinder(2, 5).Shape())
     torus = ocp.audit_shape(BRepPrimAPI_MakeTorus(4, 1).Shape())
     assert sphere.degenerate_edge_count == 2
     assert not sphere.free_edge_ids
+    assert not cylinder.free_edge_ids
     assert not torus.free_edge_ids
     assert not torus.nonmanifold_edge_ids
+
+
+def test_open_boundary_edges_retain_native_entity_provenance_without_filling():
+    source = disconnected_faces(BRepPrimAPI_MakeBox(10, 20, 30).Shape())
+    report = ocp.audit_shape(source)
+
+    # Six independently copied quadrilateral faces expose 24 native boundary
+    # edges.  These local report IDs are the public rendering provenance.
+    assert report.free_edge_ids == tuple(range(24))
+    selected_id = 5
+    edge = TopoDS.Edge_s(ocp._shapes(source, TopAbs_EDGE)[selected_id])
+    curve = BRepAdaptor_Curve(edge)
+    expected_endpoints = np.array([
+        curve.Value(curve.FirstParameter()).Coord(),
+        curve.Value(curve.LastParameter()).Coord(),
+    ])
+    samples = ocp.sample_edge_polylines(source, (selected_id,), samples=2)
+    assert len(samples) == 1
+    np.testing.assert_allclose(samples[0], expected_endpoints)
+
+
+def test_nearby_but_separate_valid_solids_are_not_auto_selected_for_repair():
+    source = compound([box(), BRepPrimAPI_MakeBox(gp_Pnt(10.0001, 0, 0), 10, 10, 10).Shape()])
+    policy = ocp.KernelPolicy(expected_solids=2, precision_mm=1e-3)
+    before = ocp.audit_shape(source, policy)
+
+    assert before.accepted_under_policy, before.acceptance_reasons
+    result = ocp.repair_shape(source, policy)
+    assert result.operations == ("No repair needed",)
+    assert result.before == before
+    assert result.after.accepted_under_policy
+
+
+def test_nearby_open_boundaries_are_refused_without_mutating_the_source():
+    source = compound([
+        disconnected_faces(box()),
+        disconnected_faces(BRepPrimAPI_MakeBox(gp_Pnt(10.0001, 0, 0), 10, 10, 10).Shape()),
+    ])
+    policy = ocp.KernelPolicy(expected_solids=2, precision_mm=1e-3)
+    before = ocp.audit_shape(source, policy)
+
+    assert before.free_edge_ids
+    with pytest.raises(RepairRejected, match="ambiguous"):
+        ocp.repair_shape(source, policy)
+    assert ocp.audit_shape(source, policy) == before
 
 
 @pytest.mark.parametrize("factory", [box, lambda: BRepPrimAPI_MakeCylinder(2, 5).Shape()])
