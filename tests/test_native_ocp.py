@@ -40,6 +40,12 @@ def disconnected_faces(shape):
                      for face in ocp._shapes(shape, TopAbs_FACE)])
 
 
+def selected_wire_pairs(report):
+    wire_ids = tuple(wire.wire_id for wire in report.free_boundary_wires)
+    assert len(wire_ids) % 2 == 0
+    return tuple(zip(wire_ids[::2], wire_ids[1::2], strict=True))
+
+
 @pytest.mark.parametrize("factory, surface_type, volume", [
     (box, "GeomAbs_Plane", 1000),
     (lambda: BRepPrimAPI_MakeCylinder(2, 5).Shape(), "GeomAbs_Cylinder", np.pi*20),
@@ -208,13 +214,14 @@ def test_selected_native_sewing_preserves_surfaces_and_input(factory, tmp_path):
     assert before.free_edge_ids
     assert before.solid_count == 0
     result = ocp.sew_selected_native_boundaries(
-        source, evidence, tuple(wire.wire_id for wire in evidence.free_boundary_wires),
+        source, evidence, selected_wire_pairs(evidence),
     )
     assert result.after.accepted_under_policy
     assert result.after.surface_types == before.surface_types
     assert result.after.face_count == before.face_count
     assert result.after.surface_area_mm2 == pytest.approx(before.surface_area_mm2)
     assert result.source_fingerprint_sha256 == fingerprint
+    assert result.selected_wire_pairs == selected_wire_pairs(evidence)
     assert result.selected_wire_ids == tuple(range(len(evidence.free_boundary_wires)))
     assert any("BRepBuilderAPI_Sewing" in operation for operation in result.operations)
     assert ocp._native_shape_fingerprint(source) == fingerprint
@@ -228,9 +235,10 @@ def test_selected_native_sewing_refuses_partial_or_stale_evidence_without_mutati
     fingerprint = ocp._native_shape_fingerprint(source)
 
     with pytest.raises(RepairRejected, match="every free-boundary wire"):
-        ocp.sew_selected_native_boundaries(source, report, (report.free_boundary_wires[0].wire_id,))
+        ocp.sew_selected_native_boundaries(source, report, ((report.free_boundary_wires[0].wire_id,
+                                                              report.free_boundary_wires[1].wire_id),))
     with pytest.raises(RepairRejected, match="does not match"):
-        ocp.sew_selected_native_boundaries(box(), report, ())
+        ocp.sew_selected_native_boundaries(box(), report, ((0, 1),))
     assert ocp._native_shape_fingerprint(source) == fingerprint
 
 
@@ -242,8 +250,23 @@ def test_selected_native_sewing_obeys_named_tolerance_policy_without_publishing_
 
     with pytest.raises(RepairRejected, match="did not yield one unambiguous shell"):
         ocp.sew_selected_native_boundaries(
-            source, report, tuple(wire.wire_id for wire in report.free_boundary_wires), policy,
+            source, report, selected_wire_pairs(report), policy,
         )
+    assert ocp._native_shape_fingerprint(source) == fingerprint
+
+
+def test_selected_native_sewing_preserves_unselected_nearby_solid():
+    untouched = BRepPrimAPI_MakeBox(gp_Pnt(10.0001, 0, 0), 10, 10, 10).Shape()
+    source = compound([disconnected_faces(box()), untouched])
+    policy = ocp.KernelPolicy(expected_solids=2)
+    report = ocp.classify_native_defects(source, policy)
+    fingerprint = ocp._native_shape_fingerprint(source)
+
+    result = ocp.sew_selected_native_boundaries(source, report, selected_wire_pairs(report), policy)
+
+    assert result.after.accepted_under_policy
+    assert result.after.solid_volumes_mm3 == pytest.approx((1000, 1000))
+    assert result.after.surface_area_mm2 == pytest.approx(1200)
     assert ocp._native_shape_fingerprint(source) == fingerprint
 
 

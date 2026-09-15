@@ -509,6 +509,7 @@ class SelectedNativeSewingResult:
     before: KernelReport
     after: KernelReport
     source_fingerprint_sha256: str
+    selected_wire_pairs: tuple[tuple[int, int], ...]
     selected_wire_ids: tuple[int, ...]
     selected_edge_ids: tuple[int, ...]
     operations: tuple[str, ...]
@@ -517,9 +518,9 @@ class SelectedNativeSewingResult:
 
 
 def sew_selected_native_boundaries(shape: TopoDS_Shape, evidence: NativeDefectReport,
-                                   selected_wire_ids: tuple[int, ...],
+                                   selected_wire_pairs: tuple[tuple[int, int], ...],
                                    policy: KernelPolicy = KernelPolicy()) -> SelectedNativeSewingResult:
-    """Sew an explicitly selected complete set of classified free-boundary wires.
+    """Sew explicitly selected classifier-issued pairs of free-boundary wires.
 
     The classifier's local IDs are valid only for the exact source fingerprint.
     This intentionally refuses partial selections: preserving unselected open faces
@@ -532,31 +533,44 @@ def sew_selected_native_boundaries(shape: TopoDS_Shape, evidence: NativeDefectRe
         raise RepairRejected("Classifier evidence does not match the supplied native source")
     if evidence.audit != before:
         raise RepairRejected("Classifier evidence policy/audit does not match the supplied native source")
-    if not selected_wire_ids:
+    if not selected_wire_pairs:
         raise RepairRejected("An explicit nonempty classifier-backed selection is required")
-    if len(set(selected_wire_ids)) != len(selected_wire_ids):
-        raise RepairRejected("Selected free-boundary wire IDs must be unique")
     wires = {wire.wire_id: wire for wire in evidence.free_boundary_wires}
-    if any(wire_id not in wires for wire_id in selected_wire_ids):
+    if any(len(pair) != 2 for pair in selected_wire_pairs):
+        raise RepairRejected("Each selected native boundary pair must contain two distinct wire IDs")
+    pairs = tuple((min(pair), max(pair)) for pair in selected_wire_pairs)
+    if any(pair[0] == pair[1] for pair in pairs):
+        raise RepairRejected("Each selected native boundary pair must contain two distinct wire IDs")
+    if len(set(pairs)) != len(pairs):
+        raise RepairRejected("Selected native boundary wire pairs must be unique")
+    selected = tuple(sorted({wire_id for pair in pairs for wire_id in pair}))
+    if any(wire_id not in wires for wire_id in selected):
         raise RepairRejected("Selected free-boundary wire ID is absent from classifier evidence")
-    selected = tuple(sorted(selected_wire_ids))
-    all_wire_ids = tuple(wire.wire_id for wire in evidence.free_boundary_wires)
-    if selected != all_wire_ids:
+    selected_edges = tuple(sorted({edge_id for wire_id in selected for edge_id in wires[wire_id].edge_ids}))
+    unselected_edges = tuple(sorted(set(before.free_edge_ids)-set(selected_edges)))
+    if unselected_edges:
         raise RepairRejected(
-            "Refusing partial sewing: every free-boundary wire must be explicitly selected "
-            "before a kernel-accepted whole-shape candidate can be returned"
+            "Refusing partial sewing: every free-boundary wire must be covered by an explicit "
+            "selected pair before a kernel-accepted whole-shape candidate can be returned"
         )
     if before.unowned_edge_ids or before.unowned_vertex_ids:
         raise RepairRejected("Input contains unowned edges or vertices; refusing to discard them")
-    selected_edges = tuple(sorted({edge_id for wire_id in selected for edge_id in wires[wire_id].edge_ids}))
     if selected_edges != before.free_edge_ids:
         raise RepairRejected("Classifier wire evidence does not cover exactly the audited free boundaries")
     # Copy selected source faces into a private compound.  This is the only shape
     # passed to OCCT Sewing; no global proximity search or mate inference is used.
     source_faces = _shapes(shape, TopAbs_FACE)
     selected_face_ids = sorted({face_id for wire_id in selected for face_id in wires[wire_id].face_ids})
-    if selected_face_ids != list(range(len(source_faces))):
-        raise RepairRejected("Selected wires do not cover every source face; topology reconstruction is ambiguous")
+    selected_face_set = set(selected_face_ids)
+    existing_solids = _shapes(shape, TopAbs_SOLID)
+    owned_face_ids = {
+        face_id for face_id, face in enumerate(source_faces)
+        if any(_map(solid, TopAbs_FACE).Contains(face) for solid in existing_solids)
+    }
+    if selected_face_set & owned_face_ids:
+        raise RepairRejected("Selected free-boundary wires overlap an existing solid; local sewing is ambiguous")
+    if set(range(len(source_faces)))-selected_face_set-owned_face_ids:
+        raise RepairRejected("Unselected faces are not owned by preserved solids; topology reconstruction is ambiguous")
     compound = TopoDS_Compound()
     builder = BRep_Builder()
     builder.MakeCompound(compound)
@@ -581,9 +595,15 @@ def sew_selected_native_boundaries(shape: TopoDS_Shape, evidence: NativeDefectRe
     maker = BRepBuilderAPI_MakeSolid(shell)
     if not maker.IsDone():
         raise RepairRejected("Selected closed-shell solid construction failed")
-    candidate = maker.Solid()
-    if not BRepLib.OrientClosedSolid_s(candidate):
+    selected_solid = maker.Solid()
+    if not BRepLib.OrientClosedSolid_s(selected_solid):
         raise RepairRejected("Cannot establish a valid material orientation after selected sewing")
+    candidate = TopoDS_Compound()
+    builder = BRep_Builder()
+    builder.MakeCompound(candidate)
+    builder.Add(candidate, selected_solid)
+    for solid in existing_solids:
+        builder.Add(candidate, BRepBuilderAPI_Copy(solid, True, False).Shape())
     after = audit_shape(candidate, policy)
     if not policy.allow_face_count_change and after.face_count != before.face_count:
         raise RepairRejected("Selected sewing changed face count; explicit review is required")
@@ -591,10 +611,14 @@ def sew_selected_native_boundaries(shape: TopoDS_Shape, evidence: NativeDefectRe
         area_change = abs(after.surface_area_mm2/before.surface_area_mm2-1)
         if area_change > policy.max_relative_area_change:
             raise RepairRejected("Selected sewing exceeds surface-area policy (not a surface-distance proof)")
+    if before.solid_count == after.solid_count and before.solid_volumes_mm3:
+        volume_change = abs(sum(after.solid_volumes_mm3)/sum(before.solid_volumes_mm3)-1)
+        if volume_change > policy.max_relative_volume_change:
+            raise RepairRejected("Selected sewing exceeds volume-change policy")
     if not after.accepted_under_policy:
         raise RepairRejected("Selected sewing candidate failed kernel policy: " + "; ".join(after.acceptance_reasons))
     return SelectedNativeSewingResult(
-        candidate, before, after, fingerprint, selected, selected_edges,
+        candidate, before, after, fingerprint, pairs, selected, selected_edges,
         ("BRepBuilderAPI_Sewing on explicitly selected classified free-boundary wires; "
          "nonmanifold mode disabled", "One closed shell converted to an oriented solid"),
     )
