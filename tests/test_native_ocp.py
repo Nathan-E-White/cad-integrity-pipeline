@@ -19,6 +19,7 @@ from OCP.TopoDS import TopoDS, TopoDS_Compound, TopoDS_Shape
 
 from cad_integrity.adapters import ocp
 from cad_integrity.errors import ExportRejected, KernelOperationFailed, RepairRejected, ResourceLimitExceeded
+from cad_integrity.serialization import dumps
 
 
 def compound(shapes):
@@ -72,6 +73,84 @@ def test_sphere_poles_and_periodic_seams_are_not_leaks():
     assert not cylinder.free_edge_ids
     assert not torus.free_edge_ids
     assert not torus.nonmanifold_edge_ids
+
+
+def test_native_defect_classifier_reports_read_only_serializable_evidence():
+    source = disconnected_faces(box())
+    before = ocp.audit_shape(source)
+    fingerprint_before = ocp._native_shape_fingerprint(source)
+
+    report = ocp.classify_native_defects(source)
+
+    assert report.audit == before
+    assert len(report.free_boundary_wires) == 6
+    assert {edge_id for wire in report.free_boundary_wires for edge_id in wire.edge_ids} == set(range(24))
+    assert all(wire.scope == "derived_connected_free_edge_group_not_OCCT_wire_reconstruction"
+               for wire in report.free_boundary_wires)
+    assert all(len(edge.face_ids) == 1 for edge in report.edge_ownership)
+    assert report.self_intersection.status == "not_established"
+    assert report.candidate_pairs
+    assert all(pair.minimum_distance_mm == pytest.approx(0) for pair in report.candidate_pairs)
+    assert "not design intent" in report.candidate_pair_scope
+    assert report.classification_confidence.level == "kernel_evidence_only"
+    assert report.source_fingerprint_sha256 == fingerprint_before
+    assert report == ocp.classify_native_defects(source)
+    assert ocp._native_shape_fingerprint(source) == fingerprint_before
+    assert ocp.audit_shape(source) == before
+    assert '"free_boundary_wires"' in dumps(report)
+
+
+def test_native_defect_classifier_labels_periodic_and_degenerate_native_entities():
+    sphere = ocp.classify_native_defects(BRepPrimAPI_MakeSphere(2).Shape())
+    torus = ocp.classify_native_defects(BRepPrimAPI_MakeTorus(4, 1).Shape())
+
+    sphere_face, = sphere.periodic_faces
+    torus_face, = torus.periodic_faces
+    assert sphere_face.surface_type == "GeomAbs_Sphere"
+    assert sphere_face.u_periodic and not sphere_face.v_periodic
+    assert sphere_face.degenerate_edge_ids == (0, 2)
+    seam = sphere.edge_ownership[1]
+    assert seam.face_ids == (0,)
+    assert seam.face_occurrence_count == 2
+    assert seam.closed_on_face_ids == (0,)
+    assert torus_face.surface_type == "GeomAbs_Torus"
+    assert torus_face.u_periodic and torus_face.v_periodic
+    assert not torus_face.degenerate_edge_ids
+
+
+def test_native_defect_classifier_bounds_proximity_work_without_selecting_a_repair():
+    source = disconnected_faces(box())
+
+    limited = ocp.classify_native_defects(source, max_candidate_pair_comparisons=0)
+
+    assert limited.candidate_pairs == ()
+    assert limited.candidate_pair_comparisons == 0
+    assert limited.candidate_pair_comparison_limit_reached
+    assert limited.audit == ocp.audit_shape(source)
+    closed = ocp.classify_native_defects(box(), max_candidate_pair_comparisons=0)
+    assert not closed.candidate_pair_comparison_limit_reached
+    with pytest.raises(ValueError, match="nonnegative"):
+        ocp.classify_native_defects(source, max_candidate_pair_comparisons=-1)
+
+
+def test_native_defect_classifier_is_deterministic_across_stage_eight_fixture_classes():
+    outer = BRepPrimAPI_MakeBox(10, 10, 10).Shape()
+    inner = BRepPrimAPI_MakeBox(gp_Pnt(2, 2, 2), 6, 6, 6).Shape()
+    fixtures = (
+        (box(), ocp.KernelPolicy()),
+        (BRepPrimAPI_MakeCylinder(2, 5).Shape(), ocp.KernelPolicy()),
+        (disconnected_faces(box()), ocp.KernelPolicy()),
+        (compound([box(), BRepPrimAPI_MakeBox(gp_Pnt(20, 0, 0), 5, 5, 5).Shape()]),
+         ocp.KernelPolicy(expected_solids=2)),
+        (BRepAlgoAPI_Cut(outer, inner).Shape(), ocp.KernelPolicy()),
+    )
+    for source, policy in fixtures:
+        before = ocp.audit_shape(source, policy)
+        first = ocp.classify_native_defects(source, policy)
+
+        assert first == ocp.classify_native_defects(source, policy)
+        assert first.audit == before
+        assert ocp.audit_shape(source, policy) == before
 
 
 def test_open_boundary_edges_retain_native_entity_provenance_without_filling():

@@ -44,9 +44,11 @@ try:
         BRepBuilderAPI_Sewing,
     )
     from OCP.BRepCheck import BRepCheck_Analyzer, BRepCheck_NoError, BRepCheck_Shell
+    from OCP.BRepExtrema import BRepExtrema_DistShapeShape
     from OCP.BRepGProp import BRepGProp
     from OCP.BRepLib import BRepLib
     from OCP.BRepMesh import BRepMesh_IncrementalMesh
+    from OCP.BRepTools import BRepTools
     from OCP.GProp import GProp_GProps
     from OCP.IFSelect import IFSelect_RetDone
     from OCP.ShapeExtend import ShapeExtend_FAIL
@@ -157,6 +159,222 @@ class KernelReport:
     homology: None = None
     homology_scope: str = "not_computed_for_general_trimmed_native_faces"
     certification: str = "none_kernel_policy_checks_only"
+
+
+@dataclass(frozen=True, slots=True)
+class NativeEdgeOwnership:
+    """Locally indexed edge evidence; IDs are only valid for this source shape."""
+
+    edge_id: int
+    face_ids: tuple[int, ...]
+    face_occurrence_count: int
+    closed_on_face_ids: tuple[int, ...]
+    vertex_ids: tuple[int, ...]
+    degenerate: bool
+
+
+@dataclass(frozen=True, slots=True)
+class FreeBoundaryWire:
+    """A derived connected group of free native edges, with retained provenance."""
+
+    wire_id: int
+    edge_ids: tuple[int, ...]
+    vertex_ids: tuple[int, ...]
+    face_ids: tuple[int, ...]
+    scope: str = "derived_connected_free_edge_group_not_OCCT_wire_reconstruction"
+
+
+@dataclass(frozen=True, slots=True)
+class PeriodicFaceEvidence:
+    face_id: int
+    surface_type: str
+    u_periodic: bool
+    v_periodic: bool
+    degenerate_edge_ids: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ToleranceDistribution:
+    entity_kind: str
+    count: int
+    minimum_mm: float | None
+    maximum_mm: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class CandidatePairEvidence:
+    """A bounded distance observation, never a statement of intended adjacency."""
+
+    first_edge_id: int
+    second_edge_id: int
+    minimum_distance_mm: float
+
+
+@dataclass(frozen=True, slots=True)
+class UnsupportedFact:
+    status: str
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class ClassificationConfidence:
+    level: str
+    basis: str
+    limitations: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class NativeDefectReport:
+    """Read-only native topology evidence; no repair candidate is selected here."""
+
+    audit: KernelReport
+    source_fingerprint_sha256: str
+    edge_ownership: tuple[NativeEdgeOwnership, ...]
+    free_boundary_wires: tuple[FreeBoundaryWire, ...]
+    periodic_faces: tuple[PeriodicFaceEvidence, ...]
+    shell_face_ids: tuple[tuple[int, ...], ...]
+    tolerance_distribution: tuple[ToleranceDistribution, ...]
+    candidate_pairs: tuple[CandidatePairEvidence, ...]
+    candidate_pair_comparisons: int
+    candidate_pair_comparison_limit_reached: bool
+    candidate_pair_scope: str
+    classification_confidence: ClassificationConfidence
+    self_intersection: UnsupportedFact
+    design_intent: UnsupportedFact
+    source_scope: str = "read_only_OCCT_topology_and_distance_evidence"
+
+
+def _tolerance_distribution(entity_kind: str, values: list[float]) -> ToleranceDistribution:
+    return ToleranceDistribution(entity_kind, len(values), min(values, default=None), max(values, default=None))
+
+
+def _native_shape_fingerprint(shape: TopoDS_Shape) -> str:
+    descriptor, filename = tempfile.mkstemp(prefix=".cad-integrity-fingerprint-", suffix=".brep")
+    os.close(descriptor)
+    temporary = Path(filename)
+    try:
+        if not BRepTools.Write_s(shape, str(temporary)):
+            raise KernelOperationFailed("OCCT could not serialize shape fingerprint evidence")
+        with temporary.open("rb") as stream:
+            return hashlib.file_digest(stream, "sha256").hexdigest()
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def classify_native_defects(shape: TopoDS_Shape, policy: KernelPolicy = KernelPolicy(), *,
+                            max_candidate_pair_comparisons: int = 256) -> NativeDefectReport:
+    """Return bounded native evidence without changing *shape* or selecting a repair.
+
+    Candidate pairs are free edges whose OCCT minimum distance is at most the
+    named repair precision.  They are observations only: proximity cannot recover
+    feature history or establish that two entities were intended to be joined.
+    """
+    if (isinstance(max_candidate_pair_comparisons, bool)
+            or not isinstance(max_candidate_pair_comparisons, int)
+            or max_candidate_pair_comparisons < 0):
+        raise ValueError("max_candidate_pair_comparisons must be a nonnegative integer")
+    audit = audit_shape(shape, policy)
+    fingerprint = _native_shape_fingerprint(shape)
+    vertices = _map(shape, TopAbs_VERTEX)
+    edges = _map(shape, TopAbs_EDGE)
+    faces = _shapes(shape, TopAbs_FACE)
+    face_map = _map(shape, TopAbs_FACE)
+    edge_faces: list[set[int]] = [set() for _ in range(edges.Extent())]
+    edge_occurrences = [0 for _ in range(edges.Extent())]
+    closed_on_faces: list[set[int]] = [set() for _ in range(edges.Extent())]
+    edge_vertices: list[tuple[int, ...]] = []
+    periodic: list[PeriodicFaceEvidence] = []
+    edge_tolerances: list[float] = []
+    face_tolerances: list[float] = []
+    vertex_tolerances: list[float] = []
+    degenerate_ids = {i for i in range(edges.Extent())
+                      if BRep_Tool.Degenerated_s(TopoDS.Edge_s(edges.FindKey(i+1)))}
+    free_ids = set(audit.free_edge_ids)
+    for edge_id in range(edges.Extent()):
+        edge = TopoDS.Edge_s(edges.FindKey(edge_id+1))
+        edge_tolerances.append(float(BRep_Tool.Tolerance_s(edge)))
+        edge_vertices.append(tuple(vertices.FindIndex(vertex)-1 for vertex in _shapes(edge, TopAbs_VERTEX)))
+    for face_id, face_shape in enumerate(faces):
+        face = TopoDS.Face_s(face_shape)
+        face_tolerances.append(float(BRep_Tool.Tolerance_s(face)))
+        adaptor = BRepAdaptor_Surface(face)
+        face_degenerate: list[int] = []
+        explorer = TopExp_Explorer(face, TopAbs_EDGE)
+        while explorer.More():
+            edge_id = edges.FindIndex(explorer.Current())-1
+            edge_faces[edge_id].add(face_id)
+            edge_occurrences[edge_id] += 1
+            if BRep_Tool.IsClosed_s(TopoDS.Edge_s(edges.FindKey(edge_id+1)), face):
+                closed_on_faces[edge_id].add(face_id)
+            if edge_id in degenerate_ids:
+                face_degenerate.append(edge_id)
+            explorer.Next()
+        periodic.append(PeriodicFaceEvidence(face_id, adaptor.GetType().name,
+                                             bool(adaptor.IsUPeriodic()), bool(adaptor.IsVPeriodic()),
+                                             tuple(sorted(face_degenerate))))
+    for vertex_id in range(vertices.Extent()):
+        vertex_tolerances.append(float(BRep_Tool.Tolerance_s(TopoDS.Vertex_s(vertices.FindKey(vertex_id+1)))))
+    ownership = tuple(NativeEdgeOwnership(edge_id, tuple(sorted(edge_faces[edge_id])), edge_occurrences[edge_id],
+                                          tuple(sorted(closed_on_faces[edge_id])), edge_vertices[edge_id],
+                                          edge_id in degenerate_ids)
+                      for edge_id in range(edges.Extent()))
+    free_by_vertex: dict[int, set[int]] = {}
+    for edge_id in free_ids:
+        for vertex_id in edge_vertices[edge_id]:
+            free_by_vertex.setdefault(vertex_id, set()).add(edge_id)
+    remaining = set(free_ids)
+    free_wires: list[FreeBoundaryWire] = []
+    while remaining:
+        pending = [min(remaining)]
+        component: set[int] = set()
+        while pending:
+            edge_id = pending.pop()
+            if edge_id not in remaining:
+                continue
+            remaining.remove(edge_id)
+            component.add(edge_id)
+            for vertex_id in edge_vertices[edge_id]:
+                pending.extend(free_by_vertex[vertex_id] & remaining)
+        component_vertices = tuple(sorted({vertex_id for edge_id in component for vertex_id in edge_vertices[edge_id]}))
+        component_faces = tuple(sorted({face_id for edge_id in component for face_id in edge_faces[edge_id]}))
+        free_wires.append(FreeBoundaryWire(len(free_wires), tuple(sorted(component)), component_vertices, component_faces))
+    shell_faces = tuple(tuple(sorted(face_map.FindIndex(face)-1 for face in _shapes(shell, TopAbs_FACE)))
+                        for shell in _shapes(shape, TopAbs_SHELL))
+    candidates: list[CandidatePairEvidence] = []
+    comparisons = 0
+    possible_comparisons = len(audit.free_edge_ids)*(len(audit.free_edge_ids)-1)//2
+    for offset, first_id in enumerate(audit.free_edge_ids):
+        if comparisons >= max_candidate_pair_comparisons:
+            break
+        first = edges.FindKey(first_id+1)
+        for second_id in audit.free_edge_ids[offset+1:]:
+            if comparisons >= max_candidate_pair_comparisons:
+                break
+            comparisons += 1
+            distance = BRepExtrema_DistShapeShape(first, edges.FindKey(second_id+1))
+            distance.Perform()
+            if not distance.IsDone():
+                continue
+            value = float(distance.Value())
+            if math.isfinite(value) and value <= policy.precision_mm:
+                candidates.append(CandidatePairEvidence(first_id, second_id, value))
+    return NativeDefectReport(
+        audit, fingerprint, ownership, tuple(free_wires), tuple(periodic), shell_faces,
+        (_tolerance_distribution("face", face_tolerances),
+         _tolerance_distribution("edge", edge_tolerances),
+         _tolerance_distribution("vertex", vertex_tolerances)),
+        tuple(candidates), comparisons, comparisons < possible_comparisons,
+        "Pairs are bounded OCCT edge-distance observations within policy.precision_mm; max_candidate_pair_comparisons caps comparisons, not design intent or repair selection.",
+        ClassificationConfidence(
+            "kernel_evidence_only",
+            "Locally indexed OCCT topology, tolerances, periodicity, and completed distance witnesses.",
+            ("No intended mate or feature history is inferred from proximity.",
+             "No dedicated native self-intersection pair classifier is established.",
+             "This is not a general CAD-validity or engineering-certification claim."),
+        ),
+        UnsupportedFact("not_established", "This adapter does not run a dedicated native self-intersection classifier."),
+        UnsupportedFact("not_established", "Geometric proximity cannot establish intended adjacency or feature history."),
+    )
 
 
 def read_step(path: str | Path, *, max_bytes: int = 50_000_000) -> StepDocument:
