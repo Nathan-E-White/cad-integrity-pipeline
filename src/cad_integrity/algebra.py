@@ -12,19 +12,7 @@ import numpy as np
 from scipy.sparse import csr_matrix
 
 from .errors import InvalidChainComplex, MissingOptionalDependency, ResourceLimitExceeded
-
-
-@dataclass(frozen=True, slots=True)
-class ReductionBudget:
-    max_columns: int = 50_000
-    max_stored_entries: int = 2_000_000
-    max_xor_steps: int = 2_000_000
-    max_dense_entries: int = 250_000
-
-    def __post_init__(self) -> None:
-        if min(self.max_columns, self.max_stored_entries, self.max_xor_steps,
-               self.max_dense_entries) < 1:
-            raise ValueError("All reduction budgets must be positive")
+from .f2_reduction import F2ColumnReducer, ReductionBudget
 
 
 @dataclass(frozen=True, slots=True)
@@ -103,30 +91,16 @@ def rank_f2(matrix: csr_matrix, budget: ReductionBudget = ReductionBudget()) -> 
     """Exact sparse column reduction over F_2; bounded, not a large-scale solver."""
     if matrix.dtype.kind not in "iu":
         raise InvalidChainComplex("F_2 reduction requires integer coefficients")
-    if matrix.shape[1] > budget.max_columns or matrix.nnz > budget.max_stored_entries:
-        raise ResourceLimitExceeded("F_2 input exceeds the configured reduction budget")
     csc = matrix.tocsc(copy=True)
     csc.sum_duplicates()
-    pivots: dict[int, set[int]] = {}
-    stored = 0
-    steps = 0
+    columns = []
     for j in range(csc.shape[1]):
         lo, hi = csc.indptr[j:j+2]
-        column = {int(i) for i, value in zip(csc.indices[lo:hi], csc.data[lo:hi], strict=True)
-                  if int(value) % 2}
-        while column:
-            pivot = max(column)
-            if pivot not in pivots:
-                stored += len(column)
-                if stored > budget.max_stored_entries:
-                    raise ResourceLimitExceeded("F_2 fill-in exceeds the storage budget")
-                pivots[pivot] = column
-                break
-            column ^= pivots[pivot]
-            steps += 1
-            if steps > budget.max_xor_steps or stored + len(column) > budget.max_stored_entries:
-                raise ResourceLimitExceeded("F_2 reduction exceeded its work/storage budget")
-    return len(pivots)
+        columns.append(
+            tuple(int(i) for i, value in zip(csc.indices[lo:hi], csc.data[lo:hi], strict=True)
+                  if int(value) % 2)
+        )
+    return F2ColumnReducer(budget).reduce(columns).rank
 
 
 def smith_invariants(matrix: csr_matrix, budget: ReductionBudget = ReductionBudget()) -> tuple[int, ...]:

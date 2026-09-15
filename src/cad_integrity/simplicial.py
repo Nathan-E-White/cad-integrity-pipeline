@@ -12,6 +12,7 @@ from scipy.sparse import csr_matrix
 
 from .algebra import ChainComplex, ReductionBudget
 from .errors import InvalidGeometry, ResourceLimitExceeded
+from .f2_reduction import F2ColumnReducer
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -140,24 +141,17 @@ class PersistentHomologyEngine:
         if len(ordered) > self.budget.max_columns:
             raise ResourceLimitExceeded("Filtration exceeds the reduction budget")
         index = {simplex: i for i, (simplex, _) in enumerate(ordered)}
-        reduced: dict[int, set[int]] = {}
         births: set[int] = set()
         paired_births: set[int] = set()
         result = []
-        steps = stored = 0
-        for j, (simplex, death) in enumerate(ordered):
-            column = {index[face] for face in simplex.codimension_one_faces()}
-            while column and max(column) in reduced:
-                column ^= reduced[max(column)]
-                steps += 1
-                if steps > self.budget.max_xor_steps or stored + len(column) > self.budget.max_stored_entries:
-                    raise ResourceLimitExceeded("Persistence reduction exceeded its work budget")
-            if column:
-                i = max(column)
-                stored += len(column)
-                if stored > self.budget.max_stored_entries:
-                    raise ResourceLimitExceeded("Persistence fill-in exceeds its storage budget")
-                reduced[i] = column
+        evidence = F2ColumnReducer(self.budget).reduce(
+            tuple(index[face] for face in simplex.codimension_one_faces())
+            for simplex, _ in ordered
+        )
+        for j, ((simplex, death), reduced_column) in enumerate(
+                zip(ordered, evidence.reduced_columns, strict=True)):
+            if reduced_column:
+                i = reduced_column[-1]
                 paired_births.add(i)
                 born_simplex, birth = ordered[i]
                 if include_zero_length or birth != death:

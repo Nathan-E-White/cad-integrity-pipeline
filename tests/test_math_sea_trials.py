@@ -14,6 +14,7 @@ from cad_integrity.algebra import (
     smith_invariants,
 )
 from cad_integrity.errors import ResourceLimitExceeded
+from cad_integrity.f2_reduction import F2ColumnReducer
 from cad_integrity.simplicial import FilteredSimplicialComplex, PersistentHomologyEngine
 
 
@@ -198,6 +199,93 @@ def test_rank_f2_accepts_exact_reduction_budget_boundaries() -> None:
     assert rank_f2(late_fill_in, ReductionBudget(max_stored_entries=7)) == 2
 
 
+def test_static_rank_and_persistence_share_equivalent_xor_budget_boundary() -> None:
+    """Both adapters reduce the complete ordered boundary stream of one filtration."""
+    filtration_boundary = csr_matrix(np.array([
+        [0, 0, 0, 1, 1, 0, 0],
+        [0, 0, 0, 1, 0, 1, 0],
+        [0, 0, 0, 0, 1, 1, 0],
+        [0, 0, 0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 0, 0, 1],
+    ], dtype=np.int64))
+    triangle_filtration = FilteredSimplicialComplex({(0, 1, 2): 0.0})
+
+    assert rank_f2(filtration_boundary, ReductionBudget(max_columns=7)) == 3
+    assert len(PersistentHomologyEngine(
+        triangle_filtration, budget=ReductionBudget(max_columns=7)
+    ).compute_persistence_intervals(include_zero_length=True)) == 4
+    with pytest.raises(ResourceLimitExceeded):
+        rank_f2(filtration_boundary, ReductionBudget(max_columns=6))
+    with pytest.raises(ResourceLimitExceeded):
+        PersistentHomologyEngine(
+            triangle_filtration, budget=ReductionBudget(max_columns=6)
+        ).compute_persistence_intervals(include_zero_length=True)
+
+    with pytest.raises(ResourceLimitExceeded, match="work"):
+        rank_f2(filtration_boundary, ReductionBudget(max_xor_steps=1))
+    with pytest.raises(ResourceLimitExceeded, match="work"):
+        PersistentHomologyEngine(
+            triangle_filtration, budget=ReductionBudget(max_xor_steps=1)
+        ).compute_persistence_intervals(include_zero_length=True)
+
+    assert rank_f2(filtration_boundary, ReductionBudget(max_xor_steps=2)) == 3
+    assert len(PersistentHomologyEngine(
+        triangle_filtration, budget=ReductionBudget(max_xor_steps=2)
+    ).compute_persistence_intervals(include_zero_length=True)) == 4
+
+    assert rank_f2(filtration_boundary, ReductionBudget(max_stored_entries=9)) == 3
+    assert len(PersistentHomologyEngine(
+        triangle_filtration, budget=ReductionBudget(max_stored_entries=9)
+    ).compute_persistence_intervals(include_zero_length=True)) == 4
+    with pytest.raises(ResourceLimitExceeded, match="input"):
+        rank_f2(filtration_boundary, ReductionBudget(max_stored_entries=8))
+    with pytest.raises(ResourceLimitExceeded, match="input"):
+        PersistentHomologyEngine(
+            triangle_filtration, budget=ReductionBudget(max_stored_entries=8)
+        ).compute_persistence_intervals(include_zero_length=True)
+
+
+def test_f2_reduction_evidence_is_deterministic_immutable_and_matches_worked_table() -> None:
+    columns = ((0, 1), (0, 2), (1, 2))
+    first = F2ColumnReducer(ReductionBudget(max_xor_steps=2)).reduce(columns)
+    second = F2ColumnReducer(ReductionBudget(max_xor_steps=2)).reduce(columns)
+
+    assert first == second
+    assert first.reduced_columns == ((0, 1), (0, 2), ())
+    assert first.reduction_traces == (((0, 1),), ((0, 2),), ((1, 2), (0, 1), ()))
+    assert first.pivot_columns == ((1, (0, 1)), (2, (0, 2)))
+    assert (first.rank, first.xor_steps, first.stored_entries) == (2, 2, 4)
+    with pytest.raises(AttributeError):
+        first.pivot_columns[0][1].add(3)  # type: ignore[attr-defined]
+
+
+def test_f2_reducer_accepts_exact_limits_and_labels_each_exhaustion() -> None:
+    columns = ((0, 1), (0, 2), (1, 2))
+
+    assert F2ColumnReducer(ReductionBudget(max_columns=3)).reduce(columns).rank == 2
+    with pytest.raises(ResourceLimitExceeded) as exhausted_input:
+        F2ColumnReducer(ReductionBudget(max_columns=2)).reduce(columns)
+    assert str(exhausted_input.value) == "F_2 input exceeds the configured reduction budget"
+
+    assert F2ColumnReducer(ReductionBudget(max_stored_entries=6)).reduce(columns).rank == 2
+    with pytest.raises(ResourceLimitExceeded) as exhausted_input_storage:
+        F2ColumnReducer(ReductionBudget(max_stored_entries=5)).reduce(columns)
+    assert str(exhausted_input_storage.value) == "F_2 input exceeds the configured reduction budget"
+
+    with pytest.raises(ResourceLimitExceeded) as exhausted_work:
+        F2ColumnReducer(ReductionBudget(max_stored_entries=6)).reduce(((0, 1, 2, 3), (3,)))
+    assert str(exhausted_work.value) == "F_2 reduction exceeded its work/storage budget"
+
+    fill_in_columns = ((2, 3, 4, 5), (0, 1, 5), (6,))
+    assert F2ColumnReducer(ReductionBudget(max_stored_entries=10)).reduce(
+        fill_in_columns
+    ).stored_entries == 10
+    with pytest.raises(ResourceLimitExceeded) as exhausted_fill_in:
+        F2ColumnReducer(ReductionBudget(max_stored_entries=9)).reduce(fill_in_columns)
+    assert str(exhausted_fill_in.value) == "F_2 fill-in exceeds the storage budget"
+
+
 @pytest.mark.parametrize("seed", range(6))
 def test_persistence_intervals_equal_independent_sublevel_betti_numbers(seed: int) -> None:
     generator = np.random.default_rng(seed)
@@ -262,14 +350,14 @@ def test_persistence_reduction_honors_work_and_storage_budgets() -> None:
         PersistentHomologyEngine(
             tetrahedron, budget=ReductionBudget(max_xor_steps=1)
         ).compute_persistence_intervals(include_zero_length=True)
-    with pytest.raises(ResourceLimitExceeded, match="fill-in"):
+    with pytest.raises(ResourceLimitExceeded, match="input"):
         PersistentHomologyEngine(
             tetrahedron, budget=ReductionBudget(max_stored_entries=1)
         ).compute_persistence_intervals(include_zero_length=True)
-    with pytest.raises(ResourceLimitExceeded, match="work"):
+    with pytest.raises(ResourceLimitExceeded, match="input"):
         PersistentHomologyEngine(
             tetrahedron, budget=ReductionBudget(max_stored_entries=18)
         ).compute_persistence_intervals(include_zero_length=True)
     assert len(PersistentHomologyEngine(
-        tetrahedron, budget=ReductionBudget(max_stored_entries=19)
+        tetrahedron, budget=ReductionBudget(max_stored_entries=28)
     ).compute_persistence_intervals(include_zero_length=True)) == 8
