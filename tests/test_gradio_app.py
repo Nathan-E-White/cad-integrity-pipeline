@@ -216,3 +216,17 @@ def test_polygonal_fixture_lab_repairs_the_qualified_detached_cap(tmp_path: Path
     assert "Input SHA-256" in outcome.decision_brief.markdown
     assert "Weld tolerance" in outcome.decision_brief.markdown
     assert "Candidate canonical-array fingerprint" in outcome.decision_brief.markdown
+
+
+def test_fixture_ui_action_returns_file_paths_gradio_can_serialize(tmp_path: Path) -> None:
+    """The browser callback must return strings for Gradio's File components."""
+    import gradio as gr
+
+    from cad_integrity.gradio_app import ArtifactStore, _fixture_ui_action
+
+    result = _fixture_ui_action(
+        "01_detached_reversed_cap", artifact_store=ArtifactStore(tmp_path / "artifacts")
+    )
+
+    assert all(isinstance(value, str) for value in result[3:])
+    assert all(gr.File().postprocess(value) is not None for value in result[3:])

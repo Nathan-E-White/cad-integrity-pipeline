@@ -385,7 +385,7 @@ def _step_ui_action(upload: str | None, precision_mm: float, maximum_tolerance_m
                     expected_solids: float, run_self_interference_check: bool,
                     max_relative_area_change: float, max_relative_volume_change: float,
                     allow_face_count_change: bool, *, artifact_store: ArtifactStore
-                    ) -> tuple[str, Any | None, Any | None, Path | None, Path | None, Path | None]:
+                    ) -> tuple[str, Any | None, Any | None, str | None, str | None, str | None]:
     try:
         if upload is None:
             raise ValueError("Choose a local STEP file before running the workbench")
@@ -398,24 +398,24 @@ def _step_ui_action(upload: str | None, precision_mm: float, maximum_tolerance_m
             outcome.decision_brief.markdown,
             outcome.original_figure,
             outcome.candidate_figure,
-            outcome.candidate_step,
-            outcome.markdown_path,
-            outcome.json_path,
+            str(outcome.candidate_step) if outcome.candidate_step is not None else None,
+            str(outcome.markdown_path),
+            str(outcome.json_path),
         )
     except (IntegrityError, OSError, ValueError) as exc:
         return (f"## Decision\nRequest not run: {exc}", None, None, None, None, None)
 
 
 def _fixture_ui_action(name: str, *, artifact_store: ArtifactStore
-                       ) -> tuple[str, Any | None, Any | None, Path | None, Path | None]:
+                       ) -> tuple[str, Any | None, Any | None, str | None, str | None]:
     try:
         outcome = run_polygonal_fixture(name, artifact_store=artifact_store)
         return (
             outcome.decision_brief.markdown,
             outcome.original_figure,
             outcome.candidate_figure,
-            outcome.markdown_path,
-            outcome.json_path,
+            str(outcome.markdown_path),
+            str(outcome.json_path),
         )
     except (IntegrityError, OSError, ValueError) as exc:
         return (f"## Decision\nFixture not run: {exc}", None, None, None, None)
