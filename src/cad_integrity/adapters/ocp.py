@@ -35,7 +35,7 @@ from ..models import TriangleMesh
 from ..pipeline import StageEvent
 
 try:
-    from OCP.BRep import BRep_Tool
+    from OCP.BRep import BRep_Builder, BRep_Tool
     from OCP.BRepAdaptor import BRepAdaptor_Curve, BRepAdaptor_Surface
     from OCP.BRepAlgoAPI import BRepAlgoAPI_Check
     from OCP.BRepBuilderAPI import (
@@ -65,7 +65,7 @@ try:
     )
     from OCP.TopExp import TopExp, TopExp_Explorer
     from OCP.TopLoc import TopLoc_Location
-    from OCP.TopoDS import TopoDS, TopoDS_Shape
+    from OCP.TopoDS import TopoDS, TopoDS_Compound, TopoDS_Shape
     from OCP.TopTools import TopTools_IndexedMapOfShape
 except ImportError as exc:
     raise MissingOptionalDependency("Install cad-integrity-lab[cad] to use the native STEP adapter") from exc
@@ -501,6 +501,105 @@ class NativeRepairResult:
     geometry_fidelity_certified: bool = False
 
 
+@dataclass(frozen=True, slots=True)
+class SelectedNativeSewingResult:
+    """A private, classifier-backed local sewing attempt and its kernel evidence."""
+
+    candidate: TopoDS_Shape
+    before: KernelReport
+    after: KernelReport
+    source_fingerprint_sha256: str
+    selected_wire_ids: tuple[int, ...]
+    selected_edge_ids: tuple[int, ...]
+    operations: tuple[str, ...]
+    selection_scope: str = "explicit_classifier_backed_free_boundary_wire_selection"
+    geometry_fidelity_certified: bool = False
+
+
+def sew_selected_native_boundaries(shape: TopoDS_Shape, evidence: NativeDefectReport,
+                                   selected_wire_ids: tuple[int, ...],
+                                   policy: KernelPolicy = KernelPolicy()) -> SelectedNativeSewingResult:
+    """Sew an explicitly selected complete set of classified free-boundary wires.
+
+    The classifier's local IDs are valid only for the exact source fingerprint.
+    This intentionally refuses partial selections: preserving unselected open faces
+    while returning a kernel-accepted solid would require an additional, explicit
+    topology-reconstruction contract.
+    """
+    before = audit_shape(shape, policy)
+    fingerprint = _native_shape_fingerprint(shape)
+    if evidence.source_fingerprint_sha256 != fingerprint:
+        raise RepairRejected("Classifier evidence does not match the supplied native source")
+    if evidence.audit != before:
+        raise RepairRejected("Classifier evidence policy/audit does not match the supplied native source")
+    if not selected_wire_ids:
+        raise RepairRejected("An explicit nonempty classifier-backed selection is required")
+    if len(set(selected_wire_ids)) != len(selected_wire_ids):
+        raise RepairRejected("Selected free-boundary wire IDs must be unique")
+    wires = {wire.wire_id: wire for wire in evidence.free_boundary_wires}
+    if any(wire_id not in wires for wire_id in selected_wire_ids):
+        raise RepairRejected("Selected free-boundary wire ID is absent from classifier evidence")
+    selected = tuple(sorted(selected_wire_ids))
+    all_wire_ids = tuple(wire.wire_id for wire in evidence.free_boundary_wires)
+    if selected != all_wire_ids:
+        raise RepairRejected(
+            "Refusing partial sewing: every free-boundary wire must be explicitly selected "
+            "before a kernel-accepted whole-shape candidate can be returned"
+        )
+    if before.unowned_edge_ids or before.unowned_vertex_ids:
+        raise RepairRejected("Input contains unowned edges or vertices; refusing to discard them")
+    selected_edges = tuple(sorted({edge_id for wire_id in selected for edge_id in wires[wire_id].edge_ids}))
+    if selected_edges != before.free_edge_ids:
+        raise RepairRejected("Classifier wire evidence does not cover exactly the audited free boundaries")
+    # Copy selected source faces into a private compound.  This is the only shape
+    # passed to OCCT Sewing; no global proximity search or mate inference is used.
+    source_faces = _shapes(shape, TopAbs_FACE)
+    selected_face_ids = sorted({face_id for wire_id in selected for face_id in wires[wire_id].face_ids})
+    if selected_face_ids != list(range(len(source_faces))):
+        raise RepairRejected("Selected wires do not cover every source face; topology reconstruction is ambiguous")
+    compound = TopoDS_Compound()
+    builder = BRep_Builder()
+    builder.MakeCompound(compound)
+    for face_id in selected_face_ids:
+        builder.Add(compound, BRepBuilderAPI_Copy(source_faces[face_id], True, False).Shape())
+    sewing = BRepBuilderAPI_Sewing(policy.precision_mm, True, True, True, False)
+    sewing.SetMaxTolerance(policy.maximum_tolerance_mm)
+    sewing.Add(compound)
+    sewing.Perform()
+    sewed = sewing.SewedShape()
+    if sewed.IsNull():
+        raise RepairRejected("Selected native sewing produced no candidate shape")
+    shells = _shapes(sewed, TopAbs_SHELL)
+    if len(shells) != 1:
+        raise RepairRejected("Selected sewing did not yield one unambiguous shell")
+    shell = TopoDS.Shell_s(shells[0])
+    if not BRep_Tool.IsClosed_s(shell):
+        raise RepairRejected("Selected sewing leaves an open shell; no hole filling is authorized")
+    shell_faces = _map(shell, TopAbs_FACE)
+    if not all(shell_faces.Contains(face) for face in _shapes(sewed, TopAbs_FACE)):
+        raise RepairRejected("Selected sewing left detached faces; refusing to discard them")
+    maker = BRepBuilderAPI_MakeSolid(shell)
+    if not maker.IsDone():
+        raise RepairRejected("Selected closed-shell solid construction failed")
+    candidate = maker.Solid()
+    if not BRepLib.OrientClosedSolid_s(candidate):
+        raise RepairRejected("Cannot establish a valid material orientation after selected sewing")
+    after = audit_shape(candidate, policy)
+    if not policy.allow_face_count_change and after.face_count != before.face_count:
+        raise RepairRejected("Selected sewing changed face count; explicit review is required")
+    if before.surface_area_mm2 > 0:
+        area_change = abs(after.surface_area_mm2/before.surface_area_mm2-1)
+        if area_change > policy.max_relative_area_change:
+            raise RepairRejected("Selected sewing exceeds surface-area policy (not a surface-distance proof)")
+    if not after.accepted_under_policy:
+        raise RepairRejected("Selected sewing candidate failed kernel policy: " + "; ".join(after.acceptance_reasons))
+    return SelectedNativeSewingResult(
+        candidate, before, after, fingerprint, selected, selected_edges,
+        ("BRepBuilderAPI_Sewing on explicitly selected classified free-boundary wires; "
+         "nonmanifold mode disabled", "One closed shell converted to an oriented solid"),
+    )
+
+
 def repair_shape(shape: TopoDS_Shape, policy: KernelPolicy = KernelPolicy(),
                  *, on_event: Callable[[StageEvent], None] | None = None) -> NativeRepairResult:
     def event(stage: str, message: str) -> None:
@@ -526,35 +625,12 @@ def repair_shape(shape: TopoDS_Shape, policy: KernelPolicy = KernelPolicy(),
     candidate = fixer.Shape()
     operations = ["ShapeFix_Shape on copied native geometry"]
     # Do not flatten an existing multi-shell solid: its inner shell may be a cavity.
-    # Global sewing of existing solids could also merge distinct assembly members.
+    # A generic repair must never turn proximity into a guessed sewing selection.
     if not _shapes(candidate, TopAbs_SOLID):
-        event("sew", "Sewing native face boundaries without replacing analytic surfaces")
-        sewing = BRepBuilderAPI_Sewing(policy.precision_mm, True, True, True, False)
-        sewing.SetMaxTolerance(policy.maximum_tolerance_mm)
-        sewing.Add(candidate)
-        sewing.Perform()
-        candidate = sewing.SewedShape()
-        if candidate.IsNull():
-            raise RepairRejected("Sewing produced no candidate shape")
-        operations.append("BRepBuilderAPI_Sewing; nonmanifold mode disabled")
-        shells = _shapes(candidate, TopAbs_SHELL)
-        if len(shells) != 1:
-            raise RepairRejected("Refusing automatic solid construction: shell grouping/nesting is ambiguous")
-        shell = TopoDS.Shell_s(shells[0])
-        if not BRep_Tool.IsClosed_s(shell):
-            raise RepairRejected("Shell remains open; no automatic hole filling is authorized")
-        shell_faces = _map(shell, TopAbs_FACE)
-        all_faces = _shapes(candidate, TopAbs_FACE)
-        if not all(shell_faces.Contains(face) for face in all_faces):
-            raise RepairRejected("Sewing left detached faces; refusing to discard them")
-        maker = BRepBuilderAPI_MakeSolid(shell)
-        if not maker.IsDone():
-            raise RepairRejected("Closed-shell solid construction failed")
-        solid = maker.Solid()
-        if not BRepLib.OrientClosedSolid_s(solid):
-            raise RepairRejected("Cannot establish a valid material orientation")
-        candidate = solid
-        operations.append("One closed shell converted to an oriented solid")
+        raise RepairRejected(
+            "Native sewing requires an explicit classifier-backed selection; "
+            "use classify_native_defects then sew_selected_native_boundaries"
+        )
     after = audit_shape(candidate, policy)
     if not policy.allow_face_count_change and after.face_count != before.face_count:
         raise RepairRejected("Face count changed; explicit review is required")

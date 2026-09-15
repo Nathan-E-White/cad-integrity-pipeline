@@ -193,27 +193,67 @@ def test_nearby_open_boundaries_are_refused_without_mutating_the_source():
     before = ocp.audit_shape(source, policy)
 
     assert before.free_edge_ids
-    with pytest.raises(RepairRejected, match="ambiguous"):
+    with pytest.raises(RepairRejected, match="explicit classifier-backed selection"):
         ocp.repair_shape(source, policy)
     assert ocp.audit_shape(source, policy) == before
 
 
 @pytest.mark.parametrize("factory", [box, lambda: BRepPrimAPI_MakeCylinder(2, 5).Shape()])
-def test_real_sewing_preserves_surfaces_and_input(factory):
+def test_selected_native_sewing_preserves_surfaces_and_input(factory, tmp_path):
     source = disconnected_faces(factory())
     before = ocp.audit_shape(source)
+    fingerprint = ocp._native_shape_fingerprint(source)
+    evidence = ocp.classify_native_defects(source)
     assert not before.accepted_under_policy
     assert before.free_edge_ids
     assert before.solid_count == 0
-    events = []
-    result = ocp.repair_shape(source, on_event=events.append)
+    result = ocp.sew_selected_native_boundaries(
+        source, evidence, tuple(wire.wire_id for wire in evidence.free_boundary_wires),
+    )
     assert result.after.accepted_under_policy
     assert result.after.surface_types == before.surface_types
     assert result.after.face_count == before.face_count
     assert result.after.surface_area_mm2 == pytest.approx(before.surface_area_mm2)
-    assert ocp.audit_shape(source) == before
-    assert any(event.stage == "sew" for event in events)
-    assert not result.geometry_fidelity_certified
+    assert result.source_fingerprint_sha256 == fingerprint
+    assert result.selected_wire_ids == tuple(range(len(evidence.free_boundary_wires)))
+    assert any("BRepBuilderAPI_Sewing" in operation for operation in result.operations)
+    assert ocp._native_shape_fingerprint(source) == fingerprint
+    exported = ocp.export_checked_step(result.candidate, tmp_path / "selected.step")
+    assert exported.after_roundtrip.accepted_under_policy
+
+
+def test_selected_native_sewing_refuses_partial_or_stale_evidence_without_mutation():
+    source = disconnected_faces(box())
+    report = ocp.classify_native_defects(source)
+    fingerprint = ocp._native_shape_fingerprint(source)
+
+    with pytest.raises(RepairRejected, match="every free-boundary wire"):
+        ocp.sew_selected_native_boundaries(source, report, (report.free_boundary_wires[0].wire_id,))
+    with pytest.raises(RepairRejected, match="does not match"):
+        ocp.sew_selected_native_boundaries(box(), report, ())
+    assert ocp._native_shape_fingerprint(source) == fingerprint
+
+
+def test_selected_native_sewing_obeys_named_tolerance_policy_without_publishing_candidate():
+    source = disconnected_faces(box())
+    policy = ocp.KernelPolicy(precision_mm=1e-10, maximum_tolerance_mm=1e-9)
+    report = ocp.classify_native_defects(source, policy)
+    fingerprint = ocp._native_shape_fingerprint(source)
+
+    with pytest.raises(RepairRejected, match="did not yield one unambiguous shell"):
+        ocp.sew_selected_native_boundaries(
+            source, report, tuple(wire.wire_id for wire in report.free_boundary_wires), policy,
+        )
+    assert ocp._native_shape_fingerprint(source) == fingerprint
+
+
+def test_generic_native_repair_never_auto_selects_sewing_candidates():
+    source = disconnected_faces(box())
+    fingerprint = ocp._native_shape_fingerprint(source)
+
+    with pytest.raises(RepairRejected, match="explicit classifier-backed selection"):
+        ocp.repair_shape(source)
+    assert ocp._native_shape_fingerprint(source) == fingerprint
 
 
 def test_valid_part_is_not_needlessly_healed():
@@ -249,13 +289,13 @@ def test_multiple_solids_need_explicit_policy():
 def test_ambiguous_disconnected_shells_not_auto_grouped():
     parts = [box(), BRepPrimAPI_MakeBox(gp_Pnt(20, 0, 0), 5, 5, 5).Shape()]
     source = compound([disconnected_faces(part) for part in parts])
-    with pytest.raises(RepairRejected, match="ambiguous"):
+    with pytest.raises(RepairRejected, match="explicit classifier-backed selection"):
         ocp.repair_shape(source, ocp.KernelPolicy(expected_solids=2))
 
 
 def test_missing_face_not_silently_capped(tmp_path):
     shape = compound(ocp._shapes(box(), TopAbs_FACE)[:-1])
-    with pytest.raises(RepairRejected, match="open"):
+    with pytest.raises(RepairRejected, match="explicit classifier-backed selection"):
         ocp.repair_shape(shape)
     target = tmp_path / "not-certified.step"
     with pytest.raises(ExportRejected):
