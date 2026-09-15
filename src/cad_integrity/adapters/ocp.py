@@ -509,7 +509,6 @@ class SelectedNativeSewingResult:
     before: KernelReport
     after: KernelReport
     source_fingerprint_sha256: str
-    selected_wire_pairs: tuple[tuple[int, int], ...]
     selected_wire_ids: tuple[int, ...]
     selected_edge_ids: tuple[int, ...]
     operations: tuple[str, ...]
@@ -518,9 +517,9 @@ class SelectedNativeSewingResult:
 
 
 def sew_selected_native_boundaries(shape: TopoDS_Shape, evidence: NativeDefectReport,
-                                   selected_wire_pairs: tuple[tuple[int, int], ...],
+                                   selected_wire_ids: tuple[int, ...],
                                    policy: KernelPolicy = KernelPolicy()) -> SelectedNativeSewingResult:
-    """Sew explicitly selected classifier-issued pairs of free-boundary wires.
+    """Sew an explicitly selected classifier-issued set of free-boundary wires.
 
     The classifier's local IDs are valid only for the exact source fingerprint.
     This intentionally refuses partial *open-boundary* selections: preserving
@@ -533,27 +532,20 @@ def sew_selected_native_boundaries(shape: TopoDS_Shape, evidence: NativeDefectRe
         raise RepairRejected("Classifier evidence does not match the supplied native source")
     if evidence.audit != before:
         raise RepairRejected("Classifier evidence policy/audit does not match the supplied native source")
-    if not selected_wire_pairs:
+    if not selected_wire_ids:
         raise RepairRejected("An explicit nonempty classifier-backed selection is required")
     wires = {wire.wire_id: wire for wire in evidence.free_boundary_wires}
-    if any(len(pair) != 2 for pair in selected_wire_pairs):
-        raise RepairRejected("Each selected native boundary pair must contain two distinct wire IDs")
-    pairs = tuple((min(pair), max(pair)) for pair in selected_wire_pairs)
-    if any(pair[0] == pair[1] for pair in pairs):
-        raise RepairRejected("Each selected native boundary pair must contain two distinct wire IDs")
-    if len(set(pairs)) != len(pairs):
-        raise RepairRejected("Selected native boundary wire pairs must be unique")
-    selected = tuple(sorted({wire_id for pair in pairs for wire_id in pair}))
-    if len(selected) != 2*len(pairs):
-        raise RepairRejected("Each selected free-boundary wire must occur in exactly one pair")
+    if len(set(selected_wire_ids)) != len(selected_wire_ids):
+        raise RepairRejected("Selected free-boundary wire IDs must be unique")
+    selected = tuple(sorted(selected_wire_ids))
     if any(wire_id not in wires for wire_id in selected):
         raise RepairRejected("Selected free-boundary wire ID is absent from classifier evidence")
     selected_edges = tuple(sorted({edge_id for wire_id in selected for edge_id in wires[wire_id].edge_ids}))
     unselected_edges = tuple(sorted(set(before.free_edge_ids)-set(selected_edges)))
     if unselected_edges:
         raise RepairRejected(
-            "Refusing partial sewing: every free-boundary wire must be covered by an explicit "
-            "selected pair before a kernel-accepted whole-shape candidate can be returned"
+            "Refusing partial sewing: every free-boundary wire must be explicitly selected "
+            "before a kernel-accepted whole-shape candidate can be returned"
         )
     if before.unowned_edge_ids or before.unowned_vertex_ids:
         raise RepairRejected("Input contains unowned edges or vertices; refusing to discard them")
@@ -620,7 +612,7 @@ def sew_selected_native_boundaries(shape: TopoDS_Shape, evidence: NativeDefectRe
     if not after.accepted_under_policy:
         raise RepairRejected("Selected sewing candidate failed kernel policy: " + "; ".join(after.acceptance_reasons))
     return SelectedNativeSewingResult(
-        candidate, before, after, fingerprint, pairs, selected, selected_edges,
+        candidate, before, after, fingerprint, selected, selected_edges,
         ("BRepBuilderAPI_Sewing on explicitly selected classified free-boundary wires; "
          "nonmanifold mode disabled", "One closed shell converted to an oriented solid"),
     )
