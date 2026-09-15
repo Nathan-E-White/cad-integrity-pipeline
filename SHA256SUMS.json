@@ -9,6 +9,7 @@
   "docs/MATHEMATICS.md": "46115621f0333cdb5139952787503083f8f49718e92e0b7f65e8e54c98e9122b",
   "docs/MATH_STAGE_1_DESIGN.md": "f371c4a5ba340dda22cb06a889861f5241b4a1facf54701440f6508d7f7bbac5",
   "docs/MATH_STAGE_2_DESIGN.md": "2e6e6e2f8cd0a3c7bd6bc4ac05bd8a2ea7b7eafdadc99bbaddc5a12590a42229",
+  "docs/MATH_STAGE_3_DESIGN.md": "6c88e8e0061d9c5b1c13248a26e958b761e78d5f5ffea99e8f0fbeb4e0f6d96d",
   "docs/REVIEW.md": "8262e7729cc7ba560e13820983546498dc37e06d201055427fa7a08081356610",
   "docs/VALIDATION.md": "268a7b7f0e333da7eb5138cac1f5a34967359f7b90e6d2a2556b80773bc04679",
   "docs/evidence/coverage.json": "0a7d448a9f78d9e8f4e6a8678ec6b469bded614f1a0c7a3c48ea211f40d337fd",
@@ -76,7 +77,7 @@
   "examples/pathological-mesh-fixtures/tools/test_fixtures.py": "82fdefc8ba984e2e717bbed58c19888f16eeceeae000ce4b00cfd7f79da4df05",
   "notebooks/01_integrity_lab.ipynb": "6fa4c1b32a6bbcd2484719f3b6a210bd63c3f8256aeeae949c5700dd572b9139",
   "pixi.lock": "0d3ddf8912f97e4cf630018f284f4ae25d27fb0c0072cc2265177da7a6e1066a",
-  "pyproject.toml": "1edca748afa66737b54ee849e0379f8ff7d6cbae495f4a747180e43cc6338156",
+  "pyproject.toml": "af78dce1c28d598ce9d0444115f0f4cea8cd5f2476e00993b2ecbaf4a48e7ed2",
   "reference/simplex_original.txt": "965605e03b58c353bd30513092813951f7d6899fdd73e592eed5e7239b6e80cd",
   "scripts/verify_artifacts.py": "a45a47041900f29c10525a0257755662f5edc7f76b5d09354b00a6343da4f696",
   "src/cad_integrity/__init__.py": "05170ba8b009281f37a0e639a4869d65f80b5396959cedf60754b6e2a9112a42",
@@ -102,6 +103,6 @@
   "tests/test_math_sea_trials.py": "6f35ff1dffd4b8acebbc86aa8eebd2dd517b5afd8d72552e840f53a934298b87",
   "tests/test_native_ocp.py": "33376473bfae0312936eb70fd0515b7b0101e5068ab544184c4d65801d60fb37",
   "tests/test_numerics_metrics.py": "f8f4bb2fced131c7d806eab0197064268075ced460c72295736bb88aa014ef97",
-  "tests/test_polygonal_cell_admission.py": "6d864f97eea021d319bc49aea4ef81c6aed8dd4aa94e8c16fb78598022d9ee2a",
+  "tests/test_polygonal_cell_admission.py": "dabb9d05b3ab7ee66467e3e1ea79af10e64dba186b8fcca88b7ff651d9515cff",
   "tests/test_topology_repair.py": "c75969e57eecff5cf8cf5f0fb9f9a70d3746a423318d5e9b5df8d6692f4cf3f2"
 }
