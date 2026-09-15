@@ -7,6 +7,7 @@ import pytest
 from cad_integrity.errors import InvalidGeometry
 from cad_integrity.fixtures import cube, disk, pinched_tetrahedra
 from cad_integrity.models import PolyhedralBRep
+from cad_integrity.pipeline import RepairPipeline
 from cad_integrity.topology import BRepHomologyStitchAnalyzer
 
 
@@ -51,3 +52,24 @@ def test_unused_vertex_is_diagnosed_without_homology() -> None:
 
     assert report.unused_vertex_ids == (8,)
     assert report.homology is None
+
+
+def test_unused_edge_is_diagnosed_without_homology() -> None:
+    raw = cube()
+    unused_edge = replace(raw, edges=np.vstack((raw.edges, (0, 1))))
+
+    report = BRepHomologyStitchAnalyzer(unused_edge).evaluate_stitch_integrity()
+
+    assert report.unused_edge_ids == (12,)
+    assert report.homology is None
+
+
+def test_repair_refuses_an_inadmissible_raw_carrier_without_a_candidate() -> None:
+    mesh = pinched_tetrahedra()
+    raw = PolyhedralBRep.from_polygons(mesh.vertices, mesh.triangles)
+
+    result = RepairPipeline().run(raw)
+
+    assert result.original is raw
+    assert result.candidate is None
+    assert result.report.decision == "rejected"

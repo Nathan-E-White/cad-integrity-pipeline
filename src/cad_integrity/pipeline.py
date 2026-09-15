@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from .algebra import ReductionBudget
-from .errors import IntegrityError
+from .errors import IntegrityError, RepairRejected
 from .models import PolyhedralBRep
 from .repair import WeldPolicy, synchronize_orientations, weld_vertices
 from .topology import BRepHomologyStitchAnalyzer, TopologyReport
@@ -85,6 +85,9 @@ class RepairPipeline:
         changes = []
         maximum_move = 0.0
         try:
+            if before.homology is None:
+                raise RepairRejected(before.homology_unavailable_reason or
+                                     "Input is not an admissible polygonal cell complex")
             candidate = brep
             if self.policy.weld is not None:
                 event("weld", "Attempting explicitly authorized boundary-vertex welding")
