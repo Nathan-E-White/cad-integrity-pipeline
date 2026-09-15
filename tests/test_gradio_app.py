@@ -71,6 +71,23 @@ def test_build_app_exposes_native_and_polygonal_labs() -> None:
     assert "Advanced repair policy" in labels
 
 
+def test_main_announces_the_loopback_url_before_serving(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    from cad_integrity import gradio_app
+
+    calls: list[dict[str, object]] = []
+
+    class FakeApp:
+        def launch(self, **kwargs: object) -> None:
+            calls.append(kwargs)
+
+    monkeypatch.setattr(gradio_app, "build_app", FakeApp)
+
+    gradio_app.main()
+
+    assert "http://127.0.0.1:7860" in capsys.readouterr().out
+    assert calls == [{"server_name": "127.0.0.1", "share": False}]
+
+
 def test_advanced_controls_build_a_validated_kernel_policy() -> None:
     from cad_integrity.gradio_app import kernel_policy_from_controls
 

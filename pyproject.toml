@@ -8,14 +8,14 @@ version = "0.1.0"
 description = "Auditable topology diagnostics and conservative CAD repair experiments"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = ["numpy>=1.26,<3", "scipy>=1.12,<2"]
+dependencies = ["numpy", "scipy"]
 
 [project.optional-dependencies]
-algebra = ["sympy>=1.13,<2"]
-cad = ["cadquery-ocp>=7.9.3,<7.10"]
-notebook = ["jupyterlab>=4,<5", "plotly>=5.24,<7", "nbformat>=5.10,<6"]
-ui = ["gradio>=5,<7"]
-dev = ["pytest>=8,<10", "pytest-cov>=5,<8", "ruff>=0.11,<1", "mypy>=1.15,<2", "scipy-stubs>=1.15", "nbclient>=0.10,<1", "build>=1.2,<2"]
+algebra = ["sympy"]
+cad = ["cadquery-ocp"]
+notebook = ["jupyterlab", "plotly", "nbformat"]
+ui = ["gradio"]
+dev = ["pytest", "pytest-cov", "ruff", "mypy", "scipy-stubs", "nbclient", "build"]
 
 [project.scripts]
 cad-integrity = "cad_integrity.cli:main"
@@ -80,11 +80,12 @@ platforms = ["osx-arm64"]
 
 [tool.pixi.dependencies]
 python = "3.13.*"
-numpy = ">=1.26,<3"
-scipy = ">=1.12,<2"
+numpy = ">=2.5.3,<3"
+scipy = ">=1.18.1,<2"
 pixi-pycharm = ">=0.0.12,<0.0.13"
 mutmut = ">=3.5.0,<4"
 atheris = ">=3.0.0,<4"
+pythonocc-core = ">=7.9.3,<8"
 
 [tool.pixi.pypi-dependencies]
 cad-integrity-lab = { path = ".", editable = true, extras = ["algebra", "cad", "notebook", "ui", "dev"] }

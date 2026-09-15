@@ -483,6 +483,7 @@ def build_app() -> Any:
 
 def main() -> None:
     """Run a loopback-only local lab; public deployment needs worker isolation."""
+    print("CAD Integrity Lab is serving at http://127.0.0.1:7860 — press Ctrl-C to stop.")
     build_app().launch(server_name="127.0.0.1", share=False)
 
 
