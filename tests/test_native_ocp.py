@@ -237,6 +237,10 @@ def test_selected_native_sewing_refuses_partial_or_stale_evidence_without_mutati
     with pytest.raises(RepairRejected, match="every free-boundary wire"):
         ocp.sew_selected_native_boundaries(source, report, ((report.free_boundary_wires[0].wire_id,
                                                               report.free_boundary_wires[1].wire_id),))
+    with pytest.raises(RepairRejected, match="exactly one pair"):
+        ocp.sew_selected_native_boundaries(
+            source, report, ((0, 1), (0, 2), (3, 4), (5, 1)),
+        )
     with pytest.raises(RepairRejected, match="does not match"):
         ocp.sew_selected_native_boundaries(box(), report, ((0, 1),))
     assert ocp._native_shape_fingerprint(source) == fingerprint

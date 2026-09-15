@@ -523,9 +523,9 @@ def sew_selected_native_boundaries(shape: TopoDS_Shape, evidence: NativeDefectRe
     """Sew explicitly selected classifier-issued pairs of free-boundary wires.
 
     The classifier's local IDs are valid only for the exact source fingerprint.
-    This intentionally refuses partial selections: preserving unselected open faces
-    while returning a kernel-accepted solid would require an additional, explicit
-    topology-reconstruction contract.
+    This intentionally refuses partial *open-boundary* selections: preserving
+    unselected open faces while returning a kernel-accepted solid would require
+    an additional, explicit topology-reconstruction contract.
     """
     before = audit_shape(shape, policy)
     fingerprint = _native_shape_fingerprint(shape)
@@ -544,6 +544,8 @@ def sew_selected_native_boundaries(shape: TopoDS_Shape, evidence: NativeDefectRe
     if len(set(pairs)) != len(pairs):
         raise RepairRejected("Selected native boundary wire pairs must be unique")
     selected = tuple(sorted({wire_id for pair in pairs for wire_id in pair}))
+    if len(selected) != 2*len(pairs):
+        raise RepairRejected("Each selected free-boundary wire must occur in exactly one pair")
     if any(wire_id not in wires for wire_id in selected):
         raise RepairRejected("Selected free-boundary wire ID is absent from classifier evidence")
     selected_edges = tuple(sorted({edge_id for wire_id in selected for edge_id in wires[wire_id].edge_ids}))
