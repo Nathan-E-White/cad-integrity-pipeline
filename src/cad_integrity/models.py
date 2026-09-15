@@ -3,6 +3,7 @@
 PolyhedralBRep supports one simple polygonal disk per face and straight edges.
 Curved surfaces, p-curves, periodic seams and inner trimming wires stay in OCP.
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -10,9 +11,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import ArrayLike
-from scipy.sparse import csr_matrix
 
-from .algebra import ChainComplex
 from .arrays import FloatArray, IntArray, floats, integers, require_indices
 from .errors import InvalidGeometry
 from .simplicial import SimplicialComplex
@@ -41,8 +40,11 @@ class TriangleMesh:
         if canonical.size and np.any(np.diff(canonical, axis=1) == 0):
             raise InvalidGeometry("Repeated vertices in a triangle")
         from itertools import chain
-        return SimplicialComplex(chain(((i,) for i in range(len(self.vertices))), self.triangles),
-                                 max_simplices=max_simplices)
+
+        return SimplicialComplex(
+            chain(((i,) for i in range(len(self.vertices))), self.triangles),
+            max_simplices=max_simplices,
+        )
 
 
 @dataclass(frozen=True, slots=True, eq=False)
@@ -54,6 +56,7 @@ class PolyhedralBRep:
     face_coedges[face_offsets[f]:face_offsets[f+1]]. Reversal is -loop[::-1].
     Arrays are defensively copied and made read-only (not a security boundary).
     """
+
     vertices: FloatArray
     edges: IntArray
     face_offsets: IntArray
@@ -71,25 +74,27 @@ class PolyhedralBRep:
             raise InvalidGeometry("Offsets must begin at 0 and end at the coedge count")
         if np.any(np.diff(offsets) < 3):
             raise InvalidGeometry("Each supported polygonal face needs at least three coedges")
-        if self.face_coedges.size and (np.any(self.face_coedges == 0)
-                or any(abs(int(t)) > len(self.edges) for t in self.face_coedges)):
+        if self.face_coedges.size and (
+            np.any(self.face_coedges == 0)
+            or any(abs(int(t)) > len(self.edges) for t in self.face_coedges)
+        ):
             raise InvalidGeometry("Invalid coedge token; use sign*(edge_id+1)")
         if self.length_unit not in UNITS:
             raise InvalidGeometry(f"Unsupported length unit {self.length_unit!r}")
 
     @property
     def face_count(self) -> int:
-        return len(self.face_offsets)-1
+        return len(self.face_offsets) - 1
 
     def face_loop(self, face_id: int) -> IntArray:
         if not 0 <= face_id < self.face_count:
             raise IndexError(face_id)
-        a, b = self.face_offsets[face_id:face_id+2]
+        a, b = self.face_offsets[face_id : face_id + 2]
         return self.face_coedges[a:b]
 
     def directed_endpoints(self, face_id: int) -> IntArray:
         tokens = self.face_loop(face_id)
-        endpoints = self.edges[np.abs(tokens)-1].copy()
+        endpoints = self.edges[np.abs(tokens) - 1].copy()
         reverse = tokens < 0
         endpoints[reverse] = endpoints[reverse, ::-1]
         return endpoints
@@ -103,23 +108,15 @@ class PolyhedralBRep:
             raise InvalidGeometry(f"Face {face_id} is not a simple polygonal disk boundary")
         return vertices
 
-    def to_chain_complex(self) -> ChainComplex:
-        for face_id in range(self.face_count):
-            self.face_vertices(face_id)
-        nv, ne, nf = len(self.vertices), len(self.edges), self.face_count
-        rows = self.edges.ravel()
-        cols = np.repeat(np.arange(ne), 2)
-        values = np.tile(np.array([-1, 1], dtype=np.int64), ne)
-        d1 = csr_matrix((values, (rows, cols)), shape=(nv, ne), dtype=np.int64)
-        rows2 = np.abs(self.face_coedges)-1
-        cols2 = np.repeat(np.arange(nf), np.diff(self.face_offsets))
-        d2 = csr_matrix((np.sign(self.face_coedges), (rows2, cols2)),
-                        shape=(ne, nf), dtype=np.int64)
-        return ChainComplex((csr_matrix((0, nv), dtype=np.int64), d1, d2))
-
     @classmethod
-    def from_polygons(cls, vertices: ArrayLike, polygons: Iterable[Iterable[int]],
-                      *, length_unit: str = "mm", share_edges: bool = True) -> PolyhedralBRep:
+    def from_polygons(
+        cls,
+        vertices: ArrayLike,
+        polygons: Iterable[Iterable[int]],
+        *,
+        length_unit: str = "mm",
+        share_edges: bool = True,
+    ) -> PolyhedralBRep:
         points = floats(vertices, name="vertices", width=3)
         edges: list[tuple[int, int]] = []
         lookup: dict[tuple[int, int], int] = {}
@@ -136,15 +133,21 @@ class PolyhedralBRep:
                 if not share_edges or key not in lookup:
                     lookup[key] = len(edges)
                     edges.append(key)
-                token = lookup[key]+1
+                token = lookup[key] + 1
                 tokens.append(token if u < v else -token)
             offsets.append(len(tokens))
-        return cls(points, np.asarray(edges, dtype=np.int64).reshape(-1, 2),
-                   np.asarray(offsets, dtype=np.int64), np.asarray(tokens, dtype=np.int64), length_unit)
+        return cls(
+            points,
+            np.asarray(edges, dtype=np.int64).reshape(-1, 2),
+            np.asarray(offsets, dtype=np.int64),
+            np.asarray(tokens, dtype=np.int64),
+            length_unit,
+        )
 
     def triangulate_convex_faces(self, *, planarity_tolerance: float = 1e-8) -> TriangleMesh:
         """Visualization-only fan triangulation; reject nonplanar or nonconvex polygons."""
         from .arrays import positive
+
         positive(planarity_tolerance, "planarity_tolerance", allow_zero=True)
         triangles: list[tuple[int, int, int]] = []
         for f in range(self.face_count):
@@ -160,10 +163,11 @@ class PolyhedralBRep:
                 raise InvalidGeometry(f"Face {f}: nonplanar; fan triangulation is unsupported")
             # Every directed edge must see all remaining points on its inward side.
             for k in range(len(ids)):
-                edge = xyz[(k+1) % len(ids)] - xyz[k]
-                sides = np.cross(edge, xyz-xyz[k]) @ normal
+                edge = xyz[(k + 1) % len(ids)] - xyz[k]
+                sides = np.cross(edge, xyz - xyz[k]) @ normal
                 if np.any(sides < -planarity_tolerance * max(1.0, np.linalg.norm(edge))):
                     raise InvalidGeometry(f"Face {f}: nonconvex or self-intersecting polygon")
-            triangles.extend((ids[0], ids[i], ids[i+1]) for i in range(1, len(ids)-1))
-        return TriangleMesh(self.vertices, np.asarray(triangles, dtype=np.int64).reshape(-1, 3),
-                            self.length_unit)
+            triangles.extend((ids[0], ids[i], ids[i + 1]) for i in range(1, len(ids) - 1))
+        return TriangleMesh(
+            self.vertices, np.asarray(triangles, dtype=np.int64).reshape(-1, 3), self.length_unit
+        )

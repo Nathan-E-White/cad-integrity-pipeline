@@ -1,14 +1,14 @@
 """Combinatorial boundary diagnostics. No claim of CAD/physical certification."""
+
 from __future__ import annotations
 
-from collections import Counter, defaultdict, deque
+from collections import defaultdict, deque
 from dataclasses import dataclass
-
-import numpy as np
 
 from .algebra import HomologyReport, ReductionBudget, compute_homology
 from .errors import InvalidGeometry, ResourceLimitExceeded
 from .models import PolyhedralBRep, TriangleMesh
+from .polygonal_cells import admit_polygonal_cells, edge_uses
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,38 +46,19 @@ class TopologyReport:
     @property
     def is_closed_oriented_2manifold(self) -> bool:
         """Purely combinatorial condition; does NOT establish an embedded CAD solid."""
-        return bool(self.face_count) and not any((self.boundary_edge_ids,
-            self.nonmanifold_edge_ids, self.inconsistent_orientation_edge_ids,
-            self.nonmanifold_vertex_ids, self.unused_vertex_ids, self.unused_edge_ids,
-            self.invalid_face_ids, self.duplicate_face_ids, self.collapsed_edge_ids))
-
-
-def edge_uses(brep: PolyhedralBRep) -> dict[int, list[tuple[int, int]]]:
-    uses: dict[int, list[tuple[int, int]]] = defaultdict(list)
-    for face in range(brep.face_count):
-        for token in brep.face_loop(face):
-            uses[abs(int(token))-1].append((face, 1 if token > 0 else -1))
-    return dict(uses)
-
-
-def _canonical_cycle(loop: tuple[int, ...]) -> tuple[int, ...]:
-    # An unoriented face identity, modulo cyclic shifts and reversal.
-    i = loop.index(min(loop))
-    forward = loop[i:] + loop[:i]
-    return min(forward, (forward[0],) + forward[:0:-1])
-
-
-def _connected(adjacency: dict[int, list[int]]) -> bool:
-    if not adjacency:
-        return False
-    seen = {next(iter(adjacency))}
-    todo = list(seen)
-    while todo:
-        for neighbor in adjacency[todo.pop()]:
-            if neighbor not in seen:
-                seen.add(neighbor)
-                todo.append(neighbor)
-    return len(seen) == len(adjacency)
+        return bool(self.face_count) and not any(
+            (
+                self.boundary_edge_ids,
+                self.nonmanifold_edge_ids,
+                self.inconsistent_orientation_edge_ids,
+                self.nonmanifold_vertex_ids,
+                self.unused_vertex_ids,
+                self.unused_edge_ids,
+                self.invalid_face_ids,
+                self.duplicate_face_ids,
+                self.collapsed_edge_ids,
+            )
+        )
 
 
 def orientation_solution(brep: PolyhedralBRep) -> tuple[tuple[int, ...], tuple[int, ...]]:
@@ -93,7 +74,7 @@ def orientation_solution(brep: PolyhedralBRep) -> tuple[tuple[int, ...], tuple[i
             raise InvalidGeometry(f"Cannot orient nonmanifold edge {edge}")
         if len(incidents) == 2:
             (f, s), (g, t) = incidents
-            relation = -s*t
+            relation = -s * t
             adjacency[f].append((g, relation, edge))
             adjacency[g].append((f, relation, edge))
     multipliers = [0] * brep.face_count
@@ -118,74 +99,58 @@ def orientation_solution(brep: PolyhedralBRep) -> tuple[tuple[int, ...], tuple[i
 class BRepHomologyStitchAnalyzer:
     """Analyze a restricted polygonal cell complex, NOT arbitrary native CAD faces."""
 
-    def __init__(self, brep: PolyhedralBRep, *, coefficients: str = "F2",
-                 budget: ReductionBudget = ReductionBudget()) -> None:
+    def __init__(
+        self,
+        brep: PolyhedralBRep,
+        *,
+        coefficients: str = "F2",
+        budget: ReductionBudget = ReductionBudget(),
+    ) -> None:
         self.brep, self.coefficients, self.budget = brep, coefficients, budget
 
     def evaluate_stitch_integrity(self) -> TopologyReport:
         b = self.brep
         uses = edge_uses(b)
-        invalid: list[int] = []
-        duplicates: list[int] = []
-        seen_faces: set[tuple[int, ...]] = set()
-        # Link of a vertex: incident edges are nodes; face corners connect them.
-        links: dict[int, list[tuple[int, int]]] = defaultdict(list)
-        for f in range(b.face_count):
-            try:
-                vertices = b.face_vertices(f)
-            except InvalidGeometry:
-                invalid.append(f)
-                continue
-            canonical = _canonical_cycle(vertices)
-            if canonical in seen_faces:
-                duplicates.append(f)
-            seen_faces.add(canonical)
-            edge_ids = np.abs(b.face_loop(f))-1
-            for k, vertex in enumerate(vertices):
-                links[vertex].append((int(edge_ids[k-1]), int(edge_ids[k])))
-        bad_vertices = []
-        for vertex, pairs in links.items():
-            neighbors: dict[int, list[int]] = defaultdict(list)
-            for e1, e2 in pairs:
-                neighbors[e1].append(e2)
-                neighbors[e2].append(e1)
-            degrees = Counter(len(v) for v in neighbors.values())
-            path_or_cycle = ((set(degrees) <= {1, 2} and degrees.get(1, 0) == 2)
-                             or set(degrees) == {2})
-            if not path_or_cycle or not _connected(dict(neighbors)):
-                bad_vertices.append(vertex)
-        active_vertices = set(int(v) for e in uses for v in b.edges[e])
-        collapsed = tuple(int(i) for i, (u, v) in enumerate(b.edges)
-                          if u == v or np.array_equal(b.vertices[u], b.vertices[v]))
+        admission = admit_polygonal_cells(b)
         boundary_edges = tuple(e for e in sorted(uses) if len(uses[e]) == 1)
-        nonmanifold_edges = tuple(e for e in sorted(uses) if len(uses[e]) > 2)
-        inconsistent_edges = tuple(e for e in sorted(uses) if len(uses[e]) == 2
-                                     and sum(sign for _, sign in uses[e]) != 0)
-        unused_vertices = tuple(sorted(set(range(len(b.vertices)))-active_vertices))
-        unused_edges = tuple(sorted(set(range(len(b.edges)))-uses.keys()))
+        inconsistent_edges = tuple(
+            e for e in sorted(uses) if len(uses[e]) == 2 and sum(sign for _, sign in uses[e]) != 0
+        )
         homology = None
-        reason = None
-        if (invalid or duplicates or collapsed or nonmanifold_edges or bad_vertices
-                or unused_vertices or unused_edges):
-            reason = "Inadmissible polygonal cells: refusing a misleading homology result"
-        else:
+        reason = admission.reason
+        if admission.cells is not None:
             try:
-                homology = compute_homology(b.to_chain_complex(), coefficients=self.coefficients,
-                                            budget=self.budget)
+                homology = compute_homology(
+                    admission.cells.to_chain_complex(),
+                    coefficients=self.coefficients,
+                    budget=self.budget,
+                )
             except ResourceLimitExceeded as exc:
                 reason = str(exc)
         return TopologyReport(
-            len(b.vertices), len(b.edges), b.face_count,
-            boundary_edges, nonmanifold_edges, inconsistent_edges,
-            tuple(sorted(bad_vertices)),
-            unused_vertices, unused_edges,
-            tuple(invalid), tuple(duplicates), collapsed, homology, reason,
+            len(b.vertices),
+            len(b.edges),
+            b.face_count,
+            boundary_edges,
+            admission.nonmanifold_edge_ids,
+            inconsistent_edges,
+            admission.nonmanifold_vertex_ids,
+            admission.unused_vertex_ids,
+            admission.unused_edge_ids,
+            admission.invalid_face_ids,
+            admission.duplicate_face_ids,
+            admission.collapsed_edge_ids,
+            homology,
+            reason,
         )
 
 
-def analyze_mesh(mesh: TriangleMesh, *, coefficients: str = "F2",
-                 budget: ReductionBudget = ReductionBudget()) -> TopologyReport:
-    boundary = PolyhedralBRep.from_polygons(mesh.vertices, mesh.triangles,
-                                            length_unit=mesh.length_unit)
-    return BRepHomologyStitchAnalyzer(boundary, coefficients=coefficients,
-                                     budget=budget).evaluate_stitch_integrity()
+def analyze_mesh(
+    mesh: TriangleMesh, *, coefficients: str = "F2", budget: ReductionBudget = ReductionBudget()
+) -> TopologyReport:
+    boundary = PolyhedralBRep.from_polygons(
+        mesh.vertices, mesh.triangles, length_unit=mesh.length_unit
+    )
+    return BRepHomologyStitchAnalyzer(
+        boundary, coefficients=coefficients, budget=budget
+    ).evaluate_stitch_integrity()

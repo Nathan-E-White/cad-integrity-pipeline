@@ -1,14 +1,15 @@
 """Characterization tests for raw polygonal input and admissible cell complexes."""
+
 from dataclasses import replace
 
 import numpy as np
 import pytest
 
-from cad_integrity.errors import InvalidGeometry
 from cad_integrity.f2_reduction import ReductionBudget
 from cad_integrity.fixtures import cube, disk, pinched_tetrahedra, torus
 from cad_integrity.models import PolyhedralBRep
 from cad_integrity.pipeline import RepairPipeline, RepairPolicy
+from cad_integrity.polygonal_cells import ValidatedPolygonalCells, admit_polygonal_cells
 from cad_integrity.topology import BRepHomologyStitchAnalyzer
 
 
@@ -18,8 +19,96 @@ def test_broken_wire_is_not_admitted_to_chain_construction() -> None:
     tokens[1] *= -1
     broken_wire = replace(raw, face_coedges=tokens)
 
-    with pytest.raises(InvalidGeometry, match="continuous closed loop"):
-        broken_wire.to_chain_complex()
+    admission = admit_polygonal_cells(broken_wire)
+
+    assert admission.cells is None
+    assert admission.invalid_face_ids == (0,)
+    assert admission.reason == "Inadmissible polygonal cells: refusing a misleading homology result"
+
+
+@pytest.mark.parametrize(
+    "raw", [disk(), cube(), PolyhedralBRep.from_polygons(torus().vertices, torus().triangles)]
+)
+def test_validated_cells_preserve_the_prior_chain_matrices(raw: PolyhedralBRep) -> None:
+    cells = admit_polygonal_cells(raw).require_cells()
+
+    chain = cells.to_chain_complex()
+
+    assert chain.dimensions == (len(raw.vertices), len(raw.edges), raw.face_count)
+    assert np.array_equal(chain.boundary(1).toarray(), _prior_d1(raw))
+    assert np.array_equal(chain.boundary(2).toarray(), _prior_d2(raw))
+
+
+def test_analyzer_and_repair_use_the_same_admission_facts() -> None:
+    raw = disk()
+    vertices = raw.vertices.copy()
+    vertices[1] = vertices[0]
+    invalid = replace(raw, vertices=vertices)
+
+    admission = admit_polygonal_cells(invalid)
+    report = BRepHomologyStitchAnalyzer(invalid).evaluate_stitch_integrity()
+    result = RepairPipeline().run(invalid)
+
+    assert admission.cells is None
+    assert report.collapsed_edge_ids == admission.collapsed_edge_ids
+    assert report.homology_unavailable_reason == admission.reason
+    assert result.candidate is None
+    assert result.report.errors == (admission.reason,)
+
+
+def test_admission_reports_every_invalid_face_instead_of_stopping_at_the_first() -> None:
+    raw = disk()
+    tokens = np.concatenate((raw.face_coedges, raw.face_coedges))
+    tokens[1] *= -1
+    tokens[5] *= -1
+    invalid = replace(raw, face_offsets=np.array((0, 4, 8), dtype=np.int64), face_coedges=tokens)
+
+    admission = admit_polygonal_cells(invalid)
+
+    assert admission.cells is None
+    assert admission.invalid_face_ids == (0, 1)
+
+
+def test_admission_retains_nonmanifold_edge_and_link_evidence() -> None:
+    raw = PolyhedralBRep.from_polygons(
+        np.array(((0, 0, 0), (1, 0, 0), (0, 1, 0), (-1, 0, 0), (0, -1, 0)), dtype=float),
+        ((0, 1, 2), (0, 2, 3), (0, 3, 1), (0, 1, 4)),
+    )
+
+    admission = admit_polygonal_cells(raw)
+
+    assert admission.cells is None
+    assert admission.nonmanifold_edge_ids == (0,)
+    assert admission.nonmanifold_vertex_ids == (0, 1)
+
+
+def test_raw_duplicate_faces_cannot_bypass_admission_to_construct_a_chain() -> None:
+    raw = disk()
+    duplicate = replace(
+        raw,
+        face_offsets=np.array((0, 4, 8), dtype=np.int64),
+        face_coedges=np.concatenate((raw.face_coedges, raw.face_coedges)),
+    )
+
+    assert admit_polygonal_cells(duplicate).cells is None
+    with pytest.raises(TypeError, match="_admission_token"):
+        ValidatedPolygonalCells(duplicate)
+
+
+def _prior_d1(raw: PolyhedralBRep) -> np.ndarray:
+    matrix = np.zeros((len(raw.vertices), len(raw.edges)), dtype=np.int64)
+    for edge, (start, end) in enumerate(raw.edges):
+        matrix[start, edge] = -1
+        matrix[end, edge] = 1
+    return matrix
+
+
+def _prior_d2(raw: PolyhedralBRep) -> np.ndarray:
+    matrix = np.zeros((len(raw.edges), raw.face_count), dtype=np.int64)
+    for face in range(raw.face_count):
+        for token in raw.face_loop(face):
+            matrix[abs(token) - 1, face] = np.sign(token)
+    return matrix
 
 
 def test_collapsed_edge_is_diagnosed_without_homology() -> None:
@@ -32,7 +121,10 @@ def test_collapsed_edge_is_diagnosed_without_homology() -> None:
 
     assert report.collapsed_edge_ids == (0,)
     assert report.homology is None
-    assert report.homology_unavailable_reason == "Inadmissible polygonal cells: refusing a misleading homology result"
+    assert (
+        report.homology_unavailable_reason
+        == "Inadmissible polygonal cells: refusing a misleading homology result"
+    )
 
 
 def test_pinched_vertex_is_diagnosed_without_homology() -> None:
@@ -110,14 +202,18 @@ def test_repair_preserves_a_valid_carrier_when_a_configured_audit_budget_is_exha
     )
 
 
-@pytest.mark.parametrize("raw, expected_betti", [
-    (disk(), (1, 0, 0)),
-    (cube(), (1, 0, 1)),
-    (PolyhedralBRep.from_polygons(torus().vertices, torus().triangles), (1, 2, 1)),
-])
+@pytest.mark.parametrize(
+    "raw, expected_betti",
+    [
+        (disk(), (1, 0, 0)),
+        (cube(), (1, 0, 1)),
+        (PolyhedralBRep.from_polygons(torus().vertices, torus().triangles), (1, 2, 1)),
+    ],
+)
 def test_valid_polygonal_cells_construct_chains_and_report_expected_homology(
-        raw: PolyhedralBRep, expected_betti: tuple[int, int, int]) -> None:
-    chain = raw.to_chain_complex()
+    raw: PolyhedralBRep, expected_betti: tuple[int, int, int]
+) -> None:
+    chain = admit_polygonal_cells(raw).require_cells().to_chain_complex()
     report = BRepHomologyStitchAnalyzer(raw).evaluate_stitch_integrity()
 
     assert chain.dimensions == (len(raw.vertices), len(raw.edges), raw.face_count)
@@ -133,8 +229,11 @@ def test_face_identity_is_invariant_under_rotation_or_complete_reversal() -> Non
     reversed_loop = -first_loop[::-1]
 
     for equivalent in (rotated, reversed_loop):
-        candidate = replace(raw, face_offsets=np.array((0, 4, 8), dtype=np.int64),
-                            face_coedges=np.concatenate((first_loop, equivalent)))
+        candidate = replace(
+            raw,
+            face_offsets=np.array((0, 4, 8), dtype=np.int64),
+            face_coedges=np.concatenate((first_loop, equivalent)),
+        )
         report = BRepHomologyStitchAnalyzer(candidate).evaluate_stitch_integrity()
         assert report.duplicate_face_ids == (1,)
         assert report.invalid_face_ids == ()
@@ -143,8 +242,11 @@ def test_face_identity_is_invariant_under_rotation_or_complete_reversal() -> Non
 
 def test_sign_only_reversal_is_not_a_complete_face_reversal() -> None:
     raw = disk()
-    candidate = replace(raw, face_offsets=np.array((0, 4, 8), dtype=np.int64),
-                        face_coedges=np.concatenate((raw.face_coedges, -raw.face_coedges)))
+    candidate = replace(
+        raw,
+        face_offsets=np.array((0, 4, 8), dtype=np.int64),
+        face_coedges=np.concatenate((raw.face_coedges, -raw.face_coedges)),
+    )
 
     report = BRepHomologyStitchAnalyzer(candidate).evaluate_stitch_integrity()
 
@@ -155,7 +257,7 @@ def test_sign_only_reversal_is_not_a_complete_face_reversal() -> None:
 
 def test_generated_valid_cells_preserve_chain_identity_under_entity_renumbering() -> None:
     raw = cube()
-    original_chain = raw.to_chain_complex()
+    original_chain = admit_polygonal_cells(raw).require_cells().to_chain_complex()
     original_report = BRepHomologyStitchAnalyzer(raw).evaluate_stitch_integrity()
     rng = np.random.default_rng(20260915)
 
@@ -170,7 +272,7 @@ def test_generated_valid_cells_preserve_chain_identity_under_entity_renumbering(
             rotation = int(rng.integers(len(vertices)))
             polygons.append(vertices[rotation:] + vertices[:rotation])
         renumbered = PolyhedralBRep.from_polygons(raw.vertices[new_to_old], polygons)
-        renumbered_chain = renumbered.to_chain_complex()
+        renumbered_chain = admit_polygonal_cells(renumbered).require_cells().to_chain_complex()
 
         edge_by_endpoints = {
             tuple(sorted((int(u), int(v)))): edge for edge, (u, v) in enumerate(renumbered.edges)
