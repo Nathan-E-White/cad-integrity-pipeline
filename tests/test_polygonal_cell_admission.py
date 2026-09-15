@@ -5,9 +5,10 @@ import numpy as np
 import pytest
 
 from cad_integrity.errors import InvalidGeometry
+from cad_integrity.f2_reduction import ReductionBudget
 from cad_integrity.fixtures import cube, disk, pinched_tetrahedra
 from cad_integrity.models import PolyhedralBRep
-from cad_integrity.pipeline import RepairPipeline
+from cad_integrity.pipeline import RepairPipeline, RepairPolicy
 from cad_integrity.topology import BRepHomologyStitchAnalyzer
 
 
@@ -73,3 +74,22 @@ def test_repair_refuses_an_inadmissible_raw_carrier_without_a_candidate() -> Non
     assert result.original is raw
     assert result.candidate is None
     assert result.report.decision == "rejected"
+
+
+def test_repair_preserves_a_valid_carrier_when_a_configured_audit_budget_is_exhausted() -> None:
+    policy = RepairPolicy(reduction_budget=ReductionBudget(max_columns=1))
+
+    result = RepairPipeline(policy).run(cube())
+
+    assert result.original is not None
+    assert result.candidate is not None
+    assert result.report.decision == "needs_review"
+    assert result.report.before.homology is None
+    assert result.report.before.has_admissible_polygonal_cells
+    assert result.report.before.homology_unavailable_reason == (
+        "F_2 input exceeds the configured reduction budget"
+    )
+    assert result.report.after is not None
+    assert result.report.after.homology_unavailable_reason == (
+        "F_2 input exceeds the configured reduction budget"
+    )

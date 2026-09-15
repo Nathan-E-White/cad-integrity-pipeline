@@ -30,6 +30,20 @@ class TopologyReport:
     geometric_self_intersections_checked: bool = False
 
     @property
+    def has_admissible_polygonal_cells(self) -> bool:
+        """Whether raw cells support the restricted polygonal topology path.
+
+        Boundary and orientation are repairable/topological conditions; malformed,
+        duplicate, collapsed, nonmanifold, or unused cells are not admissible.
+        This does not claim embedded CAD validity.
+        """
+        return bool(self.face_count) and not any((
+            self.nonmanifold_edge_ids, self.nonmanifold_vertex_ids,
+            self.unused_vertex_ids, self.unused_edge_ids, self.invalid_face_ids,
+            self.duplicate_face_ids, self.collapsed_edge_ids,
+        ))
+
+    @property
     def is_closed_oriented_2manifold(self) -> bool:
         """Purely combinatorial condition; does NOT establish an embedded CAD solid."""
         return bool(self.face_count) and not any((self.boundary_edge_ids,

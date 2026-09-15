@@ -85,7 +85,7 @@ class RepairPipeline:
         changes = []
         maximum_move = 0.0
         try:
-            if before.homology is None:
+            if not before.has_admissible_polygonal_cells:
                 raise RepairRejected(before.homology_unavailable_reason or
                                      "Input is not an admissible polygonal cell complex")
             candidate = brep
@@ -102,7 +102,8 @@ class RepairPipeline:
                 changes.append(f"Reversed complete loops on {len(oriented.flipped_face_ids)} faces")
             event("verify", "Re-running diagnostics on the candidate")
             after = analyze(candidate)
-            decision = "topology_checks_passed" if after.is_closed_oriented_2manifold else "needs_review"
+            decision = ("topology_checks_passed" if after.homology is not None
+                        and after.is_closed_oriented_2manifold else "needs_review")
             report = RepairReport("1.0", fingerprint(brep), before, after, decision,
                                    tuple(changes), maximum_move, brep.length_unit, ())
             event("complete", decision)
