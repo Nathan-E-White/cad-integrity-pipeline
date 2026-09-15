@@ -103,13 +103,31 @@ def test_mesh_figure_has_a_deterministic_diagnostic_presentation() -> None:
     from cad_integrity.visualization import mesh_figure
 
     figure = mesh_figure(tetrahedron(), title="Original fixture")
+    repeated = mesh_figure(tetrahedron(), title="Original fixture")
 
     assert figure.layout.height == 520
     assert figure.layout.scene.camera.projection.type == "orthographic"
-    assert figure.layout.scene.camera.eye.to_plotly_json() == {"x": 1.6, "y": -1.6, "z": 1.2}
+    assert figure.layout.scene.camera.eye.to_plotly_json() == repeated.layout.scene.camera.eye.to_plotly_json()
     assert figure.layout.scene.bgcolor == "#f6f8fb"
     assert figure.layout.annotations[0].text == "4 triangles · No flagged edges in this audit"
     assert figure.data[0].lighting.ambient == 0.55
+
+
+def test_mesh_figure_expands_the_camera_for_an_elongated_bounding_box() -> None:
+    pytest.importorskip("plotly")
+    import numpy as np
+
+    from cad_integrity.fixtures import tetrahedron
+    from cad_integrity.models import TriangleMesh
+    from cad_integrity.visualization import mesh_figure
+
+    compact = tetrahedron()
+    elongated = TriangleMesh(compact.vertices * np.array((10.0, 1.0, 1.0)), compact.triangles)
+
+    compact_eye = mesh_figure(compact).layout.scene.camera.eye
+    elongated_eye = mesh_figure(elongated).layout.scene.camera.eye
+
+    assert elongated_eye.x > compact_eye.x
 
 
 def test_candidate_display_replaces_an_absent_candidate_with_an_explicit_notice() -> None:

@@ -10,12 +10,6 @@ from .errors import MissingOptionalDependency
 from .models import PolyhedralBRep, TriangleMesh
 from .topology import TopologyReport
 
-_DIAGNOSTIC_CAMERA = {
-    "eye": {"x": 1.6, "y": -1.6, "z": 1.2},
-    "up": {"x": 0, "y": 0, "z": 1},
-    "center": {"x": 0, "y": 0, "z": 0},
-    "projection": {"type": "orthographic"},
-}
 _DIAGNOSTIC_HEIGHT = 520
 
 
@@ -34,6 +28,21 @@ def _go() -> Any:
     except ImportError as exc:
         raise MissingOptionalDependency("Install cad-integrity-lab[notebook] for Plotly figures") from exc
     return go
+
+
+def _diagnostic_camera(mesh: TriangleMesh) -> dict[str, dict[str, float] | dict[str, str]]:
+    """Choose a stable isometric view with padding for an anisotropic mesh."""
+    extents = np.ptp(mesh.vertices, axis=0)
+    nonzero_extents = extents[extents > 0]
+    slenderness = (float(np.max(nonzero_extents) / np.min(nonzero_extents))
+                  if len(nonzero_extents) else 1.0)
+    distance = 2.0 + 0.25 * min(2.0, float(np.log2(slenderness)))
+    return {
+        "eye": {"x": distance, "y": -distance, "z": 0.75 * distance},
+        "up": {"x": 0.0, "y": 0.0, "z": 1.0},
+        "center": {"x": 0.0, "y": 0.0, "z": 0.0},
+        "projection": {"type": "orthographic"},
+    }
 
 
 def mesh_figure(mesh: TriangleMesh, *, title: str = "Surface diagnostic",
@@ -89,7 +98,7 @@ def mesh_figure(mesh: TriangleMesh, *, title: str = "Surface diagnostic",
             "font": {"size": 12, "color": "#53657d"},
         }],
         scene={"aspectmode": "data",
-        "bgcolor": "#f6f8fb", "camera": _DIAGNOSTIC_CAMERA,
+        "bgcolor": "#f6f8fb", "camera": _diagnostic_camera(mesh),
         "xaxis_title": f"x [{mesh.length_unit}]", "yaxis_title": f"y [{mesh.length_unit}]",
         "zaxis_title": f"z [{mesh.length_unit}]"},
         margin={"l": 0, "r": 0, "b": 0, "t": 72},
