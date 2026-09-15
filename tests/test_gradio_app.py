@@ -109,6 +109,52 @@ def test_step_workbench_returns_a_checked_download_and_human_brief(tmp_path: Pat
     assert outcome.candidate_figure is not None
     assert outcome.markdown_path.is_file()
     assert outcome.json_path.is_file()
+    assert "Input SHA-256" in outcome.decision_brief.markdown
+
+
+@pytest.mark.parametrize(
+    ("fixture_name", "outcome_text", "candidate_expected"),
+    [
+        ("00_clean_boss", "Candidate passed configured combinatorial checks", True),
+        ("01_welded_not_oriented", "Candidate passed configured combinatorial checks", True),
+        ("02_pinched_vertex", "Fixture requires review", False),
+    ],
+)
+def test_polygonal_fixture_lab_qualifies_each_distinct_fixture_outcome(
+    tmp_path: Path, fixture_name: str, outcome_text: str, candidate_expected: bool
+) -> None:
+    from cad_integrity.gradio_app import ArtifactStore, run_polygonal_fixture
+
+    outcome = run_polygonal_fixture(fixture_name, artifact_store=ArtifactStore(tmp_path / "artifacts"))
+
+    assert outcome.decision_brief.outcome == outcome_text
+    assert (outcome.candidate_figure is not None) is candidate_expected
+
+
+def test_step_workbench_keeps_evidence_when_display_rendering_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("OCP")
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+
+    from cad_integrity.adapters.ocp import export_checked_step
+    from cad_integrity.errors import ResourceLimitExceeded
+    from cad_integrity.gradio_app import ArtifactStore, run_step_workbench
+
+    source = tmp_path / "original.step"
+    export_checked_step(BRepPrimAPI_MakeBox(10, 10, 10).Shape(), source)
+
+    def unavailable_display(*_args: object, **_kwargs: object) -> None:
+        raise ResourceLimitExceeded("Display tessellation exceeds the triangle budget")
+
+    monkeypatch.setattr("cad_integrity.gradio_app._native_figure", unavailable_display)
+    outcome = run_step_workbench(source, KernelPolicy(), artifact_store=ArtifactStore(tmp_path / "artifacts"))
+
+    assert outcome.decision_brief.candidate_available
+    assert outcome.candidate_step is not None
+    assert outcome.original_figure is None
+    assert outcome.candidate_figure is None
+    assert "## Display" in outcome.decision_brief.markdown
+    assert outcome.markdown_path.is_file()
+    assert outcome.json_path.is_file()
 
 
 def test_step_workbench_withholds_candidate_after_policy_refusal(tmp_path: Path) -> None:
@@ -146,3 +192,5 @@ def test_polygonal_fixture_lab_repairs_the_qualified_detached_cap(tmp_path: Path
     assert outcome.candidate_figure is not None
     assert outcome.markdown_path.is_file()
     assert outcome.json_path.is_file()
+    assert "Input SHA-256" in outcome.decision_brief.markdown
+    assert "Weld tolerance" in outcome.decision_brief.markdown

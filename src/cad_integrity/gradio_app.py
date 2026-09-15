@@ -108,6 +108,14 @@ def _qualified_fixture_policy() -> RepairPolicy:
     ))
 
 
+def _write_evidence_artifacts(request: Path, markdown: str, payload: Any) -> tuple[Path, Path]:
+    markdown_path = request / "decision-brief.md"
+    json_path = request / "evidence.json"
+    markdown_path.write_text(markdown + "\n", encoding="utf-8")
+    json_path.write_text(dumps(payload) + "\n", encoding="utf-8")
+    return markdown_path, json_path
+
+
 def kernel_policy_from_controls(precision_mm: float, maximum_tolerance_mm: float,
                                 expected_solids: float, run_self_interference_check: bool,
                                 max_relative_area_change: float,
@@ -229,6 +237,20 @@ def _native_figure(shape: Any, report: KernelReport, *, title: str) -> Any:
     return mesh_figure(display.mesh, title=title, color=color, edge_polylines=lines)
 
 
+def _render_native_figure(shape: Any, report: KernelReport, *, title: str) -> tuple[Any | None, str | None]:
+    try:
+        return _native_figure(shape, report, title=title), None
+    except IntegrityError as exc:
+        return None, str(exc)
+
+
+def _with_display_notes(brief: DecisionBrief, notes: list[str]) -> DecisionBrief:
+    if not notes:
+        return brief
+    markdown = brief.markdown + "\n\n## Display\n" + "\n".join(f"- {note}" for note in notes)
+    return DecisionBrief(brief.outcome, brief.candidate_available, markdown)
+
+
 def run_step_workbench(upload: str | Path, policy: KernelPolicy, *,
                        artifact_store: ArtifactStore | None = None) -> StepWorkbenchOutcome:
     """Execute one local STEP audit/repair request and retain honest artifacts."""
@@ -247,21 +269,36 @@ def run_step_workbench(upload: str | Path, policy: KernelPolicy, *,
     shutil.copyfile(supplied, source)
     document = read_step(source, max_bytes=policy.max_input_bytes)
     before = audit_shape(document.shape, policy)
-    original_figure = _native_figure(document.shape, before, title="Original audit")
+    original_figure, original_display_error = _render_native_figure(
+        document.shape, before, title="Original audit"
+    )
     target = request / "checked.step"
     try:
         result = run_step_pipeline(source, target, policy)
         brief = project_step_evidence(result)
         candidate_document = read_step(target, max_bytes=policy.max_input_bytes)
-        candidate_figure = _native_figure(
+        candidate_figure, candidate_display_error = _render_native_figure(
             candidate_document.shape, result["export"].after_roundtrip, title="Checked candidate"
         )
-        payload: dict[str, Any] = result
+        display_notes = [
+            f"Original diagnostic view unavailable: {original_display_error}"
+            if original_display_error is not None else "",
+            f"Candidate diagnostic view unavailable: {candidate_display_error}"
+            if candidate_display_error is not None else "",
+        ]
+        display_notes = [note for note in display_notes if note]
+        brief = _with_display_notes(brief, display_notes)
+        payload: dict[str, Any] = {**result, "display_warnings": tuple(display_notes)}
         candidate_step: Path | None = target
     except (IntegrityError, ValueError, OSError) as exc:
         brief = project_step_refusal(before, policy, document.source_sha256, str(exc))
         candidate_figure = None
         candidate_step = None
+        brief = _with_display_notes(
+            brief,
+            [f"Original diagnostic view unavailable: {original_display_error}"]
+            if original_display_error is not None else [],
+        )
         payload = {
             "schema_version": "1.0",
             "source_sha256": document.source_sha256,
@@ -270,10 +307,7 @@ def run_step_workbench(upload: str | Path, policy: KernelPolicy, *,
             "decision": "repair_rejected",
             "reason": str(exc),
         }
-    markdown_path = request / "decision-brief.md"
-    json_path = request / "evidence.json"
-    markdown_path.write_text(brief.markdown + "\n", encoding="utf-8")
-    json_path.write_text(dumps(payload) + "\n", encoding="utf-8")
+    markdown_path, json_path = _write_evidence_artifacts(request, brief.markdown, payload)
     return StepWorkbenchOutcome(
         brief, original_figure, candidate_figure, candidate_step, markdown_path, json_path
     )
@@ -288,7 +322,7 @@ def _topology_row(report: Any) -> str:
     )
 
 
-def project_polygonal_evidence(result: Any, fixture_name: str) -> DecisionBrief:
+def project_polygonal_evidence(result: Any, fixture_name: str, policy: RepairPolicy) -> DecisionBrief:
     """Describe fixture results without presenting a combinatorial pass as CAD proof."""
     report = result.report
     passed = report.decision == "topology_checks_passed"
@@ -311,6 +345,16 @@ def project_polygonal_evidence(result: Any, fixture_name: str) -> DecisionBrief:
           if report.changes else ("- No repair operations were applied.",)),
         *(f"- {error}" for error in report.errors),
         "",
+        "## Configured policy",
+        f"- Weld tolerance: `{policy.weld.tolerance:g} mm`" if policy.weld is not None else "- Welding: disabled",
+        f"- Maximum vertex displacement: `{policy.weld.max_displacement:g} mm`" if policy.weld is not None else "",
+        f"- Orientation synchronization: `{'enabled' if policy.synchronize_orientation else 'disabled'}`",
+        f"- Homology coefficient field: `{policy.coefficients}`",
+        "",
+        "## Evidence",
+        f"- Input SHA-256: `{report.input_sha256}`",
+        f"- Length unit: `{report.length_unit}`",
+        "",
         "## Limitations",
         "- These are bounded combinatorial diagnostics for a qualified polygonal fixture.",
         "- A passing result is not native CAD validity, design-intent recovery, or engineering certification.",
@@ -321,18 +365,16 @@ def project_polygonal_evidence(result: Any, fixture_name: str) -> DecisionBrief:
 def run_polygonal_fixture(name: str, *, artifact_store: ArtifactStore | None = None) -> PolygonalFixtureOutcome:
     """Run one checked-in fixture through its recorded conservative policy."""
     source = _load_qualified_fixture(name)
-    result = RepairPipeline(_qualified_fixture_policy()).run(source)
-    brief = project_polygonal_evidence(result, name)
+    policy = _qualified_fixture_policy()
+    result = RepairPipeline(policy).run(source)
+    brief = project_polygonal_evidence(result, name, policy)
     original_figure = polygonal_audit_figure(result.original, result.report.before, title="Original fixture")
     candidate_figure = (
         polygonal_audit_figure(result.candidate, result.report.after, title="Candidate fixture")
         if result.candidate is not None and result.report.after is not None else None
     )
     request = (artifact_store or ArtifactStore()).create_request_directory()
-    markdown_path = request / "decision-brief.md"
-    json_path = request / "evidence.json"
-    markdown_path.write_text(brief.markdown + "\n", encoding="utf-8")
-    json_path.write_text(dumps(result.report) + "\n", encoding="utf-8")
+    markdown_path, json_path = _write_evidence_artifacts(request, brief.markdown, result.report)
     return PolygonalFixtureOutcome(brief, original_figure, candidate_figure, markdown_path, json_path)
 
 
@@ -416,13 +458,7 @@ def build_app() -> Any:
         with gr.Tab("Polygonal fixture lab"):
             fixture_name = gr.Dropdown(
                 label="Qualified fixture",
-                choices=[
-                    "00_clean_boss",
-                    "01_detached_reversed_cap",
-                    "01_welded_not_oriented",
-                    "01_repaired_cap",
-                    "02_pinched_vertex",
-                ],
+                choices=list(_FIXTURE_NAMES),
                 value="01_detached_reversed_cap",
             )
             fixture_run = gr.Button("Analyze fixture", variant="primary")
