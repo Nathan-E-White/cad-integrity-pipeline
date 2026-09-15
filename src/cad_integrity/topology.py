@@ -143,10 +143,17 @@ class BRepHomologyStitchAnalyzer:
         active_vertices = set(int(v) for e in uses for v in b.edges[e])
         collapsed = tuple(int(i) for i, (u, v) in enumerate(b.edges)
                           if u == v or np.array_equal(b.vertices[u], b.vertices[v]))
+        boundary_edges = tuple(e for e in sorted(uses) if len(uses[e]) == 1)
+        nonmanifold_edges = tuple(e for e in sorted(uses) if len(uses[e]) > 2)
+        inconsistent_edges = tuple(e for e in sorted(uses) if len(uses[e]) == 2
+                                     and sum(sign for _, sign in uses[e]) != 0)
+        unused_vertices = tuple(sorted(set(range(len(b.vertices)))-active_vertices))
+        unused_edges = tuple(sorted(set(range(len(b.edges)))-uses.keys()))
         homology = None
         reason = None
-        if invalid or duplicates or collapsed:
-            reason = "Invalid, duplicate, or collapsed face cells: refusing a misleading homology result"
+        if (invalid or duplicates or collapsed or nonmanifold_edges or bad_vertices
+                or unused_vertices or unused_edges):
+            reason = "Inadmissible polygonal cells: refusing a misleading homology result"
         else:
             try:
                 homology = compute_homology(b.to_chain_complex(), coefficients=self.coefficients,
@@ -155,13 +162,9 @@ class BRepHomologyStitchAnalyzer:
                 reason = str(exc)
         return TopologyReport(
             len(b.vertices), len(b.edges), b.face_count,
-            tuple(e for e in sorted(uses) if len(uses[e]) == 1),
-            tuple(e for e in sorted(uses) if len(uses[e]) > 2),
-            tuple(e for e in sorted(uses) if len(uses[e]) == 2
-                  and sum(sign for _, sign in uses[e]) != 0),
+            boundary_edges, nonmanifold_edges, inconsistent_edges,
             tuple(sorted(bad_vertices)),
-            tuple(sorted(set(range(len(b.vertices)))-active_vertices)),
-            tuple(sorted(set(range(len(b.edges)))-uses.keys())),
+            unused_vertices, unused_edges,
             tuple(invalid), tuple(duplicates), collapsed, homology, reason,
         )
 

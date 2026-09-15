@@ -184,7 +184,8 @@ def test_unused_topology_is_not_silently_dropped():
     r = report(extra)
     assert r.unused_vertex_ids == (8,)
     assert not r.is_closed_oriented_2manifold
-    assert r.homology.betti_numbers == (2, 0, 1)
+    assert r.homology is None
+    assert r.homology_unavailable_reason == "Inadmissible polygonal cells: refusing a misleading homology result"
 
 
 def test_pipeline_events_and_no_op_input_ownership():
