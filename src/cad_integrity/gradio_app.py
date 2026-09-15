@@ -428,7 +428,7 @@ def build_app() -> Any:
     except ImportError as exc:
         raise MissingOptionalDependency("Install cad-integrity-lab[ui] to use the Gradio app") from exc
     artifact_store = ArtifactStore()
-    with gr.Blocks(title="CAD Integrity Lab") as app:
+    with gr.Blocks(title="CAD Integrity Lab", fill_width=True) as app:
         gr.Markdown(
             "# CAD Integrity Lab\n"
             "Local diagnostics and conservative repair experiments. Results are not engineering certification."
@@ -445,9 +445,12 @@ def build_app() -> Any:
                 allow_face_count = gr.Checkbox(label="Allow face-count changes", value=False)
             step_run = gr.Button("Audit and attempt configured repair", variant="primary")
             step_brief = gr.Markdown(label="Decision brief")
-            with gr.Row():
-                original_plot = gr.Plot(label="Original diagnostic view")
-                candidate_plot = gr.Plot(label="Candidate diagnostic view")
+            with gr.Tabs():
+                with gr.Tab("Original"):
+                    original_plot = gr.Plot(label="Original diagnostic view", min_width=320)
+                with gr.Tab("Candidate"):
+                    gr.Markdown("Candidate panels are populated only when a candidate is published.")
+                    candidate_plot = gr.Plot(label="Candidate diagnostic view", min_width=320)
             with gr.Row():
                 checked_step = gr.File(label="Checked STEP download")
                 step_markdown = gr.File(label="Decision brief download")
@@ -466,9 +469,12 @@ def build_app() -> Any:
             )
             fixture_run = gr.Button("Analyze fixture", variant="primary")
             fixture_brief = gr.Markdown(label="Fixture decision brief")
-            with gr.Row():
-                fixture_original_plot = gr.Plot(label="Original fixture view")
-                fixture_candidate_plot = gr.Plot(label="Candidate fixture view")
+            with gr.Tabs():
+                with gr.Tab("Original"):
+                    fixture_original_plot = gr.Plot(label="Original fixture view", min_width=320)
+                with gr.Tab("Candidate"):
+                    gr.Markdown("Candidate panels are populated only when a candidate is published.")
+                    fixture_candidate_plot = gr.Plot(label="Candidate fixture view", min_width=320)
             with gr.Row():
                 fixture_markdown = gr.File(label="Fixture decision brief download")
                 fixture_json = gr.File(label="Fixture raw JSON evidence")

@@ -71,6 +71,46 @@ def test_build_app_exposes_native_and_polygonal_labs() -> None:
     assert "Advanced repair policy" in labels
 
 
+def test_build_app_uses_full_width_focused_diagnostic_tabs() -> None:
+    """Diagnostic plots need one useful viewport rather than a clipped pair."""
+    from cad_integrity.gradio_app import build_app
+
+    app = build_app()
+    config = app.get_config_file()
+    plot_labels = {
+        component.get("props", {}).get("label")
+        for component in config["components"]
+        if component["type"] == "plot"
+    }
+
+    assert app.fill_width
+    assert plot_labels == {
+        "Original diagnostic view",
+        "Candidate diagnostic view",
+        "Original fixture view",
+        "Candidate fixture view",
+    }
+    assert sum(
+        component.get("props", {}).get("value")
+        == "Candidate panels are populated only when a candidate is published."
+        for component in config["components"]
+    ) == 2
+
+
+def test_mesh_figure_has_a_deterministic_diagnostic_presentation() -> None:
+    pytest.importorskip("plotly")
+    from cad_integrity.fixtures import tetrahedron
+    from cad_integrity.visualization import mesh_figure
+
+    figure = mesh_figure(tetrahedron(), title="Original fixture")
+
+    assert figure.layout.height == 520
+    assert figure.layout.scene.camera.projection.type == "orthographic"
+    assert figure.layout.scene.camera.eye.to_plotly_json() == {"x": 1.6, "y": -1.6, "z": 1.2}
+    assert figure.layout.scene.bgcolor == "#f6f8fb"
+    assert figure.layout.annotations[0].text == "No flagged edges in this audit"
+
+
 def test_main_announces_the_loopback_url_before_serving(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
     from cad_integrity import gradio_app
 
