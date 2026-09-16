@@ -69,6 +69,8 @@ def test_build_app_exposes_native_and_polygonal_labs() -> None:
     assert "Local STEP workbench" in labels
     assert "Polygonal fixture lab" in labels
     assert "Advanced repair policy" in labels
+    assert "Restricted polygonal NPZ" in labels
+    assert "Weld tolerance (mm)" in labels
 
 
 def test_build_app_uses_full_width_focused_diagnostic_tabs() -> None:
@@ -89,12 +91,14 @@ def test_build_app_uses_full_width_focused_diagnostic_tabs() -> None:
         "Candidate diagnostic view",
         "Original fixture view",
         "Candidate fixture view",
+        "Original uploaded mesh",
+        "Candidate uploaded mesh",
     }
     assert sum(
         component.get("props", {}).get("value")
         == "## No candidate published\nThe audit did not publish a candidate for review or download."
         for component in config["components"]
-    ) == 2
+    ) == 3
 
 
 def test_mesh_figure_has_a_deterministic_diagnostic_presentation() -> None:
@@ -177,6 +181,19 @@ def test_advanced_controls_build_a_validated_kernel_policy() -> None:
     )
     with pytest.raises(ValueError, match="cannot exceed"):
         kernel_policy_from_controls(1e-2, 1e-3, 1, True, 1e-4, 1e-4, False)
+
+
+def test_polygonal_upload_controls_make_an_explicit_stitching_policy() -> None:
+    from cad_integrity.gradio_app import polygonal_policy_from_controls
+    from cad_integrity.repair import WeldPolicy
+
+    policy = polygonal_policy_from_controls(True, 0.1, 0.05, False)
+
+    assert policy.weld == WeldPolicy(0.1, 0.05)
+    assert not policy.synchronize_orientation
+
+    with pytest.raises(ValueError, match="max_displacement"):
+        polygonal_policy_from_controls(True, 0.01, 0.02, True)
 
 
 def test_step_workbench_returns_a_checked_download_and_human_brief(tmp_path: Path) -> None:
@@ -289,6 +306,103 @@ def test_polygonal_fixture_lab_repairs_the_qualified_detached_cap(tmp_path: Path
     assert "Input SHA-256" in outcome.decision_brief.markdown
     assert "Weld tolerance" in outcome.decision_brief.markdown
     assert "Candidate canonical-array fingerprint" in outcome.decision_brief.markdown
+
+
+def test_polygonal_upload_replays_an_admitted_npz_through_the_stitching_policy(tmp_path: Path) -> None:
+    import json
+    from cad_integrity.gradio_app import ArtifactStore, run_polygonal_upload
+    from cad_integrity.pipeline import RepairPolicy
+    from cad_integrity.repair import WeldPolicy
+
+    source = (Path(__file__).resolve().parents[1] / "examples" / "pathological-mesh-fixtures"
+              / "meshes" / "01_detached_reversed_cap.npz")
+    outcome = run_polygonal_upload(
+        source,
+        RepairPolicy(weld=WeldPolicy(0.0738346971281118, 0.0738346971281118)),
+        artifact_store=ArtifactStore(tmp_path / "artifacts"),
+    )
+
+    assert outcome.decision_brief.outcome == "Candidate passed configured combinatorial checks"
+    assert outcome.candidate_figure is not None
+    assert outcome.markdown_path.is_file()
+    assert outcome.json_path.is_file()
+    assert "Uploaded NPZ" in outcome.decision_brief.markdown
+    assert "uploaded NPZ array contract" in outcome.decision_brief.markdown
+    payload = json.loads(outcome.json_path.read_text())
+    assert payload["source_kind"] == "uploaded_restricted_npz"
+    assert len(payload["source_sha256"]) == 64
+
+
+def test_polygonal_upload_rejects_extra_npz_members_before_analysis(tmp_path: Path) -> None:
+    import numpy as np
+
+    from cad_integrity.gradio_app import ArtifactStore, run_polygonal_upload
+    from cad_integrity.pipeline import RepairPolicy
+
+    upload = tmp_path / "unexpected-member.npz"
+    np.savez(
+        upload,
+        vertices=np.zeros((3, 3)),
+        triangles=np.array(((0, 1, 2),), dtype=np.int64),
+        length_unit=np.array("mm"),
+        unexpected=np.array(1),
+    )
+
+    with pytest.raises(ValueError, match="must contain only vertices"):
+        run_polygonal_upload(upload, RepairPolicy(), artifact_store=ArtifactStore(tmp_path / "artifacts"))
+
+
+def test_polygonal_upload_labels_an_unrepaired_mesh_as_uploaded_input(tmp_path: Path) -> None:
+    from cad_integrity.gradio_app import ArtifactStore, run_polygonal_upload
+    from cad_integrity.pipeline import RepairPolicy
+
+    source = (Path(__file__).resolve().parents[1] / "examples" / "pathological-mesh-fixtures"
+              / "meshes" / "02_pinched_vertex.npz")
+    outcome = run_polygonal_upload(
+        source, RepairPolicy(), artifact_store=ArtifactStore(tmp_path / "artifacts")
+    )
+
+    assert outcome.decision_brief.outcome == "Uploaded polygonal input requires review"
+    assert outcome.candidate_figure is None
+    assert "No candidate artifact was produced" in outcome.decision_brief.markdown
+
+
+def test_polygonal_upload_rejects_oversized_source_before_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cad_integrity import gradio_app
+    from cad_integrity.pipeline import RepairPolicy
+
+    upload = tmp_path / "too-large.npz"
+    upload.write_bytes(b"not an npz")
+    monkeypatch.setattr(gradio_app, "_MAX_POLYGONAL_NPZ_BYTES", 1)
+    store = gradio_app.ArtifactStore(tmp_path / "artifacts")
+
+    with pytest.raises(ValueError, match="exceeds"):
+        gradio_app.run_polygonal_upload(upload, RepairPolicy(), artifact_store=store)
+
+    assert not store.root.exists()
+
+
+def test_polygonal_upload_rejects_a_vertex_count_over_its_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import numpy as np
+
+    from cad_integrity import gradio_app
+    from cad_integrity.pipeline import RepairPolicy
+
+    upload = tmp_path / "too-many-vertices.npz"
+    np.savez(
+        upload,
+        vertices=np.zeros((4, 3)),
+        triangles=np.array(((0, 1, 2),), dtype=np.int64),
+        length_unit=np.array("mm"),
+    )
+    monkeypatch.setattr(gradio_app, "_MAX_POLYGONAL_NPZ_VERTICES", 3)
+
+    with pytest.raises(ValueError, match="vertex budget"):
+        gradio_app.run_polygonal_upload(upload, RepairPolicy(), artifact_store=gradio_app.ArtifactStore(tmp_path / "artifacts"))
 
 
 def test_fixture_ui_action_returns_file_paths_gradio_can_serialize(tmp_path: Path) -> None:

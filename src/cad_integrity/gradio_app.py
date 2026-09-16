@@ -6,10 +6,12 @@ CAD intent or turn a rejected operation into a candidate.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import tempfile
 import time
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -45,8 +47,8 @@ class StepWorkbenchOutcome:
 
 
 @dataclass(frozen=True, slots=True)
-class PolygonalFixtureOutcome:
-    """Evidence released by one checked-in polygonal fixture experiment."""
+class PolygonalAnalysisOutcome:
+    """Evidence released by one polygonal fixture or admitted upload."""
 
     decision_brief: DecisionBrief
     original_figure: Any
@@ -81,6 +83,11 @@ _FIXTURE_NAMES = (
     "02_pinched_vertex",
 )
 _NO_CANDIDATE_NOTICE = "## No candidate published\nThe audit did not publish a candidate for review or download."
+_MAX_POLYGONAL_NPZ_BYTES = 50_000_000
+_MAX_POLYGONAL_NPZ_EXPANDED_BYTES = 100_000_000
+_MAX_POLYGONAL_NPZ_VERTICES = 250_000
+_MAX_POLYGONAL_NPZ_TRIANGLES = 500_000
+_POLYGONAL_NPZ_MEMBERS = frozenset({"vertices.npy", "triangles.npy", "length_unit.npy"})
 
 
 def _fixture_root() -> Path:
@@ -109,6 +116,51 @@ def _qualified_fixture_policy() -> RepairPolicy:
     ))
 
 
+def _load_restricted_polygonal_npz(path: Path) -> PolyhedralBRep:
+    """Load the small, explicit NPZ polygonal contract without mesh processing."""
+    import numpy as np
+
+    _validate_restricted_polygonal_npz_source(path)
+    try:
+        with zipfile.ZipFile(path) as archive:
+            members = archive.infolist()
+            names = [member.filename for member in members]
+            if set(names) != _POLYGONAL_NPZ_MEMBERS or len(names) != len(_POLYGONAL_NPZ_MEMBERS):
+                raise ValueError("Polygonal NPZ must contain only vertices, triangles, and length_unit arrays")
+            if any(member.is_dir() or member.file_size < 0 for member in members):
+                raise ValueError("Polygonal NPZ contains an invalid archive member")
+            if sum(member.file_size for member in members) > _MAX_POLYGONAL_NPZ_EXPANDED_BYTES:
+                raise ValueError("Polygonal NPZ exceeds the expanded-data budget")
+        with np.load(path, allow_pickle=False) as arrays:
+            vertices = arrays["vertices"]
+            triangles = arrays["triangles"]
+            length_unit = str(arrays["length_unit"].item())
+            if len(vertices) > _MAX_POLYGONAL_NPZ_VERTICES:
+                raise ValueError("Polygonal NPZ exceeds the vertex budget")
+            if len(triangles) > _MAX_POLYGONAL_NPZ_TRIANGLES:
+                raise ValueError("Polygonal NPZ exceeds the triangle budget")
+    except (OSError, ValueError, zipfile.BadZipFile) as exc:
+        raise ValueError(f"Invalid restricted polygonal NPZ: {exc}") from exc
+    return PolyhedralBRep.from_polygons(vertices, triangles, length_unit=length_unit)
+
+
+def _validate_restricted_polygonal_npz_source(path: Path) -> None:
+    if path.suffix.lower() != ".npz":
+        raise ValueError("Upload a polygonal NPZ file with a .npz extension")
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    if path.stat().st_size > _MAX_POLYGONAL_NPZ_BYTES:
+        raise ValueError(f"Polygonal NPZ upload exceeds {_MAX_POLYGONAL_NPZ_BYTES} bytes")
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        while chunk := stream.read(1 << 20):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _write_evidence_artifacts(request: Path, markdown: str, payload: Any) -> tuple[Path, Path]:
     markdown_path = request / "decision-brief.md"
     json_path = request / "evidence.json"
@@ -134,6 +186,17 @@ def kernel_policy_from_controls(precision_mm: float, maximum_tolerance_mm: float
         max_relative_volume_change=float(max_relative_volume_change),
         allow_face_count_change=bool(allow_face_count_change),
     )
+
+
+def polygonal_policy_from_controls(enable_welding: bool, weld_tolerance_mm: float,
+                                   max_displacement_mm: float,
+                                   synchronize_orientation: bool) -> RepairPolicy:
+    """Build the explicit policy for one restricted polygonal upload."""
+    weld = (
+        WeldPolicy(float(weld_tolerance_mm), float(max_displacement_mm))
+        if enable_welding else None
+    )
+    return RepairPolicy(weld=weld, synchronize_orientation=bool(synchronize_orientation))
 
 
 def _kernel_cells(report: KernelReport) -> tuple[str, ...]:
@@ -323,18 +386,20 @@ def _topology_cells(report: Any) -> tuple[str, ...]:
     )
 
 
-def project_polygonal_evidence(result: Any, fixture_name: str, policy: RepairPolicy) -> DecisionBrief:
-    """Describe fixture results without presenting a combinatorial pass as CAD proof."""
+def project_polygonal_evidence(result: Any, source_label: str, policy: RepairPolicy, *,
+                               requires_review_outcome: str = "Fixture requires review",
+                               limitations_scope: str = "qualified polygonal fixture") -> DecisionBrief:
+    """Describe polygonal results without presenting a combinatorial pass as CAD proof."""
     report = result.report
     passed = report.decision == "topology_checks_passed"
-    outcome = "Candidate passed configured combinatorial checks" if passed else "Fixture requires review"
+    outcome = "Candidate passed configured combinatorial checks" if passed else requires_review_outcome
     after_cells = _topology_cells(report.after) if report.after is not None else ("—",) * 6 + ("`—`",)
-    candidate_fingerprint = fingerprint(result.candidate) if result.candidate is not None else None
+    candidate_fingerprint = fingerprint(result.candidate) if passed and result.candidate is not None else None
     markdown = "\n".join([
         "## Decision",
         f"{outcome}.",
         "",
-        f"Qualified fixture: `{fixture_name}`.",
+        source_label,
         "",
         "## Before / after",
         "| | Vertices | Edges | Faces | Boundary edges | Nonmanifold edges | Winding conflicts | Betti numbers over F₂ |",
@@ -360,26 +425,70 @@ def project_polygonal_evidence(result: Any, fixture_name: str, policy: RepairPol
         f"- Length unit: `{report.length_unit}`",
         "",
         "## Limitations",
-        "- These are bounded combinatorial diagnostics for a qualified polygonal fixture.",
+        f"- These are bounded combinatorial diagnostics for the {limitations_scope}.",
         "- A passing result is not native CAD validity, design-intent recovery, or engineering certification.",
     ])
     return DecisionBrief(outcome, passed, markdown)
 
 
-def run_polygonal_fixture(name: str, *, artifact_store: ArtifactStore | None = None) -> PolygonalFixtureOutcome:
+def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPolicy, *,
+                                request: Path, original_title: str, candidate_title: str,
+                                requires_review_outcome: str = "Fixture requires review",
+                                limitations_scope: str = "qualified polygonal fixture",
+                                source_evidence: dict[str, str] | None = None
+                                ) -> PolygonalAnalysisOutcome:
+    brief = project_polygonal_evidence(
+        result,
+        source_label,
+        policy,
+        requires_review_outcome=requires_review_outcome,
+        limitations_scope=limitations_scope,
+    )
+    original_figure = polygonal_audit_figure(result.original, result.report.before, title=original_title)
+    candidate_figure = (
+        polygonal_audit_figure(result.candidate, result.report.after, title=candidate_title)
+        if brief.candidate_available and result.candidate is not None and result.report.after is not None else None
+    )
+    payload: Any = result.report if source_evidence is None else {
+        "schema_version": "1.0", **source_evidence, "policy": policy, "repair": result.report,
+    }
+    markdown_path, json_path = _write_evidence_artifacts(request, brief.markdown, payload)
+    return PolygonalAnalysisOutcome(brief, original_figure, candidate_figure, markdown_path, json_path)
+
+
+def run_polygonal_fixture(name: str, *, artifact_store: ArtifactStore | None = None) -> PolygonalAnalysisOutcome:
     """Run one checked-in fixture through its recorded conservative policy."""
     source = _load_qualified_fixture(name)
     policy = _qualified_fixture_policy()
     result = RepairPipeline(policy).run(source)
-    brief = project_polygonal_evidence(result, name, policy)
-    original_figure = polygonal_audit_figure(result.original, result.report.before, title="Original fixture")
-    candidate_figure = (
-        polygonal_audit_figure(result.candidate, result.report.after, title="Candidate fixture")
-        if result.candidate is not None and result.report.after is not None else None
-    )
     request = (artifact_store or ArtifactStore()).create_request_directory()
-    markdown_path, json_path = _write_evidence_artifacts(request, brief.markdown, result.report)
-    return PolygonalFixtureOutcome(brief, original_figure, candidate_figure, markdown_path, json_path)
+    return _polygonal_analysis_outcome(
+        result, f"Qualified fixture: `{name}`.", policy, request=request,
+        original_title="Original fixture", candidate_title="Candidate fixture",
+    )
+
+
+def run_polygonal_upload(upload: str | Path, policy: RepairPolicy, *,
+                         artifact_store: ArtifactStore | None = None) -> PolygonalAnalysisOutcome:
+    """Analyze and optionally stitch one restricted uploaded NPZ mesh."""
+    supplied = Path(upload)
+    _validate_restricted_polygonal_npz_source(supplied)
+    store = artifact_store or ArtifactStore()
+    request = store.create_request_directory()
+    staged = request / "input.npz"
+    shutil.copyfile(supplied, staged)
+    source = _load_restricted_polygonal_npz(staged)
+    result = RepairPipeline(policy).run(source)
+    return _polygonal_analysis_outcome(
+        result, "Uploaded NPZ — restricted array contract.", policy, request=request,
+        original_title="Original upload", candidate_title="Candidate upload",
+        requires_review_outcome="Uploaded polygonal input requires review",
+        limitations_scope="uploaded NPZ array contract",
+        source_evidence={
+            "source_kind": "uploaded_restricted_npz",
+            "source_sha256": _sha256_file(staged),
+        },
+    )
 
 
 def _step_ui_action(upload: str | None, precision_mm: float, maximum_tolerance_mm: float,
@@ -420,6 +529,28 @@ def _fixture_ui_action(name: str, *, artifact_store: ArtifactStore
         )
     except (IntegrityError, OSError, ValueError) as exc:
         return (f"## Decision\nFixture not run: {exc}", None, *candidate_display(None), None, None)
+
+
+def _polygonal_upload_ui_action(upload: str | None, enable_welding: bool,
+                                weld_tolerance_mm: float, max_displacement_mm: float,
+                                synchronize_orientation: bool, *, artifact_store: ArtifactStore
+                                ) -> tuple[str, Any | None, Any, Any, str | None, str | None]:
+    try:
+        if upload is None:
+            raise ValueError("Choose a restricted polygonal NPZ file before analysis")
+        policy = polygonal_policy_from_controls(
+            enable_welding, weld_tolerance_mm, max_displacement_mm, synchronize_orientation
+        )
+        outcome = run_polygonal_upload(upload, policy, artifact_store=artifact_store)
+        return (
+            outcome.decision_brief.markdown,
+            outcome.original_figure,
+            *candidate_display(outcome.candidate_figure),
+            str(outcome.markdown_path),
+            str(outcome.json_path),
+        )
+    except (IntegrityError, OSError, ValueError) as exc:
+        return (f"## Decision\nUpload not analyzed: {exc}", None, *candidate_display(None), None, None)
 
 
 def candidate_display(figure: Any | None) -> tuple[Any, Any]:
@@ -498,6 +629,40 @@ def build_app() -> Any:
                 outputs=[fixture_brief, fixture_original_plot, fixture_candidate_plot,
                          fixture_candidate_notice,
                          fixture_markdown, fixture_json],
+            )
+            gr.Markdown(
+                "### Restricted NPZ upload\n"
+                "Requires `vertices`, `triangles`, and `length_unit`; OBJ and GLB are deferred."
+            )
+            polygonal_upload = gr.File(
+                label="Restricted polygonal NPZ", file_types=[".npz"], type="filepath"
+            )
+            with gr.Accordion("Upload stitching policy", open=False):
+                upload_welding = gr.Checkbox(label="Weld nearby boundary vertices", value=True)
+                upload_weld_tolerance = gr.Number(label="Weld tolerance (mm)", value=0.001, minimum=1e-12)
+                upload_max_displacement = gr.Number(
+                    label="Maximum vertex displacement (mm)", value=0.001, minimum=0
+                )
+                upload_orientation = gr.Checkbox(label="Synchronize face orientation", value=True)
+            upload_run = gr.Button("Analyze and attempt configured stitching", variant="primary")
+            upload_brief = gr.Markdown(label="Upload decision brief")
+            with gr.Tabs():
+                with gr.Tab("Original upload"):
+                    upload_original_plot = gr.Plot(label="Original uploaded mesh", min_width=320)
+                with gr.Tab("Candidate upload"):
+                    upload_candidate_notice = gr.Markdown(_NO_CANDIDATE_NOTICE)
+                    upload_candidate_plot = gr.Plot(
+                        label="Candidate uploaded mesh", min_width=320, visible=False
+                    )
+            with gr.Row():
+                upload_markdown = gr.File(label="Upload decision brief download")
+                upload_json = gr.File(label="Upload raw JSON evidence")
+            upload_run.click(
+                lambda *inputs: _polygonal_upload_ui_action(*inputs, artifact_store=artifact_store),
+                inputs=[polygonal_upload, upload_welding, upload_weld_tolerance,
+                        upload_max_displacement, upload_orientation],
+                outputs=[upload_brief, upload_original_plot, upload_candidate_plot,
+                         upload_candidate_notice, upload_markdown, upload_json],
             )
     return app
 

@@ -36,6 +36,15 @@ The failure branch is a first-class outcome: preserve the input, show the audit 
 
 For polygonal demonstrations, show b₀, b₁ and b₂ with the coefficient field and analyzed-object label. For native input, show `homology not computed` until a proper decomposition adapter exists. Free-edge diagnostics still work. Never display fabricated Betti numbers to fill a dashboard slot.
 
+## Deferred polygonal-upload formats
+
+The first untrusted polygonal-upload slice is restricted to a documented NPZ
+array contract. OBJ and GLB import are desired follow-on adapters, but are
+deferred: their parser and unit/topology-preservation contracts must be
+qualified before they can enter combinatorial diagnostics. Do not silently
+convert, weld, deduplicate, reorient, or otherwise process an uploaded mesh at
+import time.
+
 ## Product wording
 
 Use separate labels for “boundary defects detected,” “candidate generated,” “kernel checks passed,” and “repair rejected.” Green indicates only the stated acceptance policy. It should not imply design intent or an engineering sign-off.

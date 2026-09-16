@@ -152,6 +152,12 @@ fixtures under their recorded policy. It accepts no arbitrary mesh upload:
 GLB/OBJ-to-analysis conversion would need a separately qualified topology
 admission contract.
 
+The same local tab also accepts a **restricted polygonal NPZ** upload with
+exactly `vertices`, `triangles`, and `length_unit` arrays. The upload is staged,
+bounded, and analyzed under an explicit weld/orientation policy; it is never
+silently processed on import. OBJ and GLB upload remain deferred until their
+parser, unit, and indexed-topology preservation contracts are qualified.
+
 Each result renders a human-readable Decision Brief: outcome, metrics,
 acceptance/refusal reasons, changes, policy, hashes, and limitations. Markdown
 is downloadable for people; the strict JSON sidecar remains available as raw
