@@ -27,6 +27,7 @@ from .workbench_results import (
     Completion,
     DecisionBrief,
     Diagnostic,
+    ReleaseDraft,
     RetainedArtifact,
     WorkbenchOutcome,
     failed_outcome,
@@ -119,12 +120,43 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _write_evidence_artifacts(request: Path, markdown: str, payload: Any) -> tuple[Path, Path]:
-    markdown_path = request / "decision-brief.md"
-    json_path = request / "evidence.json"
-    markdown_path.write_text(markdown + "\n", encoding="utf-8")
-    json_path.write_text(dumps(payload) + "\n", encoding="utf-8")
-    return markdown_path, json_path
+def _write_evidence_artifacts(path: Path, content: str) -> Path:
+    """Write one retained evidence artifact; callers record it only after success."""
+    path.write_text(content + "\n", encoding="utf-8")
+    return path
+
+
+def _incomplete_release_outcome(
+    *,
+    draft: ReleaseDraft,
+    brief: DecisionBrief,
+    checks: tuple[CheckResult, ...],
+    diagnostics: tuple[Diagnostic, ...],
+    original_figure: Any | None,
+    candidate_figure: Any | None,
+    missing_role: str,
+    error: OSError,
+) -> WorkbenchOutcome:
+    persistence_diagnostics = (*diagnostics, Diagnostic(
+        "evidence persistence", f"{missing_role} was not retained: {error}"
+    ))
+    release = draft.finalize()
+    incomplete_brief = with_outcome_details(
+        brief,
+        completion=Completion.INCOMPLETE,
+        checks=checks,
+        diagnostics=persistence_diagnostics,
+        release=release,
+    )
+    return WorkbenchOutcome(
+        Completion.INCOMPLETE,
+        checks,
+        persistence_diagnostics,
+        incomplete_brief,
+        release,
+        original_figure,
+        candidate_figure,
+    )
 
 
 def _release_outcome(
@@ -142,35 +174,51 @@ def _release_outcome(
 ) -> WorkbenchOutcome:
     """Retain the common evidence batch after its geometry-specific work settles."""
     request = source.path.parent
-    markdown_path, json_path = _write_evidence_artifacts(request, brief.markdown, payload)
-    derived = (
-        RetainedArtifact("decision-brief.md", "Decision brief", markdown_path),
-        RetainedArtifact("evidence.json", "Raw JSON evidence", json_path),
-    )
-    release = store.release(source=source, candidate=candidate, derived=derived)
-    brief = with_outcome_details(
+    draft = store.begin_release(source)
+    if candidate is not None:
+        draft.record(candidate, candidate=True)
+    markdown_artifact = RetainedArtifact("decision-brief.md", "Decision brief", request / "decision-brief.md")
+    json_artifact = RetainedArtifact("evidence.json", "Raw JSON evidence", request / "evidence.json")
+    rendered_brief = with_outcome_details(
         brief,
         completion=completion,
         checks=checks,
         diagnostics=diagnostics,
-        release=release,
+        release=draft.preview(),
     )
+    try:
+        _write_evidence_artifacts(markdown_artifact.path, rendered_brief.markdown)
+    except OSError as exc:
+        return _incomplete_release_outcome(
+            draft=draft, brief=brief, checks=checks, diagnostics=diagnostics,
+            original_figure=original_figure, candidate_figure=candidate_figure,
+            missing_role=markdown_artifact.role, error=exc,
+        )
+    draft.record(markdown_artifact)
     evidence = {
         "outcome": {
             "completion": completion,
             "checks": checks,
             "diagnostics": diagnostics,
-            "release": release,
+            "release": draft.preview(json_artifact),
         },
         "evidence": payload,
     }
-    _write_evidence_artifacts(request, brief.markdown, evidence)
+    try:
+        _write_evidence_artifacts(json_artifact.path, dumps(evidence))
+    except OSError as exc:
+        return _incomplete_release_outcome(
+            draft=draft, brief=brief, checks=checks, diagnostics=diagnostics,
+            original_figure=original_figure, candidate_figure=candidate_figure,
+            missing_role=json_artifact.role, error=exc,
+        )
+    draft.record(json_artifact)
     return WorkbenchOutcome(
         completion,
         checks,
         diagnostics,
-        brief,
-        release,
+        rendered_brief,
+        draft.finalize(),
         original_figure,
         candidate_figure,
     )
@@ -342,7 +390,10 @@ def run_step_workbench(upload: str | Path, policy: KernelPolicy, *,
     store = artifact_store or ArtifactStore()
     request = store.create_request_directory()
     source = request / f"input{supplied.suffix.lower()}"
-    shutil.copyfile(supplied, source)
+    try:
+        shutil.copyfile(supplied, source)
+    except OSError as exc:
+        return failed_outcome("STEP source staging", str(exc))
     source_artifact = RetainedArtifact(f"source{source.suffix.lower()}", "Original STEP source", source)
     try:
         document = read_step(source, max_bytes=policy.max_input_bytes)
@@ -572,7 +623,10 @@ def run_polygonal_fixture(name: str, *, artifact_store: ArtifactStore | None = N
     store = artifact_store or ArtifactStore()
     request = store.create_request_directory()
     staged = request / "source.npz"
-    shutil.copyfile(source_path, staged)
+    try:
+        shutil.copyfile(source_path, staged)
+    except OSError as exc:
+        return failed_outcome("Fixture source staging", str(exc))
     result = RepairPipeline(policy).run(source)
     return _polygonal_analysis_outcome(
         result, f"Qualified fixture: `{name}`.", policy, store=store,
@@ -592,7 +646,10 @@ def run_polygonal_upload(upload: str | Path, policy: RepairPolicy, *,
     store = artifact_store or ArtifactStore()
     request = store.create_request_directory()
     staged = request / "input.npz"
-    shutil.copyfile(supplied, staged)
+    try:
+        shutil.copyfile(supplied, staged)
+    except OSError as exc:
+        return failed_outcome("Polygonal source staging", str(exc))
     source_artifact = RetainedArtifact("source.npz", "Uploaded NPZ source", staged)
     try:
         source = _load_restricted_polygonal_npz(staged)
