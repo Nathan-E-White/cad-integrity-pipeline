@@ -98,7 +98,7 @@
   "src/cad_integrity/errors.py": "782b8da52663920ff323429082f0352d75fd4945dd7d61e114295b3bb410896e",
   "src/cad_integrity/f2_reduction.py": "d9e1414e28193dcd8b036869c6980b56467b4e09452a352d8fbd11972d65b902",
   "src/cad_integrity/fixtures.py": "7f080f23540408025ea15ea7e7490985696a865b099ec267f34bce20005f18be",
-  "src/cad_integrity/gradio_app.py": "4f2325de3da96e90eecc4043441d6199c351a293d91d056cf81cc6acb1b6158b",
+  "src/cad_integrity/gradio_app.py": "9f2fc49f36ce4dbecbbc69a0b548acb13a439826edd7ed5a4110404f8b153070",
   "src/cad_integrity/metrics.py": "152907ce0e90368f400acfa3a34a71651922fa140978d6297a63626fb1f6a9c1",
   "src/cad_integrity/models.py": "8483df32a3e0f495f35bf25b9a43e7e3177f78e9fb5d4a8a3225128564813364",
   "src/cad_integrity/numerics.py": "69839bf0b3eeb97dae84a7d44b8087c5ef7ad360c2710145476f766c2e0373e2",
