@@ -9,7 +9,7 @@ from __future__ import annotations
 import shutil
 import tempfile
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
@@ -74,6 +74,43 @@ class ArtifactRelease:
         return f"Link active until {self.expires_at.astimezone().strftime('%H:%M')}"
 
 
+@dataclass(slots=True)
+class ReleaseDraft:
+    """Mutable inventory for one deliberately non-atomic retained-artifact release."""
+
+    source: RetainedArtifact
+    expires_at: datetime
+    candidate: RetainedArtifact | None = None
+    derived: list[RetainedArtifact] = field(default_factory=list)
+
+    def until_label(self) -> str:
+        return f"Link active until {self.expires_at.astimezone().strftime('%H:%M')}"
+
+    def record(self, artifact: RetainedArtifact, *, candidate: bool = False) -> None:
+        """Add only an artifact that has already been written successfully."""
+        if not artifact.path.is_file():
+            raise ValueError(f"Cannot retain missing artifact: {artifact.role}")
+        if candidate:
+            if self.candidate is not None:
+                raise ValueError("A release can retain only one candidate artifact")
+            self.candidate = artifact
+        else:
+            self.derived.append(artifact)
+
+    def preview(self, *pending_derived: RetainedArtifact) -> ArtifactRelease:
+        """Describe the eventual inventory before its last artifact is written."""
+        return ArtifactRelease(
+            source=self.source,
+            candidate=self.candidate,
+            derived=(*self.derived, *pending_derived),
+            expires_at=self.expires_at,
+        )
+
+    def finalize(self) -> ArtifactRelease:
+        """Return the inventory of artifacts actually retained so far."""
+        return self.preview()
+
+
 @dataclass(frozen=True, slots=True)
 class WorkbenchOutcome:
     """Small public controller result, independent of the geometry method used."""
@@ -111,14 +148,19 @@ class ArtifactStore:
         candidate: RetainedArtifact | None,
         derived: tuple[RetainedArtifact, ...],
     ) -> ArtifactRelease:
-        artifacts = (source, *(() if candidate is None else (candidate,)), *derived)
-        missing = [artifact.role for artifact in artifacts if not artifact.path.is_file()]
-        if missing:
-            raise ValueError(f"Cannot release missing artifacts: {', '.join(missing)}")
-        return ArtifactRelease(
+        draft = self.begin_release(source)
+        if candidate is not None:
+            draft.record(candidate, candidate=True)
+        for artifact in derived:
+            draft.record(artifact)
+        return draft.finalize()
+
+    def begin_release(self, source: RetainedArtifact) -> ReleaseDraft:
+        """Start an expiry-bound release only after its retained source exists."""
+        if not source.path.is_file():
+            raise ValueError(f"Cannot release missing artifact: {source.role}")
+        return ReleaseDraft(
             source=source,
-            candidate=candidate,
-            derived=derived,
             expires_at=datetime.fromtimestamp(time.time() + self.retention_seconds, UTC),
         )
 

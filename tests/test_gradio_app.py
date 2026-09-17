@@ -405,6 +405,150 @@ def test_polygonal_fixture_releases_source_and_retained_evidence(tmp_path: Path)
     assert "Link active until" in outcome.decision_brief.markdown
 
 
+def test_polygonal_fixture_retains_source_when_evidence_persistence_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cad_integrity import gradio_app
+
+    def disk_full(*args: object, **kwargs: object) -> Path:
+        raise OSError("simulated disk full")
+
+    monkeypatch.setattr(gradio_app, "_write_evidence_artifacts", disk_full)
+
+    outcome = gradio_app.run_polygonal_fixture(
+        "00_clean_boss", artifact_store=gradio_app.ArtifactStore(tmp_path / "artifacts")
+    )
+
+    assert outcome.completion == "incomplete"
+    assert outcome.release is not None
+    assert outcome.release.source.path.is_file()
+    assert outcome.release.candidate is not None
+    assert {artifact.role for artifact in outcome.release.derived} == set()
+    assert outcome.diagnostics[-1].stage == "evidence persistence"
+    assert "decision-brief.md" in outcome.diagnostics[-1].message
+
+
+def test_polygonal_fixture_reports_source_staging_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cad_integrity import gradio_app
+
+    def disk_full(*args: object, **kwargs: object) -> None:
+        raise OSError("simulated disk full")
+
+    monkeypatch.setattr(gradio_app.shutil, "copyfile", disk_full)
+
+    outcome = gradio_app.run_polygonal_fixture(
+        "00_clean_boss", artifact_store=gradio_app.ArtifactStore(tmp_path / "artifacts")
+    )
+
+    assert outcome.completion == "failed"
+    assert outcome.release is None
+    assert outcome.diagnostics[0].stage == "Fixture source staging"
+    assert outcome.diagnostics[0].message == "simulated disk full"
+
+
+def test_polygonal_fixture_retains_markdown_when_json_persistence_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cad_integrity import gradio_app
+
+    write_artifact = gradio_app._write_evidence_artifacts
+    calls = 0
+
+    def fail_second_write(path: Path, content: str) -> Path:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("simulated disk full")
+        return write_artifact(path, content)
+
+    monkeypatch.setattr(gradio_app, "_write_evidence_artifacts", fail_second_write)
+
+    outcome = gradio_app.run_polygonal_fixture(
+        "00_clean_boss", artifact_store=gradio_app.ArtifactStore(tmp_path / "artifacts")
+    )
+
+    assert outcome.completion == "incomplete"
+    assert outcome.release is not None
+    assert {artifact.role for artifact in outcome.release.derived} == {"decision-brief.md"}
+    assert not (outcome.release.source.path.parent / "evidence.json").exists()
+    assert "evidence.json" in outcome.diagnostics[-1].message
+
+
+def test_polygonal_upload_reports_source_staging_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cad_integrity import gradio_app
+    from cad_integrity.pipeline import RepairPolicy
+
+    source = (Path(__file__).resolve().parents[1] / "examples" / "pathological-mesh-fixtures"
+              / "meshes" / "00_clean_boss.npz")
+
+    def disk_full(*args: object, **kwargs: object) -> None:
+        raise OSError("simulated disk full")
+
+    monkeypatch.setattr(gradio_app.shutil, "copyfile", disk_full)
+
+    outcome = gradio_app.run_polygonal_upload(
+        source, RepairPolicy(), artifact_store=gradio_app.ArtifactStore(tmp_path / "artifacts")
+    )
+
+    assert outcome.completion == "failed"
+    assert outcome.release is None
+    assert outcome.diagnostics[0].stage == "Polygonal source staging"
+
+
+def test_step_workbench_reports_source_staging_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from cad_integrity import gradio_app
+
+    source = tmp_path / "source.step"
+    source.write_text("ISO-10303-21;", encoding="utf-8")
+
+    def disk_full(*args: object, **kwargs: object) -> None:
+        raise OSError("simulated disk full")
+
+    monkeypatch.setattr(gradio_app.shutil, "copyfile", disk_full)
+
+    outcome = gradio_app.run_step_workbench(
+        source, gradio_app.KernelPolicy(), artifact_store=gradio_app.ArtifactStore(tmp_path / "artifacts")
+    )
+
+    assert outcome.completion == "failed"
+    assert outcome.release is None
+    assert outcome.diagnostics[0].stage == "STEP source staging"
+
+
+def test_step_workbench_retains_source_when_candidate_persistence_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("OCP")
+    from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox
+
+    from cad_integrity import gradio_app
+    from cad_integrity.adapters.ocp import export_checked_step
+
+    source = tmp_path / "source.step"
+    export_checked_step(BRepPrimAPI_MakeBox(10, 10, 10).Shape(), source)
+
+    def disk_full(*args: object, **kwargs: object) -> None:
+        raise OSError("simulated disk full")
+
+    monkeypatch.setattr("cad_integrity.adapters.ocp.run_step_pipeline", disk_full)
+
+    outcome = gradio_app.run_step_workbench(
+        source, gradio_app.KernelPolicy(), artifact_store=gradio_app.ArtifactStore(tmp_path / "artifacts")
+    )
+
+    assert outcome.completion == "incomplete"
+    assert outcome.release is not None
+    assert outcome.release.source.path.is_file()
+    assert outcome.release.candidate is None
+    assert "candidate.step" in outcome.diagnostics[-1].message
+
+
 def test_polygonal_upload_rejects_oversized_source_before_staging(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
