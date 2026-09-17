@@ -110,6 +110,7 @@
   "src/cad_integrity/simplicial.py": "feb32dba801cad960a326ef136291382828ef5b07208fc72f7752850ff2d0a10",
   "src/cad_integrity/topology.py": "d25666874238512c98595e951a74ff1ad3eb4eed8d3df4b110f7260e37c14c3b",
   "src/cad_integrity/visualization.py": "03e09e6847d2e7b1f8c389248636e8f6b10eb41512c73999ddf2294260a91ac7",
+  "src/cad_integrity/workbench_results.py": "c7487662bedb3067c907c9d1b7822ae0f9ee70346c3c1ac4174b26214957e2c5",
   "tests/test_algebra.py": "2afb274cace28150d308303c541abc701aa1a686e1a353acafc24aeb21c1f5a7",
   "tests/test_gradio_app.py": "a3976aa49ec0ac4ad9611670299e10851c55f605bc41a00f8b8185695a91efa7",
   "tests/test_math_sea_trials.py": "6f35ff1dffd4b8acebbc86aa8eebd2dd517b5afd8d72552e840f53a934298b87",
