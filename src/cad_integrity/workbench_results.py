@@ -1,0 +1,175 @@
+"""Retained result contracts for local CAD workbench runs.
+
+This module deliberately knows nothing about STEP, OCP, or polygonal topology.
+Named controllers supply their geometry-specific evidence; this module gives every
+completed, incomplete, or failed run the same honest release and presentation shape.
+"""
+from __future__ import annotations
+
+import shutil
+import tempfile
+import time
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from enum import StrEnum
+from pathlib import Path
+from typing import Any
+
+
+class Completion(StrEnum):
+    COMPLETED = "completed"
+    INCOMPLETE = "incomplete"
+    FAILED = "failed"
+
+
+class CheckState(StrEnum):
+    PASSED = "PASSED"
+    FAILED = "FAILED"
+    NOT_RUN = "NOT RUN"
+    UNAVAILABLE = "UNAVAILABLE"
+    NOT_APPLICABLE = "NOT APPLICABLE"
+
+
+@dataclass(frozen=True, slots=True)
+class CheckResult:
+    name: str
+    status: CheckState
+    detail: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class Diagnostic:
+    stage: str
+    message: str
+    location: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class DecisionBrief:
+    """Human-readable projection of a workbench outcome."""
+
+    outcome: str
+    candidate_available: bool
+    markdown: str
+
+
+@dataclass(frozen=True, slots=True)
+class RetainedArtifact:
+    role: str
+    label: str
+    path: Path
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactRelease:
+    """The actual retained files from one run; it is intentionally non-atomic."""
+
+    source: RetainedArtifact
+    candidate: RetainedArtifact | None
+    derived: tuple[RetainedArtifact, ...]
+    expires_at: datetime
+
+    def until_label(self) -> str:
+        """Use local machine time; this is also the user's time in the local lab."""
+        return f"Link active until {self.expires_at.astimezone().strftime('%H:%M')}"
+
+
+@dataclass(frozen=True, slots=True)
+class WorkbenchOutcome:
+    """Small public controller result, independent of the geometry method used."""
+
+    completion: Completion
+    checks: tuple[CheckResult, ...]
+    diagnostics: tuple[Diagnostic, ...]
+    decision_brief: DecisionBrief
+    release: ArtifactRelease | None
+    original_figure: Any | None
+    candidate_figure: Any | None
+
+
+class ArtifactStore:
+    """Bounded local request-artifact storage; not a production evidence store."""
+
+    def __init__(self, root: Path | None = None, *, retention_seconds: int = 3_600) -> None:
+        if retention_seconds < 1:
+            raise ValueError("Artifact retention must be positive")
+        self.root = root or Path(tempfile.gettempdir()) / "cad-integrity-gradio"
+        self.retention_seconds = retention_seconds
+
+    def create_request_directory(self) -> Path:
+        self.root.mkdir(parents=True, exist_ok=True)
+        cutoff = time.time() - self.retention_seconds
+        for candidate in self.root.iterdir():
+            if candidate.is_dir() and candidate.stat().st_mtime < cutoff:
+                shutil.rmtree(candidate)
+        return Path(tempfile.mkdtemp(prefix="request-", dir=self.root))
+
+    def release(
+        self,
+        *,
+        source: RetainedArtifact,
+        candidate: RetainedArtifact | None,
+        derived: tuple[RetainedArtifact, ...],
+    ) -> ArtifactRelease:
+        artifacts = (source, *(() if candidate is None else (candidate,)), *derived)
+        missing = [artifact.role for artifact in artifacts if not artifact.path.is_file()]
+        if missing:
+            raise ValueError(f"Cannot release missing artifacts: {', '.join(missing)}")
+        return ArtifactRelease(
+            source=source,
+            candidate=candidate,
+            derived=derived,
+            expires_at=datetime.fromtimestamp(time.time() + self.retention_seconds, UTC),
+        )
+
+
+def with_outcome_details(
+    brief: DecisionBrief,
+    *,
+    completion: Completion,
+    checks: tuple[CheckResult, ...],
+    diagnostics: tuple[Diagnostic, ...] = (),
+    release: ArtifactRelease | None = None,
+) -> DecisionBrief:
+    """Render the common completion/check ledger without a second source of truth."""
+    verification = (
+        "Needs review" if any(check.status is CheckState.FAILED for check in checks)
+        else "Unavailable" if any(check.status is CheckState.UNAVAILABLE for check in checks)
+        else "Passed"
+    )
+    lines = [
+        brief.markdown,
+        "",
+        "## Completion",
+        f"Completion: {completion.value.title()}",
+        "",
+        "## Verification",
+        f"Verification: {verification}",
+    ]
+    for check in checks:
+        suffix = f" — {check.detail}" if check.detail else ""
+        lines.append(f"- {check.name} [{check.status.value}]{suffix}")
+    if diagnostics:
+        lines.extend(("", "## Diagnostics"))
+        for diagnostic in diagnostics:
+            location = f" ({diagnostic.location})" if diagnostic.location else ""
+            lines.append(f"- {diagnostic.stage}{location}: {diagnostic.message}")
+    if release is not None:
+        lines.extend(("", "## Availability", f"- {release.until_label()}"))
+    return DecisionBrief(brief.outcome, brief.candidate_available, "\n".join(lines))
+
+
+def failed_outcome(stage: str, message: str) -> WorkbenchOutcome:
+    """Return expected validation/admission failures as normal controller results."""
+    brief = DecisionBrief("Request failed", False, "## Decision\nRequest could not be run.")
+    checks = (CheckResult(stage, CheckState.FAILED, message),)
+    diagnostics = (Diagnostic(stage, message),)
+    return WorkbenchOutcome(
+        Completion.FAILED,
+        checks,
+        diagnostics,
+        with_outcome_details(brief, completion=Completion.FAILED, checks=checks, diagnostics=diagnostics),
+        None,
+        None,
+        None,
+    )
