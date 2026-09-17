@@ -5,6 +5,13 @@ import pytest
 from cad_integrity.adapters.ocp import ExportReport, KernelPolicy, KernelReport
 
 
+def _artifact_path(outcome: object, role: str) -> Path:
+    release = outcome.release
+    assert release is not None
+    artifacts = (release.source, *( () if release.candidate is None else (release.candidate,)), *release.derived)
+    return next(artifact.path for artifact in artifacts if artifact.role == role)
+
+
 def _accepted_report() -> KernelReport:
     return KernelReport(
         kernel_binding_version="7.9.3",
@@ -210,12 +217,12 @@ def test_step_workbench_returns_a_checked_download_and_human_brief(tmp_path: Pat
     outcome = run_step_workbench(source, KernelPolicy(), artifact_store=ArtifactStore(tmp_path / "artifacts"))
 
     assert source.read_bytes() == original_bytes
-    assert outcome.candidate_step is not None and outcome.candidate_step.is_file()
+    assert _artifact_path(outcome, "candidate.step").is_file()
     assert outcome.decision_brief.candidate_available
     assert outcome.original_figure is not None
     assert outcome.candidate_figure is not None
-    assert outcome.markdown_path.is_file()
-    assert outcome.json_path.is_file()
+    assert _artifact_path(outcome, "decision-brief.md").is_file()
+    assert _artifact_path(outcome, "evidence.json").is_file()
     assert "Input SHA-256" in outcome.decision_brief.markdown
 
 
@@ -260,12 +267,12 @@ def test_step_workbench_keeps_evidence_when_display_rendering_fails(tmp_path: Pa
     outcome = run_step_workbench(source, KernelPolicy(), artifact_store=ArtifactStore(tmp_path / "artifacts"))
 
     assert outcome.decision_brief.candidate_available
-    assert outcome.candidate_step is not None
+    assert _artifact_path(outcome, "candidate.step").is_file()
     assert outcome.original_figure is None
     assert outcome.candidate_figure is None
     assert "## Display" in outcome.decision_brief.markdown
-    assert outcome.markdown_path.is_file()
-    assert outcome.json_path.is_file()
+    assert _artifact_path(outcome, "decision-brief.md").is_file()
+    assert _artifact_path(outcome, "evidence.json").is_file()
 
 
 def test_step_workbench_withholds_candidate_after_policy_refusal(tmp_path: Path) -> None:
@@ -286,10 +293,10 @@ def test_step_workbench_withholds_candidate_after_policy_refusal(tmp_path: Path)
 
     assert outcome.decision_brief.outcome == "Repair rejected"
     assert not outcome.decision_brief.candidate_available
-    assert outcome.candidate_step is None
+    assert outcome.release is not None and outcome.release.candidate is None
     assert outcome.candidate_figure is None
-    assert outcome.markdown_path.is_file()
-    assert outcome.json_path.is_file()
+    assert _artifact_path(outcome, "decision-brief.md").is_file()
+    assert _artifact_path(outcome, "evidence.json").is_file()
 
 
 def test_polygonal_fixture_lab_repairs_the_qualified_detached_cap(tmp_path: Path) -> None:
@@ -301,8 +308,8 @@ def test_polygonal_fixture_lab_repairs_the_qualified_detached_cap(tmp_path: Path
 
     assert outcome.decision_brief.outcome == "Candidate passed configured combinatorial checks"
     assert outcome.candidate_figure is not None
-    assert outcome.markdown_path.is_file()
-    assert outcome.json_path.is_file()
+    assert _artifact_path(outcome, "decision-brief.md").is_file()
+    assert _artifact_path(outcome, "evidence.json").is_file()
     assert "Input SHA-256" in outcome.decision_brief.markdown
     assert "Weld tolerance" in outcome.decision_brief.markdown
     assert "Candidate canonical-array fingerprint" in outcome.decision_brief.markdown
@@ -310,6 +317,7 @@ def test_polygonal_fixture_lab_repairs_the_qualified_detached_cap(tmp_path: Path
 
 def test_polygonal_upload_replays_an_admitted_npz_through_the_stitching_policy(tmp_path: Path) -> None:
     import json
+
     from cad_integrity.gradio_app import ArtifactStore, run_polygonal_upload
     from cad_integrity.pipeline import RepairPolicy
     from cad_integrity.repair import WeldPolicy
@@ -324,13 +332,13 @@ def test_polygonal_upload_replays_an_admitted_npz_through_the_stitching_policy(t
 
     assert outcome.decision_brief.outcome == "Candidate passed configured combinatorial checks"
     assert outcome.candidate_figure is not None
-    assert outcome.markdown_path.is_file()
-    assert outcome.json_path.is_file()
+    assert _artifact_path(outcome, "decision-brief.md").is_file()
+    assert _artifact_path(outcome, "evidence.json").is_file()
     assert "Uploaded NPZ" in outcome.decision_brief.markdown
     assert "uploaded NPZ array contract" in outcome.decision_brief.markdown
-    payload = json.loads(outcome.json_path.read_text())
-    assert payload["source_kind"] == "uploaded_restricted_npz"
-    assert len(payload["source_sha256"]) == 64
+    payload = json.loads(_artifact_path(outcome, "evidence.json").read_text())
+    assert payload["evidence"]["source_kind"] == "uploaded_restricted_npz"
+    assert len(payload["evidence"]["source_sha256"]) == 64
 
 
 def test_polygonal_upload_rejects_extra_npz_members_before_analysis(tmp_path: Path) -> None:
@@ -348,23 +356,53 @@ def test_polygonal_upload_rejects_extra_npz_members_before_analysis(tmp_path: Pa
         unexpected=np.array(1),
     )
 
-    with pytest.raises(ValueError, match="must contain only vertices"):
-        run_polygonal_upload(upload, RepairPolicy(), artifact_store=ArtifactStore(tmp_path / "artifacts"))
+    outcome = run_polygonal_upload(upload, RepairPolicy(), artifact_store=ArtifactStore(tmp_path / "artifacts"))
+
+    assert outcome.completion == "failed"
+    assert outcome.release is not None
+    assert outcome.release.source.path.is_file()
+    assert outcome.checks[0].status == "FAILED"
+    assert "must contain only vertices" in outcome.diagnostics[0].message
 
 
-def test_polygonal_upload_labels_an_unrepaired_mesh_as_uploaded_input(tmp_path: Path) -> None:
+def test_polygonal_upload_releases_a_coherent_candidate_that_requires_review(tmp_path: Path) -> None:
     from cad_integrity.gradio_app import ArtifactStore, run_polygonal_upload
     from cad_integrity.pipeline import RepairPolicy
 
     source = (Path(__file__).resolve().parents[1] / "examples" / "pathological-mesh-fixtures"
-              / "meshes" / "02_pinched_vertex.npz")
+              / "meshes" / "01_detached_reversed_cap.npz")
     outcome = run_polygonal_upload(
-        source, RepairPolicy(), artifact_store=ArtifactStore(tmp_path / "artifacts")
+        source,
+        RepairPolicy(synchronize_orientation=False),
+        artifact_store=ArtifactStore(tmp_path / "artifacts"),
     )
 
     assert outcome.decision_brief.outcome == "Uploaded polygonal input requires review"
-    assert outcome.candidate_figure is None
-    assert "No candidate artifact was produced" in outcome.decision_brief.markdown
+    assert outcome.completion == "completed"
+    assert outcome.candidate_figure is not None
+    assert outcome.release is not None
+    assert outcome.release.source.path.is_file()
+    assert outcome.release.candidate is not None
+    assert outcome.release.candidate.role == "candidate.npz"
+    assert outcome.release.candidate.path.is_file()
+    assert "Completion: Completed" in outcome.decision_brief.markdown
+    assert "Needs review" in outcome.decision_brief.markdown
+
+
+def test_polygonal_fixture_releases_source_and_retained_evidence(tmp_path: Path) -> None:
+    from cad_integrity.gradio_app import ArtifactStore, run_polygonal_fixture
+
+    outcome = run_polygonal_fixture(
+        "01_detached_reversed_cap", artifact_store=ArtifactStore(tmp_path / "artifacts")
+    )
+
+    assert outcome.release is not None
+    assert outcome.release.source.role == "source.npz"
+    assert outcome.release.source.path.is_file()
+    assert {artifact.role for artifact in outcome.release.derived} == {
+        "decision-brief.md", "evidence.json"
+    }
+    assert "Link active until" in outcome.decision_brief.markdown
 
 
 def test_polygonal_upload_rejects_oversized_source_before_staging(
@@ -378,9 +416,10 @@ def test_polygonal_upload_rejects_oversized_source_before_staging(
     monkeypatch.setattr(gradio_app, "_MAX_POLYGONAL_NPZ_BYTES", 1)
     store = gradio_app.ArtifactStore(tmp_path / "artifacts")
 
-    with pytest.raises(ValueError, match="exceeds"):
-        gradio_app.run_polygonal_upload(upload, RepairPolicy(), artifact_store=store)
+    outcome = gradio_app.run_polygonal_upload(upload, RepairPolicy(), artifact_store=store)
 
+    assert outcome.completion == "failed"
+    assert outcome.release is None
     assert not store.root.exists()
 
 
@@ -401,8 +440,13 @@ def test_polygonal_upload_rejects_a_vertex_count_over_its_budget(
     )
     monkeypatch.setattr(gradio_app, "_MAX_POLYGONAL_NPZ_VERTICES", 3)
 
-    with pytest.raises(ValueError, match="vertex budget"):
-        gradio_app.run_polygonal_upload(upload, RepairPolicy(), artifact_store=gradio_app.ArtifactStore(tmp_path / "artifacts"))
+    outcome = gradio_app.run_polygonal_upload(
+        upload, RepairPolicy(), artifact_store=gradio_app.ArtifactStore(tmp_path / "artifacts")
+    )
+
+    assert outcome.completion == "failed"
+    assert outcome.release is not None
+    assert "vertex budget" in outcome.diagnostics[0].message
 
 
 def test_fixture_ui_action_returns_file_paths_gradio_can_serialize(tmp_path: Path) -> None:
@@ -415,5 +459,5 @@ def test_fixture_ui_action_returns_file_paths_gradio_can_serialize(tmp_path: Pat
         "01_detached_reversed_cap", artifact_store=ArtifactStore(tmp_path / "artifacts")
     )
 
-    assert all(isinstance(value, str) for value in result[-2:])
-    assert all(gr.File().postprocess(value) is not None for value in result[-2:])
+    assert all(isinstance(value, str) for value in result[-4:])
+    assert all(gr.File().postprocess(value) is not None for value in result[-4:])

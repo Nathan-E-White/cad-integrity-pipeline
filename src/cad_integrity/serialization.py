@@ -4,6 +4,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import math
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,8 @@ def json_value(value: Any) -> Any:
         return [json_value(item) for item in value]
     if isinstance(value, Path):
         return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
     if isinstance(value, Enum):
         return value.value
     return value

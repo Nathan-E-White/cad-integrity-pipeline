@@ -44,7 +44,6 @@ do_not_mutate = [
     "src/cad_integrity/models.py",
     "src/cad_integrity/pipeline.py",
     "src/cad_integrity/repair.py",
-    "src/cad_integrity/repair_transition.py",
     "src/cad_integrity/polygonal_cells.py",
     "src/cad_integrity/serialization.py",
     "src/cad_integrity/algebra.py",

@@ -13,7 +13,7 @@ from .models import PolyhedralBRep
 from .topology import TopologyReport, orientation_solution
 
 if TYPE_CHECKING:
-    from .repair_transition import RepairPolicy
+    from .pipeline import RepairPolicy
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,7 +126,7 @@ def weld_vertices(
     brep: PolyhedralBRep, policy: WeldPolicy, *, repair_policy: RepairPolicy
 ) -> WeldResult:
     """Approved direct weld; its audit policy is explicit rather than implicit."""
-    from .repair_transition import RepairPipeline, RepairPolicy
+    from .pipeline import RepairPipeline, RepairPolicy
 
     if not isinstance(repair_policy, RepairPolicy):
         raise TypeError("repair_policy must be a RepairPolicy")
@@ -169,7 +169,7 @@ def synchronize_orientations(
     brep: PolyhedralBRep, *, repair_policy: RepairPolicy
 ) -> OrientationResult:
     """Approved direct orientation repair; its audit policy is explicit."""
-    from .repair_transition import RepairPipeline, RepairPolicy
+    from .pipeline import RepairPipeline, RepairPolicy
 
     if not isinstance(repair_policy, RepairPolicy):
         raise TypeError("repair_policy must be a RepairPolicy")

@@ -1,6 +1,6 @@
 # Stage 6 policy-consistent polygonal repair transition
 
-`RepairPipeline` now lives in `repair_transition.py`. Its interface is one
+`RepairPipeline` now lives in `pipeline.py`. Its interface is one
 `RepairPolicy`, `run(raw, on_event=...)`, and the two approved direct operations
 `weld(raw, policy)` and `synchronize_orientations(raw)`. The invariants are a
 single coefficient/reduction-budget policy for every audit, source immutability,
