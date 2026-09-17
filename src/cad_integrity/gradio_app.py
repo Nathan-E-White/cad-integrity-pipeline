@@ -518,11 +518,19 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
         requires_review_outcome=requires_review_outcome,
         limitations_scope=limitations_scope,
     )
-    original_figure = polygonal_audit_figure(result.original, result.report.before, title=original_title)
-    candidate_figure = (
-        polygonal_audit_figure(result.candidate, result.report.after, title=candidate_title)
-        if brief.candidate_available and result.candidate is not None and result.report.after is not None else None
-    )
+    try:
+        original_figure = polygonal_audit_figure(result.original, result.report.before, title=original_title)
+    except IntegrityError as exc:
+        original_figure = None
+        brief = _with_display_notes(brief, [f"Original diagnostic view unavailable: {exc}"])
+    try:
+        candidate_figure = (
+            polygonal_audit_figure(result.candidate, result.report.after, title=candidate_title)
+            if brief.candidate_available and result.candidate is not None and result.report.after is not None else None
+        )
+    except IntegrityError as exc:
+        candidate_figure = None
+        brief = _with_display_notes(brief, [f"Candidate diagnostic view unavailable: {exc}"])
     candidate_artifact = None
     diagnostics: tuple[Diagnostic, ...] = ()
     completion = Completion.COMPLETED if result.report.decision != "rejected" else Completion.FAILED
@@ -665,11 +673,15 @@ def _released_path(outcome: WorkbenchOutcome, role: str) -> str | None:
     return None
 
 
+def _candidate_available(outcome: WorkbenchOutcome) -> bool:
+    return outcome.release is not None and outcome.release.candidate is not None
+
+
 def _step_ui_projection(outcome: WorkbenchOutcome) -> tuple[str, Any | None, Any, Any, str | None, str | None, str | None, str | None]:
     return (
         outcome.decision_brief.markdown,
         outcome.original_figure,
-        *candidate_display(outcome.candidate_figure),
+        *candidate_display(outcome.candidate_figure, candidate_available=_candidate_available(outcome)),
         _released_path(outcome, "source.step") or _released_path(outcome, "source.stp"),
         _released_path(outcome, "candidate.step"),
         _released_path(outcome, "decision-brief.md"),
@@ -681,7 +693,7 @@ def _polygonal_ui_projection(outcome: WorkbenchOutcome) -> tuple[str, Any | None
     return (
         outcome.decision_brief.markdown,
         outcome.original_figure,
-        *candidate_display(outcome.candidate_figure),
+        *candidate_display(outcome.candidate_figure, candidate_available=_candidate_available(outcome)),
         _released_path(outcome, "source.npz"),
         _released_path(outcome, "candidate.npz"),
         _released_path(outcome, "decision-brief.md"),
@@ -689,13 +701,17 @@ def _polygonal_ui_projection(outcome: WorkbenchOutcome) -> tuple[str, Any | None
     )
 
 
-def candidate_display(figure: Any | None) -> tuple[Any, Any]:
+def candidate_display(figure: Any | None, *, candidate_available: bool = False) -> tuple[Any, Any]:
     """Return mutually exclusive Gradio components for published and absent candidates."""
     import gradio as gr
 
     return (
         gr.Plot(value=figure, visible=figure is not None),
-        gr.Markdown(_NO_CANDIDATE_NOTICE, visible=figure is None),
+        gr.Markdown(
+            "## Candidate display unavailable\nThe retained candidate file is available for download."
+            if candidate_available else _NO_CANDIDATE_NOTICE,
+            visible=figure is None,
+        ),
     )
 
 
