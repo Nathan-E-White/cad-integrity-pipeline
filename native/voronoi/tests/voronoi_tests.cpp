@@ -60,6 +60,18 @@ void rejects_a_nonreciprocal_neighbor_relation() {
     assert(!result.has_value());
 }
 
+void rejects_a_self_neighbor_relation() {
+    DelaunaySnapshot snapshot{
+        {
+            cell({1, 2, 3, 4}, {0, no_neighbor, no_neighbor, no_neighbor}, {0.0, 0.0, 0.0}),
+        },
+    };
+
+    const auto result = extract_finite_voronoi_dual(snapshot);
+
+    assert(!result.has_value());
+}
+
 void ignores_an_infinite_neighbor() {
     DelaunaySnapshot snapshot{
         {
@@ -145,6 +157,7 @@ void rejects_duplicate_vertices_in_a_cell() {
 int main() {
     extracts_the_finite_dual_of_two_adjacent_cells();
     rejects_a_nonreciprocal_neighbor_relation();
+    rejects_a_self_neighbor_relation();
     ignores_an_infinite_neighbor();
     rejects_a_nonreciprocal_infinite_neighbor_relation();
     canonicalizes_node_identity_across_cell_order();

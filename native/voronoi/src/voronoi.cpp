@@ -100,6 +100,10 @@ std::expected<VoronoiDual, ExtractionError> extract_finite_voronoi_dual(
                 return std::unexpected(
                     ExtractionError{ExtractionErrorCode::neighbor_out_of_range, cell_id, neighbor_id});
             }
+            if (neighbor_id == cell_id) {
+                return std::unexpected(
+                    ExtractionError{ExtractionErrorCode::nonreciprocal_neighbor, cell_id, neighbor_id});
+            }
             if (!has_reciprocal_facet(snapshot.cells[neighbor_id], cell_id,
                                       facet_opposite(cell, side))) {
                 return std::unexpected(

@@ -12,7 +12,9 @@ using SampleId = std::uint64_t;
 using CellId = std::uint32_t;
 using NodeId = std::uint32_t;
 
+/// Reserved; a bridge must not assign this value to an ordinary sample.
 inline constexpr SampleId no_sample = UINT64_MAX;
+/// Reserved; a bridge must not assign this value to an ordinary cell.
 inline constexpr CellId no_neighbor = UINT32_MAX;
 
 struct Point3 {

@@ -17,6 +17,9 @@ infinite cell has exactly one `no_sample` vertex. The function validates every
 declared cell and reciprocal neighbour relation, then returns a value-owned
 read-only view of canonical raw medial nodes and edges:
 
+`no_sample` and `no_neighbor` are reserved sentinels; neither may be assigned
+to an ordinary bridge sample or cell.
+
 - one node per finite cell;
 - one edge per reciprocal finite-cell facet;
 - no node for an infinite cell and no representation of a Voronoi ray;
