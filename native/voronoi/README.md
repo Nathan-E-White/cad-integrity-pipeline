@@ -12,8 +12,10 @@ cad::mat::extract_finite_voronoi_dual(const cad::mat::DelaunaySnapshot&)
 ```
 
 The caller supplies finite and infinite Delaunay cells with oriented local
-vertex IDs, neighbour IDs, exact-bridge circumcenters, and sampled radii. The
-function returns canonical, immutable raw medial nodes and edges:
+vertex IDs, neighbour IDs, exact-bridge circumcenters, and sampled radii. An
+infinite cell has exactly one `no_sample` vertex. The function validates every
+declared cell and reciprocal neighbour relation, then returns a value-owned
+read-only view of canonical raw medial nodes and edges:
 
 - one node per finite cell;
 - one edge per reciprocal finite-cell facet;

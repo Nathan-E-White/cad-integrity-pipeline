@@ -9,15 +9,22 @@ namespace {
 
 using cad::mat::CellId;
 using cad::mat::DelaunaySnapshot;
-using cad::mat::FiniteCell;
+using cad::mat::DelaunayCell;
 using cad::mat::Point3;
 using cad::mat::extract_finite_voronoi_dual;
+using cad::mat::no_sample;
 
 constexpr CellId no_neighbor = std::numeric_limits<CellId>::max();
 
-FiniteCell cell(std::array<std::uint64_t, 4> vertices, std::array<CellId, 4> neighbors,
-                Point3 center) {
-    return FiniteCell{vertices, neighbors, center, 1.0, true};
+DelaunayCell cell(std::array<std::uint64_t, 4> vertices, std::array<CellId, 4> neighbors,
+                  Point3 center) {
+    return DelaunayCell{vertices, neighbors, center, 1.0, true};
+}
+
+DelaunayCell infinite_cell(std::array<std::uint64_t, 3> finite_vertices,
+                           std::array<CellId, 4> neighbors) {
+    return DelaunayCell{{finite_vertices[0], finite_vertices[1], finite_vertices[2], no_sample},
+                        neighbors, {}, 0.0, false};
 }
 
 void extracts_the_finite_dual_of_two_adjacent_cells() {
@@ -31,11 +38,12 @@ void extracts_the_finite_dual_of_two_adjacent_cells() {
     const auto result = extract_finite_voronoi_dual(snapshot);
 
     assert(result.has_value());
-    assert(result->nodes.size() == 2);
-    assert(result->edges.size() == 1);
-    assert((result->edges[0].shared_facet == std::array<std::uint64_t, 3>{1, 2, 3}));
-    assert(result->edges[0].first_node == 0);
-    assert(result->edges[0].second_node == 1);
+    assert(result->nodes().size() == 2);
+    assert(result->edges().size() == 1);
+    assert((result->nodes()[0].supports == std::array<std::uint64_t, 4>{1, 2, 3, 4}));
+    assert((result->edges()[0].shared_facet == std::array<std::uint64_t, 3>{1, 2, 3}));
+    assert(result->edges()[0].first_node == 0);
+    assert(result->edges()[0].second_node == 1);
 }
 
 void rejects_a_nonreciprocal_neighbor_relation() {
@@ -56,15 +64,28 @@ void ignores_an_infinite_neighbor() {
     DelaunaySnapshot snapshot{
         {
             cell({1, 2, 3, 4}, {1, no_neighbor, no_neighbor, no_neighbor}, {0.0, 0.0, 0.0}),
-            FiniteCell{{1, 2, 3, 5}, {no_neighbor, no_neighbor, no_neighbor, 0}, {}, 0.0, false},
+            infinite_cell({2, 3, 4}, {no_neighbor, no_neighbor, no_neighbor, 0}),
         },
     };
 
     const auto result = extract_finite_voronoi_dual(snapshot);
 
     assert(result.has_value());
-    assert(result->nodes.size() == 1);
-    assert(result->edges.empty());
+    assert(result->nodes().size() == 1);
+    assert(result->edges().empty());
+}
+
+void rejects_a_nonreciprocal_infinite_neighbor_relation() {
+    DelaunaySnapshot snapshot{
+        {
+            cell({1, 2, 3, 4}, {1, no_neighbor, no_neighbor, no_neighbor}, {0.0, 0.0, 0.0}),
+            infinite_cell({2, 3, 4}, {no_neighbor, no_neighbor, no_neighbor, no_neighbor}),
+        },
+    };
+
+    const auto result = extract_finite_voronoi_dual(snapshot);
+
+    assert(!result.has_value());
 }
 
 void canonicalizes_node_identity_across_cell_order() {
@@ -86,11 +107,24 @@ void canonicalizes_node_identity_across_cell_order() {
 
     assert(first_dual.has_value());
     assert(second_dual.has_value());
-    assert(first_dual->nodes.size() == second_dual->nodes.size());
-    assert(first_dual->edges.size() == second_dual->edges.size());
-    assert(first_dual->nodes[0].supporting_cell == second_dual->nodes[0].supporting_cell);
-    assert(first_dual->nodes[1].supporting_cell == second_dual->nodes[1].supporting_cell);
-    assert(first_dual->edges[0].shared_facet == second_dual->edges[0].shared_facet);
+    assert(first_dual->nodes().size() == second_dual->nodes().size());
+    assert(first_dual->edges().size() == second_dual->edges().size());
+    assert(first_dual->nodes()[0].supporting_cell == second_dual->nodes()[0].supporting_cell);
+    assert(first_dual->nodes()[1].supporting_cell == second_dual->nodes()[1].supporting_cell);
+    assert(first_dual->nodes()[0].supports == second_dual->nodes()[0].supports);
+    assert(first_dual->edges()[0].shared_facet == second_dual->edges()[0].shared_facet);
+}
+
+void rejects_an_out_of_range_neighbor_in_an_infinite_cell() {
+    DelaunaySnapshot snapshot{
+        {
+            infinite_cell({1, 2, 3}, {no_neighbor, no_neighbor, no_neighbor, 42}),
+        },
+    };
+
+    const auto result = extract_finite_voronoi_dual(snapshot);
+
+    assert(!result.has_value());
 }
 
 void rejects_duplicate_vertices_in_a_cell() {
@@ -112,6 +146,8 @@ int main() {
     extracts_the_finite_dual_of_two_adjacent_cells();
     rejects_a_nonreciprocal_neighbor_relation();
     ignores_an_infinite_neighbor();
+    rejects_a_nonreciprocal_infinite_neighbor_relation();
     canonicalizes_node_identity_across_cell_order();
     rejects_duplicate_vertices_in_a_cell();
+    rejects_an_out_of_range_neighbor_in_an_infinite_cell();
 }

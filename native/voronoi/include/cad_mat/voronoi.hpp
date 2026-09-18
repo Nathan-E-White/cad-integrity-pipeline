@@ -3,6 +3,7 @@
 #include <array>
 #include <cstdint>
 #include <expected>
+#include <span>
 #include <vector>
 
 namespace cad::mat {
@@ -11,6 +12,7 @@ using SampleId = std::uint64_t;
 using CellId = std::uint32_t;
 using NodeId = std::uint32_t;
 
+inline constexpr SampleId no_sample = UINT64_MAX;
 inline constexpr CellId no_neighbor = UINT32_MAX;
 
 struct Point3 {
@@ -24,7 +26,7 @@ struct Point3 {
 /// ``vertex_ids`` retain the bridge's oriented local order. ``neighbors[i]``
 /// denotes the cell across the facet opposite ``vertex_ids[i]``. An infinite
 /// cell has no usable circumcenter and is never emitted as a Voronoi node.
-struct FiniteCell {
+struct DelaunayCell {
     std::array<SampleId, 4> vertex_ids;
     std::array<CellId, 4> neighbors;
     Point3 circumcenter;
@@ -33,7 +35,7 @@ struct FiniteCell {
 };
 
 struct DelaunaySnapshot {
-    std::vector<FiniteCell> cells;
+    std::vector<DelaunayCell> cells;
 };
 
 struct CellKey {
@@ -55,24 +57,39 @@ struct RawMedialEdge {
     std::array<SampleId, 3> shared_facet;
 };
 
-struct VoronoiDual {
-    std::vector<RawMedialNode> nodes;
-    std::vector<RawMedialEdge> edges;
-};
-
 enum class ExtractionErrorCode {
     too_many_cells,
     duplicate_vertex_in_cell,
-    duplicate_finite_cell,
+    invalid_cell_vertex_kind,
+    duplicate_cell,
     nonfinite_finite_cell_measurement,
     neighbor_out_of_range,
-    nonreciprocal_finite_neighbor,
+    nonreciprocal_neighbor,
 };
 
 struct ExtractionError {
     ExtractionErrorCode code;
     CellId cell;
     CellId neighbor = no_neighbor;
+};
+
+/// A value-owned, read-only finite Voronoi-dual snapshot.
+class VoronoiDual {
+public:
+    [[nodiscard]] std::span<const RawMedialNode> nodes() const noexcept {
+        return nodes_;
+    }
+
+    [[nodiscard]] std::span<const RawMedialEdge> edges() const noexcept {
+        return edges_;
+    }
+
+private:
+    std::vector<RawMedialNode> nodes_;
+    std::vector<RawMedialEdge> edges_;
+
+    friend std::expected<VoronoiDual, ExtractionError> extract_finite_voronoi_dual(
+        const DelaunaySnapshot& snapshot);
 };
 
 /// Extract the finite Voronoi dual represented by a Delaunay snapshot.
