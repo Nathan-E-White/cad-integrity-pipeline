@@ -64,20 +64,43 @@ def test_step_decision_brief_projects_accepted_evidence_for_people(tmp_path: Pat
     assert "No manufacturing/structural certification" in brief.markdown
 
 
-def test_build_app_exposes_native_and_polygonal_labs() -> None:
+def test_build_app_exposes_mesh_lab_before_the_step_workbench() -> None:
     from cad_integrity.gradio_app import build_app
 
     app = build_app()
-    labels = {
-        component.get("props", {}).get("label")
-        for component in app.get_config_file()["components"]
-    }
+    components = app.get_config_file()["components"]
+    labels = {component.get("props", {}).get("label") for component in components}
+    tab_labels = [
+        component["props"]["label"]
+        for component in components
+        if component["type"] == "tabitem"
+    ]
 
+    assert tab_labels[0] == "Mesh Lab"
+    assert tab_labels.index("Mesh Lab") < tab_labels.index("Local STEP workbench")
+    assert tab_labels.index("Upload your NPZ") < tab_labels.index("Examples")
     assert "Local STEP workbench" in labels
-    assert "Polygonal fixture lab" in labels
+    assert "Mesh Lab" in labels
+    assert "Upload your NPZ" in labels
+    assert "Examples" in labels
+    assert "Choose an example" in labels
     assert "Advanced repair policy" in labels
     assert "Restricted polygonal NPZ" in labels
     assert "Weld tolerance (mm)" in labels
+    assert "Polygonal fixture lab" not in labels
+    example_picker = next(
+        component for component in components
+        if component.get("props", {}).get("label") == "Choose an example"
+    )
+    assert example_picker["props"]["choices"] == [
+        ("Clean baseline", "00_clean_boss"),
+        ("Detached reversed cap", "01_detached_reversed_cap"),
+        ("Welded but unoriented", "01_welded_not_oriented"),
+        ("Already repaired cap", "01_repaired_cap"),
+        ("Pinched vertex", "02_pinched_vertex"),
+    ]
+    tab_groups = [component for component in components if component["type"] == "tabs"]
+    assert tab_groups[0]["props"]["selected"] == 0
 
 
 def test_build_app_uses_full_width_focused_diagnostic_tabs() -> None:
@@ -96,16 +119,104 @@ def test_build_app_uses_full_width_focused_diagnostic_tabs() -> None:
     assert plot_labels == {
         "Original diagnostic view",
         "Candidate diagnostic view",
-        "Original fixture view",
-        "Candidate fixture view",
-        "Original uploaded mesh",
-        "Candidate uploaded mesh",
+        "Original mesh view",
+        "Candidate mesh view",
     }
     assert sum(
         component.get("props", {}).get("value")
         == "## No candidate published\nThe audit did not publish a candidate for review or download."
         for component in config["components"]
-    ) == 3
+    ) == 2
+
+
+def test_mesh_lab_dashboard_omits_retained_forensics_but_keeps_verification(tmp_path: Path) -> None:
+    from cad_integrity.gradio_app import ArtifactStore, _polygonal_ui_projection, run_polygonal_fixture
+
+    outcome = run_polygonal_fixture(
+        "01_detached_reversed_cap", artifact_store=ArtifactStore(tmp_path / "artifacts")
+    )
+    dashboard = _polygonal_ui_projection(outcome)[1]
+    retained_brief = outcome.decision_brief.markdown
+
+    assert "## Before / after" in dashboard
+    assert "## What happened" in dashboard
+    assert "## Configured policy" in dashboard
+    assert "## Verification" in dashboard
+    assert "Polygonal-cell admission [PASSED]" in dashboard
+    for heading in ("## Evidence", "## Limitations", "## Completion", "## Availability"):
+        assert heading not in dashboard
+        assert heading in retained_brief
+    assert "Input SHA-256" in retained_brief
+    assert "Candidate canonical-array fingerprint" in retained_brief
+    assert "Length unit" in retained_brief
+
+
+def test_mesh_lab_dashboard_keeps_failed_and_unavailable_checks_visible() -> None:
+    from cad_integrity.gradio_app import _polygonal_ui_projection
+    from cad_integrity.workbench_results import (
+        CheckResult,
+        CheckState,
+        Completion,
+        DecisionBrief,
+        WorkbenchOutcome,
+    )
+
+    outcome = WorkbenchOutcome(
+        Completion.FAILED,
+        (
+            CheckResult("Polygonal-cell admission", CheckState.FAILED, "Rejected cells"),
+            CheckResult("Homology evaluation", CheckState.UNAVAILABLE, "Budget exhausted"),
+        ),
+        (),
+        DecisionBrief("Mesh requires review", False, "## Decision\nMesh requires review."),
+        None,
+        None,
+        None,
+    )
+
+    dashboard = _polygonal_ui_projection(outcome)[1]
+
+    assert "Verification: Needs review" in dashboard
+    assert "Polygonal-cell admission [FAILED] — Rejected cells" in dashboard
+    assert "Homology evaluation [UNAVAILABLE] — Budget exhausted" in dashboard
+
+
+def test_mesh_lab_and_retained_brief_share_one_verification_ledger(tmp_path: Path) -> None:
+    from cad_integrity.gradio_app import ArtifactStore, _polygonal_ui_projection, run_polygonal_fixture
+    from cad_integrity.workbench_results import verification_markdown
+
+    outcome = run_polygonal_fixture(
+        "02_pinched_vertex", artifact_store=ArtifactStore(tmp_path / "artifacts")
+    )
+    ledger = verification_markdown(outcome.checks)
+
+    assert ledger in _polygonal_ui_projection(outcome)[1]
+    assert ledger in outcome.decision_brief.markdown
+
+
+def test_mesh_lab_example_and_upload_actions_share_one_result_projection(tmp_path: Path) -> None:
+    from cad_integrity.gradio_app import (
+        ArtifactStore,
+        _fixture_ui_action,
+        _polygonal_upload_ui_action,
+    )
+
+    source = (Path(__file__).resolve().parents[1] / "examples" / "pathological-mesh-fixtures"
+              / "meshes" / "01_detached_reversed_cap.npz")
+    example_result = _fixture_ui_action(
+        "01_detached_reversed_cap", artifact_store=ArtifactStore(tmp_path / "example")
+    )
+    upload_result = _polygonal_upload_ui_action(
+        str(source), True, 0.0738347, 0.0738347, True,
+        artifact_store=ArtifactStore(tmp_path / "upload"),
+    )
+
+    for source_name, result in (("Example: Detached reversed cap", example_result), ("Uploaded NPZ", upload_result)):
+        assert len(result) == 9
+        assert source_name in result[0]
+        assert "## Decision" in result[1]
+        assert "## Verification" in result[1]
+        assert all(isinstance(output, str) and Path(output).is_file() for output in result[-4:])
 
 
 def test_mesh_figure_has_a_deterministic_diagnostic_presentation() -> None:

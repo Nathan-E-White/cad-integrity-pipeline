@@ -31,16 +31,20 @@ from .workbench_results import (
     RetainedArtifact,
     WorkbenchOutcome,
     failed_outcome,
+    verification_markdown,
     with_outcome_details,
 )
 
-_FIXTURE_NAMES = (
-    "00_clean_boss",
-    "01_detached_reversed_cap",
-    "01_welded_not_oriented",
-    "01_repaired_cap",
-    "02_pinched_vertex",
+_FIXTURE_EXAMPLES = (
+    ("00_clean_boss", "Clean baseline", "A closed, consistently oriented baseline mesh."),
+    ("01_detached_reversed_cap", "Detached reversed cap", "A separated cap with reversed face orientation."),
+    ("01_welded_not_oriented", "Welded but unoriented", "A weldable mesh whose face orientation needs synchronization."),
+    ("01_repaired_cap", "Already repaired cap", "A mesh already repaired under its recorded policy."),
+    ("02_pinched_vertex", "Pinched vertex", "A pinched vertex that requires review."),
 )
+_FIXTURE_NAMES = tuple(example[0] for example in _FIXTURE_EXAMPLES)
+_FIXTURE_LABELS = {name: label for name, label, _ in _FIXTURE_EXAMPLES}
+_FIXTURE_DESCRIPTIONS = {name: description for name, _, description in _FIXTURE_EXAMPLES}
 _NO_CANDIDATE_NOTICE = "## No candidate published\nThe audit did not publish a candidate for review or download."
 _MAX_POLYGONAL_NPZ_BYTES = 50_000_000
 _MAX_POLYGONAL_NPZ_EXPANDED_BYTES = 100_000_000
@@ -51,6 +55,11 @@ _POLYGONAL_NPZ_MEMBERS = frozenset({"vertices.npy", "triangles.npy", "length_uni
 
 def _fixture_root() -> Path:
     return Path(__file__).resolve().parents[2] / "examples" / "pathological-mesh-fixtures"
+
+
+def _example_description(name: str) -> str:
+    """Describe a saved example without exposing its internal fixture identifier."""
+    return _FIXTURE_DESCRIPTIONS[name]
 
 
 def _load_qualified_fixture(name: str) -> PolyhedralBRep:
@@ -365,7 +374,7 @@ def _with_display_notes(brief: DecisionBrief, notes: list[str]) -> DecisionBrief
     if not notes:
         return brief
     markdown = brief.markdown + "\n\n## Display\n" + "\n".join(f"- {note}" for note in notes)
-    return DecisionBrief(brief.outcome, brief.candidate_available, markdown)
+    return DecisionBrief(brief.outcome, brief.candidate_available, markdown, brief.dashboard_markdown)
 
 
 def run_step_workbench(upload: str | Path, policy: KernelPolicy, *,
@@ -504,7 +513,7 @@ def project_polygonal_evidence(result: Any, source_label: str, policy: RepairPol
     outcome = "Candidate passed configured combinatorial checks" if passed else requires_review_outcome
     after_cells = _topology_cells(report.after) if report.after is not None else ("—",) * 6 + ("`—`",)
     candidate_fingerprint = fingerprint(result.candidate) if candidate_available else None
-    markdown = "\n".join([
+    dashboard_markdown = "\n".join([
         "## Decision",
         f"{outcome}.",
         "",
@@ -526,6 +535,9 @@ def project_polygonal_evidence(result: Any, source_label: str, policy: RepairPol
         f"- Maximum vertex displacement: `{policy.weld.max_displacement:g} mm`" if policy.weld is not None else "",
         f"- Orientation synchronization: `{'enabled' if policy.synchronize_orientation else 'disabled'}`",
         f"- Homology coefficient field: `{policy.coefficients}`",
+    ])
+    markdown = "\n".join([
+        dashboard_markdown,
         "",
         "## Evidence",
         f"- Input SHA-256: `{report.input_sha256}`",
@@ -537,7 +549,7 @@ def project_polygonal_evidence(result: Any, source_label: str, policy: RepairPol
         f"- These are bounded combinatorial diagnostics for the {limitations_scope}.",
         "- A passing result is not native CAD validity, design-intent recovery, or engineering certification.",
     ])
-    return DecisionBrief(outcome, candidate_available, markdown)
+    return DecisionBrief(outcome, candidate_available, markdown, dashboard_markdown)
 
 
 def _write_polygonal_candidate(path: Path, candidate: PolyhedralBRep) -> None:
@@ -607,7 +619,7 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
         except (OSError, ValueError) as exc:
             completion = Completion.INCOMPLETE
             candidate_figure = None
-            brief = DecisionBrief(brief.outcome, False, brief.markdown)
+            brief = DecisionBrief(brief.outcome, False, brief.markdown, brief.dashboard_markdown)
             diagnostics = (Diagnostic("candidate artifact", str(exc)),)
     payload: Any = result.report if source_evidence is None else {
         "schema_version": "1.0", **source_evidence, "policy": policy, "repair": result.report,
@@ -626,7 +638,7 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
 
 
 def run_polygonal_fixture(name: str, *, artifact_store: ArtifactStore | None = None) -> WorkbenchOutcome:
-    """Run one checked-in fixture through its recorded conservative policy."""
+    """Run one saved example through its recorded conservative policy."""
     try:
         source_path = _fixture_root() / "meshes" / f"{name}.npz"
         source = _load_qualified_fixture(name)
@@ -644,8 +656,13 @@ def run_polygonal_fixture(name: str, *, artifact_store: ArtifactStore | None = N
     draft = store.begin_release(source_artifact)
     result = RepairPipeline(policy).run(source)
     return _polygonal_analysis_outcome(
-        result, f"Qualified fixture: `{name}`.", policy, draft=draft,
-        original_title="Original fixture", candidate_title="Candidate fixture",
+        result, f"Example: {_FIXTURE_LABELS[name]}.", policy, draft=draft,
+        original_title="Original mesh", candidate_title="Candidate mesh",
+        source_evidence={
+            "source_kind": "saved_example",
+            "example_id": name,
+            "source_sha256": _sha256_file(staged),
+        },
     )
 
 
@@ -712,14 +729,17 @@ def _step_ui_action(upload: str | None, precision_mm: float, maximum_tolerance_m
 
 
 def _fixture_ui_action(name: str, *, artifact_store: ArtifactStore
-                       ) -> tuple[str, Any | None, Any, Any, str | None, str | None, str | None, str | None]:
-    return _polygonal_ui_projection(run_polygonal_fixture(name, artifact_store=artifact_store))
+                       ) -> tuple[Any, ...]:
+    return _polygonal_ui_projection(
+        run_polygonal_fixture(name, artifact_store=artifact_store),
+        source_name=f"Example: {_FIXTURE_LABELS[name]}",
+    )
 
 
 def _polygonal_upload_ui_action(upload: str | None, enable_welding: bool,
                                 weld_tolerance_mm: float, max_displacement_mm: float,
                                 synchronize_orientation: bool, *, artifact_store: ArtifactStore
-                                ) -> tuple[str, Any | None, Any, Any, str | None, str | None, str | None, str | None]:
+                                ) -> tuple[Any, ...]:
     try:
         if upload is None:
             raise ValueError("Choose a restricted polygonal NPZ file before analysis")
@@ -730,7 +750,7 @@ def _polygonal_upload_ui_action(upload: str | None, enable_welding: bool,
         outcome = failed_outcome("Polygonal upload control validation", str(exc))
     else:
         outcome = run_polygonal_upload(upload, policy, artifact_store=artifact_store)
-    return _polygonal_ui_projection(outcome)
+    return _polygonal_ui_projection(outcome, source_name="Uploaded NPZ")
 
 
 def _released_path(outcome: WorkbenchOutcome, role: str) -> str | None:
@@ -760,9 +780,10 @@ def _step_ui_projection(outcome: WorkbenchOutcome) -> tuple[str, Any | None, Any
     )
 
 
-def _polygonal_ui_projection(outcome: WorkbenchOutcome) -> tuple[str, Any | None, Any, Any, str | None, str | None, str | None, str | None]:
+def _polygonal_ui_projection(outcome: WorkbenchOutcome, *, source_name: str = "Mesh") -> tuple[Any, ...]:
     return (
-        outcome.decision_brief.markdown,
+        f"### {source_name} results\nThe files below are for this source.",
+        _polygonal_dashboard_markdown(outcome),
         outcome.original_figure,
         *candidate_display(outcome.candidate_figure, candidate_available=_candidate_available(outcome)),
         _released_path(outcome, "source.npz"),
@@ -770,6 +791,14 @@ def _polygonal_ui_projection(outcome: WorkbenchOutcome) -> tuple[str, Any | None
         _released_path(outcome, "decision-brief.md"),
         _released_path(outcome, "evidence.json"),
     )
+
+
+def _polygonal_dashboard_markdown(outcome: WorkbenchOutcome) -> str:
+    """Render the concise Mesh Lab view while retained artifacts keep full evidence."""
+    dashboard = outcome.decision_brief.dashboard_markdown
+    if dashboard is None:
+        dashboard = "\n".join(("## Decision", outcome.decision_brief.outcome + "."))
+    return "\n\n".join((dashboard, verification_markdown(outcome.checks)))
 
 
 def candidate_display(figure: Any | None, *, candidate_available: bool = False) -> tuple[Any, Any]:
@@ -796,8 +825,64 @@ def build_app() -> Any:
     with gr.Blocks(title="CAD Integrity Lab", fill_width=True) as app:
         gr.Markdown(
             "# CAD Integrity Lab\n"
-            "Local diagnostics and conservative repair experiments. Results are not engineering certification."
+            "Local diagnostics and conservative repair experiments."
         )
+        with gr.Tab("Mesh Lab"):
+            with gr.Tabs(selected=0):
+                with gr.Tab("Upload your NPZ"):
+                    gr.Markdown(
+                        "Upload a triangle mesh with `vertices`, `triangles`, and `length_unit`; "
+                        "OBJ and GLB are not supported here yet."
+                    )
+                    polygonal_upload = gr.File(
+                        label="Restricted polygonal NPZ", file_types=[".npz"], type="filepath"
+                    )
+                    with gr.Accordion("Upload stitching policy", open=False):
+                        upload_welding = gr.Checkbox(label="Weld nearby boundary vertices", value=True)
+                        upload_weld_tolerance = gr.Number(
+                            label="Weld tolerance (mm)", value=0.001, minimum=1e-12
+                        )
+                        upload_max_displacement = gr.Number(
+                            label="Maximum vertex displacement (mm)", value=0.001, minimum=0
+                        )
+                        upload_orientation = gr.Checkbox(label="Synchronize face orientation", value=True)
+                    upload_run = gr.Button("Analyze mesh", variant="primary")
+                with gr.Tab("Examples"):
+                    gr.Markdown("Explore saved meshes that demonstrate common topology cases.")
+                    fixture_name = gr.Dropdown(
+                        label="Choose an example",
+                        choices=[(label, name) for name, label, _ in _FIXTURE_EXAMPLES],
+                        value="01_detached_reversed_cap",
+                    )
+                    fixture_description = gr.Markdown(_example_description("01_detached_reversed_cap"))
+                    fixture_run = gr.Button("Run this example", variant="primary")
+            mesh_source_context = gr.Markdown()
+            mesh_brief = gr.Markdown(label="Mesh decision brief")
+            with gr.Tabs():
+                with gr.Tab("Original"):
+                    mesh_original_plot = gr.Plot(label="Original mesh view", min_width=320)
+                with gr.Tab("Candidate"):
+                    mesh_candidate_notice = gr.Markdown(_NO_CANDIDATE_NOTICE)
+                    mesh_candidate_plot = gr.Plot(label="Candidate mesh view", min_width=320, visible=False)
+            with gr.Row():
+                mesh_source = gr.File(label="Mesh source NPZ")
+                mesh_candidate = gr.File(label="Candidate mesh NPZ")
+                mesh_markdown = gr.File(label="Mesh decision brief download")
+                mesh_json = gr.File(label="Mesh raw JSON evidence")
+            fixture_name.change(_example_description, inputs=[fixture_name], outputs=[fixture_description])
+            fixture_run.click(
+                lambda name: _fixture_ui_action(name, artifact_store=artifact_store),
+                inputs=[fixture_name],
+                outputs=[mesh_source_context, mesh_brief, mesh_original_plot, mesh_candidate_plot, mesh_candidate_notice,
+                         mesh_source, mesh_candidate, mesh_markdown, mesh_json],
+            )
+            upload_run.click(
+                lambda *inputs: _polygonal_upload_ui_action(*inputs, artifact_store=artifact_store),
+                inputs=[polygonal_upload, upload_welding, upload_weld_tolerance,
+                        upload_max_displacement, upload_orientation],
+                outputs=[mesh_source_context, mesh_brief, mesh_original_plot, mesh_candidate_plot, mesh_candidate_notice,
+                         mesh_source, mesh_candidate, mesh_markdown, mesh_json],
+            )
         with gr.Tab("Local STEP workbench"):
             step_upload = gr.File(label="Local STEP file", file_types=[".step", ".stp"], type="filepath")
             with gr.Accordion("Advanced repair policy", open=False):
@@ -827,71 +912,6 @@ def build_app() -> Any:
                         area_change, volume_change, allow_face_count],
                 outputs=[step_brief, original_plot, candidate_plot, candidate_notice,
                          step_source, checked_step, step_markdown, step_json],
-            )
-        with gr.Tab("Polygonal fixture lab"):
-            fixture_name = gr.Dropdown(
-                label="Qualified fixture",
-                choices=list(_FIXTURE_NAMES),
-                value="01_detached_reversed_cap",
-            )
-            fixture_run = gr.Button("Analyze fixture", variant="primary")
-            fixture_brief = gr.Markdown(label="Fixture decision brief")
-            with gr.Tabs():
-                with gr.Tab("Original"):
-                    fixture_original_plot = gr.Plot(label="Original fixture view", min_width=320)
-                with gr.Tab("Candidate"):
-                    fixture_candidate_notice = gr.Markdown(_NO_CANDIDATE_NOTICE)
-                    fixture_candidate_plot = gr.Plot(
-                        label="Candidate fixture view", min_width=320, visible=False
-                    )
-            with gr.Row():
-                fixture_source = gr.File(label="Fixture source NPZ")
-                fixture_candidate = gr.File(label="Candidate fixture NPZ")
-                fixture_markdown = gr.File(label="Fixture decision brief download")
-                fixture_json = gr.File(label="Fixture raw JSON evidence")
-            fixture_run.click(
-                lambda name: _fixture_ui_action(name, artifact_store=artifact_store),
-                inputs=[fixture_name],
-                outputs=[fixture_brief, fixture_original_plot, fixture_candidate_plot,
-                         fixture_candidate_notice,
-                         fixture_source, fixture_candidate, fixture_markdown, fixture_json],
-            )
-            gr.Markdown(
-                "### Restricted NPZ upload\n"
-                "Requires `vertices`, `triangles`, and `length_unit`; OBJ and GLB are deferred."
-            )
-            polygonal_upload = gr.File(
-                label="Restricted polygonal NPZ", file_types=[".npz"], type="filepath"
-            )
-            with gr.Accordion("Upload stitching policy", open=False):
-                upload_welding = gr.Checkbox(label="Weld nearby boundary vertices", value=True)
-                upload_weld_tolerance = gr.Number(label="Weld tolerance (mm)", value=0.001, minimum=1e-12)
-                upload_max_displacement = gr.Number(
-                    label="Maximum vertex displacement (mm)", value=0.001, minimum=0
-                )
-                upload_orientation = gr.Checkbox(label="Synchronize face orientation", value=True)
-            upload_run = gr.Button("Analyze and attempt configured stitching", variant="primary")
-            upload_brief = gr.Markdown(label="Upload decision brief")
-            with gr.Tabs():
-                with gr.Tab("Original upload"):
-                    upload_original_plot = gr.Plot(label="Original uploaded mesh", min_width=320)
-                with gr.Tab("Candidate upload"):
-                    upload_candidate_notice = gr.Markdown(_NO_CANDIDATE_NOTICE)
-                    upload_candidate_plot = gr.Plot(
-                        label="Candidate uploaded mesh", min_width=320, visible=False
-                    )
-            with gr.Row():
-                upload_source = gr.File(label="Uploaded source NPZ")
-                upload_candidate = gr.File(label="Candidate upload NPZ")
-                upload_markdown = gr.File(label="Upload decision brief download")
-                upload_json = gr.File(label="Upload raw JSON evidence")
-            upload_run.click(
-                lambda *inputs: _polygonal_upload_ui_action(*inputs, artifact_store=artifact_store),
-                inputs=[polygonal_upload, upload_welding, upload_weld_tolerance,
-                        upload_max_displacement, upload_orientation],
-                outputs=[upload_brief, upload_original_plot, upload_candidate_plot,
-                         upload_candidate_notice, upload_source, upload_candidate,
-                         upload_markdown, upload_json],
             )
     return app
 

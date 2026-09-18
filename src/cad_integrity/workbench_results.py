@@ -30,6 +30,24 @@ class CheckState(StrEnum):
     NOT_APPLICABLE = "NOT APPLICABLE"
 
 
+def verification_summary(checks: tuple[CheckResult, ...]) -> str:
+    """Summarize the check ledger consistently across retained and live projections."""
+    if any(check.status is CheckState.FAILED for check in checks):
+        return "Needs review"
+    if any(check.status is CheckState.UNAVAILABLE for check in checks):
+        return "Unavailable"
+    return "Passed"
+
+
+def verification_markdown(checks: tuple[CheckResult, ...]) -> str:
+    """Render the shared verification heading, summary, and check ledger."""
+    lines = ["## Verification", f"Verification: {verification_summary(checks)}"]
+    for check in checks:
+        suffix = f" — {check.detail}" if check.detail else ""
+        lines.append(f"- {check.name} [{check.status.value}]{suffix}")
+    return "\n".join(lines)
+
+
 @dataclass(frozen=True, slots=True)
 class CheckResult:
     name: str
@@ -51,6 +69,7 @@ class DecisionBrief:
     outcome: str
     candidate_available: bool
     markdown: str
+    dashboard_markdown: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,23 +193,14 @@ def with_outcome_details(
     release: ArtifactRelease | None = None,
 ) -> DecisionBrief:
     """Render the common completion/check ledger without a second source of truth."""
-    verification = (
-        "Needs review" if any(check.status is CheckState.FAILED for check in checks)
-        else "Unavailable" if any(check.status is CheckState.UNAVAILABLE for check in checks)
-        else "Passed"
-    )
     lines = [
         brief.markdown,
         "",
         "## Completion",
         f"Completion: {completion.value.title()}",
         "",
-        "## Verification",
-        f"Verification: {verification}",
+        verification_markdown(checks),
     ]
-    for check in checks:
-        suffix = f" — {check.detail}" if check.detail else ""
-        lines.append(f"- {check.name} [{check.status.value}]{suffix}")
     if diagnostics:
         lines.extend(("", "## Diagnostics"))
         for diagnostic in diagnostics:
@@ -198,7 +208,12 @@ def with_outcome_details(
             lines.append(f"- {diagnostic.stage}{location}: {diagnostic.message}")
     if release is not None:
         lines.extend(("", "## Availability", f"- {release.until_label()}"))
-    return DecisionBrief(brief.outcome, brief.candidate_available, "\n".join(lines))
+    return DecisionBrief(
+        brief.outcome,
+        brief.candidate_available,
+        "\n".join(lines),
+        brief.dashboard_markdown,
+    )
 
 
 def failed_outcome(stage: str, message: str) -> WorkbenchOutcome:
