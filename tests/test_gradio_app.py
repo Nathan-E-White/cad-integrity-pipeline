@@ -78,7 +78,7 @@ def test_build_app_exposes_mesh_lab_before_the_step_workbench() -> None:
 
     assert tab_labels[0] == "Mesh Lab"
     assert tab_labels.index("Mesh Lab") < tab_labels.index("Local STEP workbench")
-    assert tab_labels.index("Upload your NPZ") < tab_labels.index("Examples")
+    assert tab_labels.index("Examples") < tab_labels.index("Upload your NPZ")
     assert "Local STEP workbench" in labels
     assert "Mesh Lab" in labels
     assert "Upload your NPZ" in labels
@@ -101,6 +101,26 @@ def test_build_app_exposes_mesh_lab_before_the_step_workbench() -> None:
     ]
     tab_groups = [component for component in components if component["type"] == "tabs"]
     assert tab_groups[0]["props"]["selected"] == 0
+
+
+def test_main_launches_the_xkcd_theme(monkeypatch: pytest.MonkeyPatch) -> None:
+    from cad_integrity import gradio_app
+
+    launch_arguments: dict[str, object] = {}
+
+    class FakeApp:
+        def launch(self, **kwargs: object) -> None:
+            launch_arguments.update(kwargs)
+
+    monkeypatch.setattr(gradio_app, "build_app", lambda: FakeApp())
+
+    gradio_app.main()
+
+    assert launch_arguments == {
+        "server_name": "127.0.0.1",
+        "share": False,
+        "theme": "gstaff/xkcd",
+    }
 
 
 def test_build_app_uses_full_width_focused_diagnostic_tabs() -> None:

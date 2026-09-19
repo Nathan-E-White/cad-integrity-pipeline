@@ -829,6 +829,15 @@ def build_app() -> Any:
         )
         with gr.Tab("Mesh Lab"):
             with gr.Tabs(selected=0):
+                with gr.Tab("Examples"):
+                    gr.Markdown("Explore saved meshes that demonstrate common topology cases.")
+                    fixture_name = gr.Dropdown(
+                        label="Choose an example",
+                        choices=[(label, name) for name, label, _ in _FIXTURE_EXAMPLES],
+                        value="01_detached_reversed_cap",
+                    )
+                    fixture_description = gr.Markdown(_example_description("01_detached_reversed_cap"))
+                    fixture_run = gr.Button("Run this example", variant="primary")
                 with gr.Tab("Upload your NPZ"):
                     gr.Markdown(
                         "Upload a triangle mesh with `vertices`, `triangles`, and `length_unit`; "
@@ -847,15 +856,6 @@ def build_app() -> Any:
                         )
                         upload_orientation = gr.Checkbox(label="Synchronize face orientation", value=True)
                     upload_run = gr.Button("Analyze mesh", variant="primary")
-                with gr.Tab("Examples"):
-                    gr.Markdown("Explore saved meshes that demonstrate common topology cases.")
-                    fixture_name = gr.Dropdown(
-                        label="Choose an example",
-                        choices=[(label, name) for name, label, _ in _FIXTURE_EXAMPLES],
-                        value="01_detached_reversed_cap",
-                    )
-                    fixture_description = gr.Markdown(_example_description("01_detached_reversed_cap"))
-                    fixture_run = gr.Button("Run this example", variant="primary")
             mesh_source_context = gr.Markdown()
             mesh_brief = gr.Markdown(label="Mesh decision brief")
             with gr.Tabs():
@@ -919,7 +919,7 @@ def build_app() -> Any:
 def main() -> None:
     """Run a loopback-only local lab; public deployment needs worker isolation."""
     print("CAD Integrity Lab is serving at http://127.0.0.1:7860 — press Ctrl-C to stop.")
-    build_app().launch(server_name="127.0.0.1", share=False)
+    build_app().launch(server_name="127.0.0.1", share=False, theme="gstaff/xkcd")
 
 
 if __name__ == "__main__":
