@@ -1,0 +1,27 @@
+{
+  "name": "@cad-pipe/mesh-inspector",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "tsc -p tsconfig.core.json && node --test tests/*.test.mjs",
+    "dev": "vite --host 127.0.0.1",
+    "build": "vite build",
+    "test:svelte": "node tests/compile-svelte.mjs"
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  },
+  "peerDependencies": {
+    "svelte": "^4.2.20 || ^5.0.0"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "5.1.1",
+    "@types/three": "0.180.0",
+    "svelte": "5.48.0",
+    "svelte-check": "4.3.1",
+    "typescript": "5.9.2",
+    "vite": "6.3.5"
+  }
+}
