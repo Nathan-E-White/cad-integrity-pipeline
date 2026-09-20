@@ -1,1 +1,1 @@
-gradio_verificationgrid
+gradio_verificationgrid==0.0.1
