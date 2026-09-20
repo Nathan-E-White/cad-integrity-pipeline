@@ -17,3 +17,9 @@ outputs/
 
 # MacOS finder breadcrumbs
 .DS_Store
+
+# JavaScript workspace dependencies and build caches
+node_modules/
+.core-build/
+.nitro/
+.output/

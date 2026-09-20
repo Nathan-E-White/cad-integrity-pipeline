@@ -176,3 +176,5 @@ Native parsing and meshing are C++ operations and are **not sandboxed** by these
 The test suite includes deliberate counterexamples and real native-kernel fixtures. It has not been evaluated on an SGS output corpus, production assemblies, arbitrary malformed STEP files, or a production workload. Dependency ranges are compatibility declarations, not a complete transitive lockfile. The recorded environment is an execution manifest, not a cross-platform guarantee.
 
 No distribution license has been selected. The original source and this refactor are provided for the user's project; choose the intended terms before publishing a public repository.
+
+Dependency ownership, workspace installation, CadQuery checks, and manifest refresh: [Dependency guide](docs/DEPENDENCIES.md).
