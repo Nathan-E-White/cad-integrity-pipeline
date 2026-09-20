@@ -48,3 +48,16 @@ and must be requested separately. Host adapter tests require the host package or
 its `cad_mesh_inspector.npz_io.load_numeric_npz` implementation was never supplied.
 The package no longer advertises that missing function. Archive NPZ behavior is
 not substituted for it. LE-4 through LE-6 are still separate behavioral repairs.
+
+## Source-face ID validation
+
+`triangle_source_faces` contains source polygon row IDs, not native CAD face IDs.
+Python and TypeScript require nonnegative safe integers, at most `2**53 - 1`,
+and one mapping entry per display triangle. Both validators consume the shared
+boundary cases in `tests_loose/source-face-id-cases.json`.
+Run `bun run test:loose` here (after installing root workspace dependencies) for
+the strict TypeScript compile and Node contract tests. This targets the loose
+`contracts.ts`, independently of the archive frontend.
+
+Planned standalone diagnostic cases are enumerated in
+[LE5_LE6_CASES.md](tests_loose/LE5_LE6_CASES.md); they are not implemented repairs.

@@ -8,7 +8,8 @@
     "test": "tsc -p tsconfig.core.json && node --test tests/*.test.mjs",
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "test:svelte": "node tests/compile-svelte.mjs"
+    "test:svelte": "node tests/compile-svelte.mjs",
+    "test:loose": "tsc -p tsconfig.loose.json && node --test tests_loose/*.test.mjs"
   },
   "dependencies": {
     "three": "catalog:"

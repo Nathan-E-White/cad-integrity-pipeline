@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 import numpy as np
 import pytest
 from pydantic import ValidationError
@@ -64,3 +65,17 @@ def test_legacy_crashed_path_not_cycle_or_collision_proof():
 def test_no_synthetic_paths_on_missing_input():
     p=upgrade_legacy_payload({"vertices":[],"faces":[]},mesh_id="m",revision="1",frame_id="world")
     assert p.paths==[] and p.metrics==[]
+
+
+@pytest.mark.parametrize("case", json.loads(
+    (Path(__file__).parent / "source-face-id-cases.json").read_text()
+)["cases"], ids=lambda case: case["name"])
+def test_source_face_id_wire_limits(case):
+    raw = json.loads((Path(__file__).parent / "source-face-id-cases.json").read_text())["document"]
+    raw["meshes"][0]["triangle_source_faces"] = case["mapping"]
+    if case["valid"]:
+        parsed = InspectorDocument.model_validate(raw)
+        assert parsed.meshes[0].triangle_source_faces == case["mapping"]
+    else:
+        with pytest.raises(ValidationError):
+            InspectorDocument.model_validate(raw)

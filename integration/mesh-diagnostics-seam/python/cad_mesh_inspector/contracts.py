@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 MAX_VERTICES = 500_000
 MAX_TRIANGLES = 250_000
 MAX_PATH_POINTS = 500_000
+MAX_SOURCE_FACE_ID = 2**53 - 1
 Status = Literal["info", "pass", "warn", "fail", "unknown"]
 
 
@@ -95,8 +96,10 @@ class MeshPayload(Contract):
         if any(len(f.values) != nf for f in self.fields):
             raise ValueError("Each face scalar must have exactly one value per triangle")
         if self.triangle_source_faces is not None:
-            if len(self.triangle_source_faces) != nf or any(i < 0 for i in self.triangle_source_faces):
-                raise ValueError("Source face mapping must be nonnegative and triangle-sized")
+            if len(self.triangle_source_faces) != nf or any(
+                i < 0 or i > MAX_SOURCE_FACE_ID for i in self.triangle_source_faces
+            ):
+                raise ValueError("Source face mapping must be triangle-sized with IDs in [0, 2**53 - 1]")
         if sum(len(s.face_ids) + len(s.edge_pairs) + len(s.segments) for s in self.selections) > 8_000_000:
             raise ValueError("Selection data budget exceeded")
         selections = {s.id for s in self.selections}

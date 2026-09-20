@@ -1,0 +1,74 @@
+{
+  "document": {
+    "schema_version": 1,
+    "linked_views": true,
+    "meshes": [
+      {
+        "id": "m",
+        "revision": "r",
+        "label": "Triangle",
+        "frame_id": "world",
+        "positions": [
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        "triangles": [
+          0,
+          1,
+          2
+        ],
+        "fields": [],
+        "selections": [],
+        "metrics": [],
+        "paths": []
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "maximum safe source row",
+      "mapping": [
+        9007199254740991
+      ],
+      "valid": true
+    },
+    {
+      "name": "first unsafe source row",
+      "mapping": [
+        9007199254740992
+      ],
+      "valid": false
+    },
+    {
+      "name": "zero source row",
+      "mapping": [
+        0
+      ],
+      "valid": true
+    },
+    {
+      "name": "negative source row",
+      "mapping": [
+        -1
+      ],
+      "valid": false
+    },
+    {
+      "name": "missing mapping",
+      "mapping": null,
+      "valid": true
+    },
+    {
+      "name": "wrong mapping length",
+      "mapping": [],
+      "valid": false
+    }
+  ]
+}
