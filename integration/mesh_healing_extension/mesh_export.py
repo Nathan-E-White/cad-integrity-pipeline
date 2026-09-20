@@ -63,7 +63,7 @@ def export_frontend_json(engine: MeshHealingEngine, filename: str | Path,
     quality = engine.validate_uv(coords_2d, face_ids=face_ids)
     if not quality.locally_valid:
         raise ParameterizationError("Refusing to export a flipped/collapsed UV chart")
-    polygon_ids = list(range(len(engine.faces))) if face_ids is None else list(face_ids)
+    polygon_ids = list(range(len(engine.faces))) if face_ids is None else [int(fid) for fid in face_ids]
     value = {
         "schema": "mesh-healing-uv/1.0",
         "geometry_kind": "piecewise_linear_surface",

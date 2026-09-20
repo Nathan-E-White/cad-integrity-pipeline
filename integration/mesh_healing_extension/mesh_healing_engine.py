@@ -35,6 +35,10 @@ class MeshError(ValueError):
     """An input mesh or requested operation violates its declared contract."""
 
 
+class NumericalRangeError(MeshError):
+    """Arithmetic cannot represent the geometry; this is not removable degeneracy."""
+
+
 class TopologyError(MeshError):
     pass
 
@@ -196,11 +200,20 @@ def _triangulate_face(vertices: np.ndarray, face: Sequence[int],
     f = list(face)
     if len(f) < 3 or len(set(f)) != len(f):
         raise MeshError("A face needs at least three distinct, nonrepeated vertices")
-    p = vertices[f] - vertices[f[0]]
-    scale = np.max(np.linalg.norm(p, axis=1))
-    if not np.isfinite(scale) or scale <= 0:
+    try:
+        with np.errstate(over='raise', invalid='raise'):
+            p = vertices[f] - vertices[f[0]]
+    except FloatingPointError as exc:
+        raise NumericalRangeError("Face coordinate differences exceed numerical range") from exc
+    # Scale before squaring: a finite edge need not have a representable squared norm.
+    scale = np.max(np.abs(p))
+    if not np.isfinite(scale):
+        raise NumericalRangeError("Face coordinates exceed numerical range")
+    if scale <= 0:
         raise MeshError("Collapsed face")
     p = p / scale
+    # Retain the original longest-radius normalization and relative tolerance.
+    p /= np.max(np.linalg.norm(p, axis=1))
     normal = sum((np.cross(p[i], p[(i + 1) % len(f)])
                   for i in range(len(f))), start=np.zeros(3))
     if np.linalg.norm(normal) <= relative_tol:
@@ -241,7 +254,9 @@ def _triangulate_face(vertices: np.ndarray, face: Sequence[int],
         raise MeshError("No valid nondegenerate diagonal for quad")
     remaining, triangles = list(range(n)), []
     while len(remaining) > 3:
-        for k, b in enumerate(remaining):
+        # Coordinates survive fan splitting and compaction; numeric IDs do not.
+        # Geometric ear ordering preserves facets under reversal and relabelling.
+        for k, b in sorted(enumerate(remaining), key=lambda item: tuple(vertices[f[item[1]]])):
             a, c = remaining[k - 1], remaining[(k + 1) % len(remaining)]
             if sign * _cross2(q[b] - q[a], q[c] - q[a]) <= relative_tol:
                 continue
@@ -392,7 +407,9 @@ class MeshHealingEngine:
                     if b not in flips:
                         flips[b] = wanted
                         queue.append(b)
-        self.faces = [f[::-1] if flips[i] else f[:] for i, f in enumerate(self.faces)]
+        # Keep the first vertex fixed so reversing a quad preserves its 0--2 diagonal.
+        self.faces = [[f[0], *f[:0:-1]] if flips[i] else f[:]
+                      for i, f in enumerate(self.faces)]
         self._build_topology()
 
     def non_manifold_stitching(self, tolerance: float = 1e-5, *,
@@ -547,6 +564,8 @@ class MeshHealingEngine:
                 key = _canonical_face(f)
                 if key in seen:
                     raise MeshError("Duplicate face")
+            except NumericalRangeError:
+                raise
             except MeshError:
                 removed.append(fid)
                 continue
@@ -634,10 +653,18 @@ class MeshHealingEngine:
             if c == 0:
                 continue
             p = self.v3d[tri]
-            scale = max(np.linalg.norm(p[1] - p[0]), np.linalg.norm(p[2] - p[0]),
-                        np.linalg.norm(p[2] - p[1]))
-            q = (p - p[0]) / scale
+            try:
+                with np.errstate(over='raise', invalid='raise', divide='raise'):
+                    q = p - p[0]
+                    q /= np.max(np.abs(q))
+                    # Compute the longest-edge scale only after coordinates are bounded.
+                    q /= max(np.linalg.norm(q[1]), np.linalg.norm(q[2]),
+                             np.linalg.norm(q[2] - q[1]))
+            except FloatingPointError as exc:
+                raise NumericalRangeError(f"Cotangent normalization exceeds numerical range in face {fid}") from exc
             double_area = np.linalg.norm(np.cross(q[1], q[2]))
+            if not np.isfinite(double_area):
+                raise NumericalRangeError(f"Cotangent area exceeds numerical range in face {fid}")
             if double_area <= 1e-12:
                 raise MeshError(f"Near-degenerate triangle in face {fid}")
             for k in range(3):
@@ -650,6 +677,8 @@ class MeshHealingEngine:
         W = sp.coo_matrix((values, (rows, cols)), shape=(self.num_vertices, self.num_vertices)).tocsr()
         W.sum_duplicates()
         W.eliminate_zeros()
+        if not np.all(np.isfinite(W.data)):
+            raise NumericalRangeError("Cotangent assembly exceeds numerical range")
         return W
 
     def compute_cotangent_laplacian(self, **kwargs) -> sp.csr_matrix:
@@ -688,6 +717,15 @@ class MeshHealingEngine:
 
     def validate_uv(self, coords_2d: Mapping[int, Sequence[float]], *,
                     face_ids=None, orientation: int = 1) -> UVQuality:
+        """Validate local UV geometry, rejecting unrepresentable arithmetic."""
+        try:
+            with np.errstate(over='raise', invalid='raise', divide='raise'):
+                return self._validate_uv(coords_2d, face_ids=face_ids, orientation=orientation)
+        except (FloatingPointError, np.linalg.LinAlgError) as exc:
+            raise NumericalRangeError("UV validation exceeds numerical range; rescale the chart/geometry") from exc
+
+    def _validate_uv(self, coords_2d: Mapping[int, Sequence[float]], *,
+                     face_ids: Optional[Sequence[int]] = None, orientation: int = 1) -> UVQuality:
         if orientation not in (-1, 1):
             raise MeshError("orientation must be +1 or -1")
         triangles, _ = self.triangulated_faces(face_ids)
@@ -701,6 +739,8 @@ class MeshHealingEngine:
             a = orientation * _cross2(dq[0], dq[1])
             areas.append(a)
             scale2 = max(float(np.dot(x, x)) for x in (dq[0], dq[1], q[2] - q[1]))
+            if not np.isfinite(a) or not np.isfinite(scale2):
+                raise NumericalRangeError("UV area calculation exceeds numerical range")
             if abs(a) <= 1e-12 * scale2 or scale2 == 0:
                 degenerate.append(tid)
                 distortion.append(float('inf'))
@@ -715,6 +755,8 @@ class MeshHealingEngine:
             z = np.linalg.norm(e2 - y * tangent)
             intrinsic = np.array([[x, y], [0.0, z]])
             J = np.linalg.solve(intrinsic.T, dq).T
+            if not np.all(np.isfinite(J)):
+                raise NumericalRangeError("UV Jacobian exceeds numerical range")
             singular = np.linalg.svd(J, compute_uv=False)
             distortion.append(float(singular[0] / singular[-1]))
         return UVQuality(len(triangles), flipped, degenerate,
@@ -1318,10 +1360,13 @@ class CrossFieldOptimizer:
         self.centroids = centroids.copy()
         self.num_faces = len(centroids)
         normals = _finite_array(face_normals, centroids.shape, "face_normals").copy()
-        norm = np.linalg.norm(normals, axis=1)
-        if np.any(norm <= np.finfo(float).tiny):
+        scale = np.max(np.abs(normals), axis=1)
+        if np.any(scale == 0):
             raise MeshError("Face normals must be nonzero")
-        self.normals = normals / norm[:, None]
+        scaled = normals / scale[:, None]
+        self.normals = scaled / np.linalg.norm(scaled, axis=1)[:, None]
+        if not np.all(np.isfinite(self.normals)) or np.any(np.linalg.norm(self.normals, axis=1) == 0):
+            raise NumericalRangeError("Face normal normalization exceeds numerical range")
         self.adjacency = {i: set() for i in range(self.num_faces)}
         for i, ns in adjacency.items():
             i = _index(i, self.num_faces, "face")

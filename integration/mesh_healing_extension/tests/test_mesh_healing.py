@@ -338,6 +338,112 @@ def test_inconsistent_winding_repaired():
     assert e.topology_report().is_oriented_manifold
 
 
+def test_winding_repair_preserves_warped_quad_surface():
+    vertices = np.array([[0., 0, 0], [1, 0, 0], [1, 1, 0], [0, 1, 0],
+                         [2, 0, 0], [2, 1, .1]])
+    engine = MeshHealingEngine(vertices, [[0, 1, 2, 3], [1, 2, 5, 4]])
+    triangles, _ = engine.triangulated_faces()
+    surface = {frozenset(t) for t in triangles}
+    weights = engine.compute_cotangent_weights().toarray()
+    engine.preprocess(stitch=False)
+    repaired, _ = engine.triangulated_faces()
+    assert {frozenset(t) for t in repaired} == surface
+    np.testing.assert_allclose(engine.compute_cotangent_weights().toarray(), weights)
+    assert engine.topology_report().is_oriented_manifold
+
+
+def test_winding_repair_preserves_warped_polygon_surface():
+    vertices = np.array([[0., 0, 0], [1, 0, 0], [1.5, 1, .1],
+                         [.5, 1.5, 0], [-.5, 1, 0], [.5, -1, 0]])
+    engine = MeshHealingEngine(vertices, [[0, 1, 5], [0, 1, 2, 3, 4]])
+    triangles, _ = engine.triangulated_faces()
+    surface = {frozenset(t) for t in triangles}
+    weights = engine.compute_cotangent_weights().toarray()
+    engine.preprocess(stitch=False)
+    repaired, _ = engine.triangulated_faces()
+    assert {frozenset(t) for t in repaired} == surface
+    np.testing.assert_allclose(engine.compute_cotangent_weights().toarray(), weights)
+    assert engine.topology_report().is_oriented_manifold
+
+
+def test_fan_split_preserves_warped_polygon_surface():
+    vertices = np.array([[0., 0, 0], [1, 0, 0], [1.5, 1, .1],
+                         [.5, 1.5, 0], [-.5, 1, 0], [-1, -1, 0], [0, -1, 0]])
+    engine = MeshHealingEngine(vertices, [[0, 5, 6], [0, 1, 2, 3, 4]])
+    before, _ = engine.triangulated_faces()
+    surface = {frozenset(tuple(engine.v3d[v]) for v in tri) for tri in before}
+    report = engine.preprocess(stitch=False)
+    after, _ = engine.triangulated_faces()
+    assert report.split_vertices == 1
+    assert {frozenset(tuple(engine.v3d[v]) for v in tri) for tri in after} == surface
+
+
+def test_preprocess_retains_finite_large_nondegenerate_face():
+    small = np.array([[0., 0, 0], [1, 0, 0], [0, 1, 0]])
+    large = small * 1e155
+    large[:, 2] = 1e155
+    engine = MeshHealingEngine(np.vstack((small, large)), [[0, 1, 2], [3, 4, 5]])
+    report = engine.preprocess(stitch=False)
+    assert report.removed_faces == []
+    assert len(engine.faces) == 2
+
+
+@pytest.mark.parametrize('scale', [1e-200, 1e155])
+def test_cotangent_weights_are_finite_at_extreme_uniform_scales(scale):
+    vertices = np.array([[0., 0, 0], [scale, 0, 0], [0, scale, 0]])
+    engine = MeshHealingEngine(vertices, [[0, 1, 2]])
+    with np.errstate(all='raise'):
+        weights = engine.compute_cotangent_weights().toarray()
+    # Right isosceles triangle: cot(45 degrees)/2 on the two legs,
+    # cot(90 degrees)/2 on the hypotenuse, independent of physical scale.
+    np.testing.assert_allclose(weights, [[0., .5, .5], [.5, 0., 0.], [.5, 0., 0.]])
+
+
+def test_preprocess_numeric_range_failure_rolls_back():
+    vertices = np.array([[0., 0, 0], [1, 0, 0], [0, 1, 0],
+                         [-1e308, 0, 0], [1e308, 0, 0], [0, 1e308, 0]])
+    engine = MeshHealingEngine(vertices, [[0, 1, 2], [3, 4, 5]])
+    before = engine._fingerprint()
+    with pytest.raises(MeshError, match='range'):
+        engine.preprocess(stitch=False)
+    assert engine._fingerprint() == before
+
+
+@pytest.mark.parametrize('uv', [
+    {0: (0., 0.), 1: (1e200, 1e200), 2: (2e200, 2e200)},
+    {0: (0., 0.), 1: (1e200, 0.), 2: (0., 1e200)},
+])
+def test_uv_overflow_cannot_validate_or_publish(tmp_path, uv):
+    engine = MeshHealingEngine(np.array([[0., 0, 0], [1, 0, 0], [0, 1, 0]]), [[0, 1, 2]])
+    destination = tmp_path / 'chart.json'
+    destination.write_text('existing artifact')
+    with pytest.raises(MeshError, match='range'):
+        engine.validate_uv(uv)
+    with pytest.raises(MeshError, match='range'):
+        export_frontend_json(engine, destination, uv)
+    assert destination.read_text() == 'existing artifact'
+
+
+def test_json_export_accepts_numpy_face_selection(tmp_path, grid):
+    engine, boundary = grid
+    uv = engine.compute_harmonic_map([4], boundary)
+    path = export_frontend_json(engine, tmp_path / 'subset.json', uv,
+                                face_ids=np.array([2, 0], dtype=np.int64))
+    value = json.loads(path.read_text())
+    assert value['polygon_ids'] == [2, 0]
+    assert value['triangle_parent_faces'] == [2, 2, 0, 0]
+
+
+@pytest.mark.parametrize('scale', [1e200, 1e-200])
+def test_cross_field_normal_scale_does_not_change_transport(scale):
+    centroids = np.array([[0., 0, 0], [1., 0, 0]])
+    normals = np.array([[0., 0, 1], [0., 1, 1]])
+    reference = CrossFieldOptimizer(centroids, normals, {0: [1]})
+    scaled = CrossFieldOptimizer(centroids, normals * scale, {0: [1]})
+    np.testing.assert_allclose(scaled.normals, reference.normals)
+    np.testing.assert_allclose(scaled.optimize_field(), reference.optimize_field())
+
+
 def test_constraints_conflicting_at_weld_fail():
     e=seam_example()
     p=e.preprocess()
