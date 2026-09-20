@@ -36,6 +36,10 @@ def verification_summary(checks: tuple[CheckResult, ...]) -> str:
         return "Needs review"
     if any(check.status is CheckState.UNAVAILABLE for check in checks):
         return "Unavailable"
+    if any(check.status is CheckState.NOT_RUN for check in checks) or not any(
+        check.status is CheckState.PASSED for check in checks
+    ):
+        return "Not verified"
     return "Passed"
 
 
