@@ -293,16 +293,25 @@ codes remain unchanged: 2 for input/I/O errors and 3 for STEP/backend errors.
 ## Tests and project layout
 
 ```bash
+python -m mypy
 python -m pytest -q
 python -m pytest --cov=NURBSCoreEngine --cov=STLReader --cov=main --cov-report=term-missing
 python -m compileall -q NURBSCoreEngine.py STLReader.py main.py
 ```
 
 STEP tests skip when OCP is absent. The delivered validation run included it.
-Ruff and mypy configurations are provided for continued development, but those
-tools were unavailable in the execution environment and were not run. The CI
-workflow runs compilation and pytest on declared Python versions, plus a
-separate optional-STEP job; that hosted matrix has not been executed here.
+Install the `dev` extra and run `python -m mypy` from this package directory using
+the same interpreter that resolved NumPy/SciPy. Mypy follows that interpreter's
+Python version; forcing a lower target against newer installed dependency stubs
+can fail before checking package source. To check Python 3.11 compatibility, use
+a Python 3.11 environment with its own resolved dependencies. The package retains
+`requires-python >=3.11` and Ruff's `py311` source target.
+
+The bundled standalone CI workflow runs mypy, compilation, and pytest on Python
+3.11, 3.12, and 3.13, plus a separate optional-STEP job. Its nested `.github`
+directory does not activate that workflow in the host repository. That hosted
+matrix has not been executed here; `VALIDATION.md` records the original delivery's
+historical checks.
 
 - `NURBSCoreEngine.py`: NURBS geometry, RANSAC, cards, optional STEP adapter.
 - `STLReader.py`: STL ingestion, mesh reports, and local feature estimation.
