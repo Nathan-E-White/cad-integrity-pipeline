@@ -134,6 +134,9 @@ result = run_pipeline(PipelineConfig(
     seed=42,
 ))
 print(result.primitive_count, result.unassigned_count)
+print("Published:", result.published_paths)
+if not result.complete:
+    print("Publication failed:", result.publication_error)
 ```
 
 ## Numerical and data contracts
@@ -266,7 +269,26 @@ No-clobber mode uses a hard link, and therefore requires filesystem support for
 hard links; an unsupported filesystem reports an I/O failure instead of falling
 back to an unsafe write. Explicit overwrite uses `os.replace`. These are
 per-file guarantees, not a two-file transaction or power-loss guarantee. A later
-publication failure can leave one complete output. The CLI propagates the error.
+publication failure can leave one complete output. `run_pipeline` catches
+`OSError` only during publication and returns a `PipelineResult` with the computed
+cards, counts, elapsed time, and publication evidence:
+
+- `complete`: all requested writes returned successfully.
+- `published_paths`: ordered tuple of destinations whose writes returned
+  successfully during this invocation; pre-existing files are not counted.
+- `publication_error`: `None` on success, otherwise a `PublicationError` containing
+  the failed destination `path`, exception `error_type`, `message`, and `errno`.
+
+`cards_path` and `step_path` remain the requested destinations, not proof of
+publication. Writes stop at the first failure; successful outputs are retained
+without rollback. A failing destination may still exist (for example, an old file
+or a published file whose temporary-file cleanup failed). The result does not
+infer its state from existence. Validation, computation, serialization, and STEP
+generation errors still raise before publication begins.
+
+The CLI logs confirmed outputs and publication errors, returning exit code 2 on
+publication failure, including partial success. Existing pre-publication exit
+codes remain unchanged: 2 for input/I/O errors and 3 for STEP/backend errors.
 
 ## Tests and project layout
 

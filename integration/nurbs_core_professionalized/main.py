@@ -54,7 +54,21 @@ class PipelineConfig:
 
 
 @dataclass(frozen=True, slots=True)
+class PublicationError:
+    path: Path
+    error_type: str
+    message: str
+    errno: int | None
+
+
+@dataclass(frozen=True, slots=True)
 class PipelineResult:
+    """Computed geometry and publication evidence for this invocation.
+
+    Output paths are requested destinations. Only ``published_paths`` records
+    writes that returned successfully; a failing destination may still exist.
+    """
+
     cards: dict[str, Any]
     input_vertices: int
     valid_feature_count: int
@@ -63,14 +77,21 @@ class PipelineResult:
     elapsed_seconds: float
     cards_path: Path
     step_path: Path | None
+    published_paths: tuple[Path, ...]
+    publication_error: PublicationError | None
+
+    @property
+    def complete(self) -> bool:
+        return self.publication_error is None
 
 
 def run_pipeline(config: PipelineConfig) -> PipelineResult:
-    """Execute the reference pipeline; no logging configuration or swallowed errors.
+    """Execute the reference pipeline without configuring application logging.
 
     Export contents are generated before publishing either output. Each file is
     published atomically, but JSON and STEP are NOT a two-file transaction. A
-    publication failure can leave one complete output; the error propagates.
+    publication OSError stops further writes and is reported in PipelineResult,
+    along with confirmed outputs. Validation and export-generation errors raise.
     """
     started = time.perf_counter()
     source = Path(config.input_path)
@@ -129,17 +150,29 @@ def run_pipeline(config: PipelineConfig) -> PipelineResult:
     # transactionality across these two separately published files.
     step_text = STEPGeometryExportEngine().export(cards) if step_path is not None else None
     json_text = card_engine.to_json(cards)
-    write_text_atomic(cards_path, json_text, overwrite=config.overwrite)
+    outputs = [(cards_path, json_text)]
     if step_path is not None and step_text is not None:
-        write_text_atomic(step_path, step_text, overwrite=config.overwrite)
+        outputs.append((step_path, step_text))
+    published_paths: list[Path] = []
+    publication_error = None
+    for output_path, text in outputs:
+        try:
+            write_text_atomic(output_path, text, overwrite=config.overwrite)
+        except OSError as exc:
+            publication_error = PublicationError(
+                output_path, type(exc).__name__, str(exc), exc.errno,
+            )
+            break
+        published_paths.append(output_path)
     elapsed = time.perf_counter() - started
     LOGGER.info(
-        "Finished in %.3fs: %d valid features, %d primitives, %d/%d unassigned vertices",
+        "Processed in %.3fs: %d valid features, %d primitives, %d/%d unassigned vertices",
         elapsed, valid_count, len(segmentation.primitives), unassigned_count, len(mesh.points),
     )
     return PipelineResult(
         cards, len(mesh.points), valid_count, len(segmentation.primitives),
         unassigned_count, elapsed, cards_path, step_path,
+        tuple(published_paths), publication_error,
     )
 
 
@@ -217,9 +250,14 @@ def main(argv: list[str] | None = None) -> int:
     except (OptionalDependencyError, STEPExportError) as exc:
         LOGGER.error("%s", exc, exc_info=args.verbose)
         return 3
-    LOGGER.info("JSON: %s", result.cards_path)
-    if result.step_path is not None:
+    if result.cards_path in result.published_paths:
+        LOGGER.info("JSON: %s", result.cards_path)
+    if result.step_path is not None and result.step_path in result.published_paths:
         LOGGER.info("STEP: %s", result.step_path)
+    if result.publication_error is not None:
+        error = result.publication_error
+        LOGGER.error("Publication failed: %s (%s): %s", error.path, error.error_type, error.message)
+        return 2
     return 0
 
 
