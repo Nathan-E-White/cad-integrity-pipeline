@@ -1,0 +1,235 @@
+{
+  "baseline": "7ea74c9",
+  "archive_sha256": "807c46906790dd2bad568f56cb48607c86bc31a4e789a0a90a176d3fc0f94b1f",
+  "relocations": [
+    {
+      "source": "test_host_adapters.py",
+      "destination": "tests/test_host_adapters.py",
+      "sha256": "4a37f36136a401bb1dcc9f218f12aa32a470c531bbd85f68aa8a14972443bc14",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "test_contracts.py",
+      "destination": "tests/test_contracts.py",
+      "sha256": "ecf84c48c44fd5b41032c7feb918f0776e8046a632efbb0e5f9a96b9c6b7787b",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "test_diagnostics.py",
+      "destination": "tests/test_diagnostics.py",
+      "sha256": "96bf57659f5dd8a0df1d421a246c50a17adf693dd518c5fff1a1f9e3c18579ed",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "arrays.py",
+      "destination": "python/cad_mesh_inspector/arrays.py",
+      "sha256": "734364dceaf5bbc77e44764122746ac52a00a5c925e450f87b8c1af93b6cc308",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "legacy.py",
+      "destination": "python/cad_mesh_inspector/legacy.py",
+      "sha256": "ace25a02a60f25c0f565f0da5e44f8394f07819a7712e4d69559630258fc12db",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "diagnostics.py",
+      "destination": "python/cad_mesh_inspector/diagnostics.py",
+      "sha256": "f7791048626bbd591b0b7ba1f064db90d7e40369402ce9fba8dc0704e2a123bf",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "__init__.py",
+      "destination": "python/cad_mesh_inspector/__init__.py",
+      "sha256": "fb24d05a12bb7e61f5df2b2bca0bf246100e90937ddab03804e6dcd66dcb6f7b",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "test_gradio.py",
+      "destination": "tests/test_gradio.py",
+      "sha256": "3a8aa1c4f9f2b72e98c1d865516ab35453a72163999803b780d068de454531e3",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "test_io.py",
+      "destination": "tests/test_io.py",
+      "sha256": "c6f8e2ae97833dccfcd39589565df9c692f9667533163caf061af52db207595f",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "payload.py",
+      "destination": "python/cad_mesh_inspector/payload.py",
+      "sha256": "3af686ba86d5c4f7072b932e23f6a8e7256bb73a2c47eab4800ab733e601f226",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "contracts.py",
+      "destination": "python/cad_mesh_inspector/contracts.py",
+      "sha256": "eccce5af992334338cece4aae22b23fc856f1f0352857936cd6878489618549a",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "gradio_demo.py",
+      "destination": "examples/gradio_demo.py",
+      "sha256": "31334418a3a9f6f1ccede2e3caf136575e7882d4e19afa1340e4b96b16c29c10",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "gradio_component.py",
+      "destination": "python/cad_mesh_inspector/gradio_component.py",
+      "sha256": "fe2332a6e78c238d4ffa1e11e1d531ec90b294e19d8832a043dd2ba3526125d2",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "traces.py",
+      "destination": "python/cad_mesh_inspector/traces.py",
+      "sha256": "de6fc665ac7290f1b308f392ed34ee5da9173e5c3a92187456cf4b48cbf25612",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "make_fixture.py",
+      "destination": "examples/make_fixture.py",
+      "sha256": "80a974e6668b4680d088c03f3322d693d351e631d64d601f269b997e2068b49d",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "adapters.py",
+      "destination": "python/cad_mesh_inspector/adapters.py",
+      "sha256": "3b80a545c6fd3e5cb709b6c56eed62ecd3096597f89a901d7d29343d7172a761",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "shaders.ts",
+      "destination": "src/render/shaders.ts",
+      "sha256": "f20f2baefb0acde863f245df1efa845f6b0967ff6853ff68d0f4d3719e124eeb",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "colors.ts",
+      "destination": "src/core/colors.ts",
+      "sha256": "283a8387f97782dbd698faf97eb53f81689ed82a8f1fe500f563cd0bc4f40a34",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "state.ts",
+      "destination": "src/core/state.ts",
+      "sha256": "cb25ba5f50a3d4ecb963659cad51572d0d150cb983934b73bd55f45aa7edd006",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "ResourceScope.ts",
+      "destination": "src/render/ResourceScope.ts",
+      "sha256": "513a979078d94c71858482a62f54d9346573977c432f1d21303ba8566c792def",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "SurfaceLayer.ts",
+      "destination": "src/render/SurfaceLayer.ts",
+      "sha256": "8b34ee3ce0c5f648fce1da7a80ffee3c38399aa16e394d56da7492e1929558f3",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "DiagnosticLayer.ts",
+      "destination": "src/render/DiagnosticLayer.ts",
+      "sha256": "284b5f202ee2c811f1cd1348de8883dd85f743da17d102244a466ea34cae22fd",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "main.ts",
+      "destination": "src/main.ts",
+      "sha256": "c4aeafac2cab7694e6378c93bb664f32d9669eb62295f440227139608c584f77",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "math.ts",
+      "destination": "src/core/math.ts",
+      "sha256": "0546d8efb755c6c945d73f6b74e6bebd0fa7674f76231dec8c49403420aa5685",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "selection.ts",
+      "destination": "src/core/selection.ts",
+      "sha256": "284709c8fabd58271ea7d272739e09f43629cd1d1c35c72374768fb0da1035fe",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "scheduler.ts",
+      "destination": "src/core/scheduler.ts",
+      "sha256": "c49cf51a6e6d72e3d8f27286374ba20af088b0e85585de108b63b6d6c903ae0b",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "picking.ts",
+      "destination": "src/render/picking.ts",
+      "sha256": "35502d44b987ab7ce23c5dc5d60a22f8b8e104c563040f0056d0ec0bc8be2f73",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "contracts.ts",
+      "destination": "src/core/contracts.ts",
+      "sha256": "5f8aca0a16582cadef7b5e412b9b4868ea895e6bf12e2d81661a43e80bd64eb8",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "geometry.ts",
+      "destination": "src/core/geometry.ts",
+      "sha256": "4bb32dcf5d3d20e87adc9a2a67817edeb6ef3c03c5c67b272e55d62945e8f4fb",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "CameraLink.ts",
+      "destination": "src/render/CameraLink.ts",
+      "sha256": "3e815ed274a7ed35c7c738f4279532645b3a819925cf1d2711291e0dddd20d28",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "Viewport.ts",
+      "destination": "src/render/Viewport.ts",
+      "sha256": "e63ec26be096768a58eace1245621611aab85a00b82c9935337672a1a46d41ef",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "Demo.svelte",
+      "destination": "src/Demo.svelte",
+      "sha256": "9888d3bc3804914b5bfefc3cb9d977d74bbe21689777bf4577e3306a14642296",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "InspectorToolbar.svelte",
+      "destination": "src/components/InspectorToolbar.svelte",
+      "sha256": "720be1280318a98a09011c0bfc8aabead6b61bf5ffc685369f0535f2b7b1c5a6",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "MetricPanel.svelte",
+      "destination": "src/components/MetricPanel.svelte",
+      "sha256": "95f59c5e1498b4aa779de6441e135e93e4696e1cef6f2a2df41c56eae9fedf8c",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "ScalarLegend.svelte",
+      "destination": "src/components/ScalarLegend.svelte",
+      "sha256": "aeae0cff55c4837312103ab283f4f1a895f778194bc0f508a0c3b4556e5a9821",
+      "archive_byte_matches": []
+    },
+    {
+      "source": "torus-comparison.json",
+      "destination": "examples/torus-comparison.json",
+      "sha256": "3760c0d514fef13722d35e1664121920a83eef30b8153d1bfc43e18da7e5bbd6",
+      "archive_byte_matches": []
+    }
+  ],
+  "adoptions": [
+    {
+      "archive_member": "mesh-diagnostics-seams/python/mesh_diagnostics/io.py",
+      "sha256": "7ed004af275489737080b794035603b28be638e79b9d85069b40f7c9108b720e",
+      "destination": "python/cad_mesh_inspector/npz_io.py",
+      "adaptation": "Header-first numeric reader; geometry-only aliases, canonical read-only arrays, loose ValueError/BadZipFile contract retained."
+    }
+  ],
+  "semantic_decisions": {
+    "canonical": "Loose cad_mesh_inspector InspectorDocument with zero to two meshes, scalar fields, selections, paths, frame_id and length_unit.",
+    "archive": "Distinct mesh_diagnostics model, package paths, target and status vocabulary. Its frontend and Python contract are not substituted for the loose contract.",
+    "rendering": "Loose Viewport/SurfaceLayer/DiagnosticLayer retained; flat-payload Index renderer replaced by reusable Svelte composition."
+  }
+}

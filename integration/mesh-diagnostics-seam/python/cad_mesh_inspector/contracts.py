@@ -2,13 +2,15 @@
 from __future__ import annotations
 
 import math
-from typing import Literal, Self
+from typing import Annotated, Any, Literal, Self
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 MAX_VERTICES = 500_000
 MAX_TRIANGLES = 250_000
 MAX_PATH_POINTS = 500_000
-MAX_SOURCE_FACE_ID = 2**53 - 1
+MAX_SAFE_INTEGER = 2**53 - 1
+WireText = Annotated[str, Field(max_length=1024)]
+SourceFaceId = Annotated[int, Field(ge=0, le=MAX_SAFE_INTEGER)]
 Status = Literal["info", "pass", "warn", "fail", "unknown"]
 
 
@@ -23,7 +25,7 @@ class ScalarField(Contract):
     values: list[float | None] = Field(max_length=MAX_TRIANGLES)
     domain: list[float] = Field(default_factory=lambda: [0.0, 1.0], min_length=2, max_length=2)
     better: Literal["higher", "lower", "neither"] = "neither"
-    unit: str | None = None
+    unit: WireText | None = None
 
     @model_validator(mode="after")
     def ordered_domain(self) -> Self:
@@ -54,15 +56,15 @@ class Selection(Contract):
     edge_pairs: list[int] = Field(default_factory=list, max_length=6 * MAX_TRIANGLES)
     # For diagnostics defined on another carrier, e.g. polygonal B-Rep edges.
     segments: list[float] = Field(default_factory=list, max_length=18 * MAX_TRIANGLES)
-    path_ids: list[str] = Field(default_factory=list, max_length=10_000)
+    path_ids: list[Annotated[str, Field(min_length=1, max_length=128)]] = Field(default_factory=list, max_length=10_000)
 
 
 class Metric(Contract):
     id: str = Field(min_length=1, max_length=128)
     label: str = Field(min_length=1, max_length=256)
-    value: float | int | str | None
+    value: float | int | WireText | None
     status: Status = "info"
-    selection_id: str | None = None
+    selection_id: Annotated[str, Field(min_length=1, max_length=128)] | None = None
     scope: str = Field(default="Display diagnostic; not solver/CAD certification", max_length=1024)
 
 
@@ -75,15 +77,47 @@ class MeshPayload(Contract):
     positions: list[float] = Field(max_length=3 * MAX_VERTICES)
     triangles: list[int] = Field(max_length=3 * MAX_TRIANGLES)
     # Optional display triangle -> source polygon row. NOT a native CAD face ID.
-    triangle_source_faces: list[int] | None = None
+    triangle_source_faces: list[SourceFaceId] | None = Field(default=None, max_length=MAX_TRIANGLES)
     fields: list[ScalarField] = Field(default_factory=list, max_length=32)
     selections: list[Selection] = Field(default_factory=list, max_length=256)
     metrics: list[Metric] = Field(default_factory=list, max_length=256)
     paths: list[Trace] = Field(default_factory=list, max_length=10_000)
     provenance: str = Field(default="Imported triangle display mesh", max_length=1024)
 
+    @model_validator(mode="before")
+    @classmethod
+    def aggregate_budgets(cls, value: Any) -> Any:
+        """Check raw collection lengths before Pydantic copies nested numeric lists."""
+        if not isinstance(value, dict):
+            return value
+        for collection, columns, item_limit, total_limit, message in (
+            ("paths", ("points",), 10_000, 3 * MAX_PATH_POINTS, "Total path point budget exceeded"),
+            ("selections", ("face_ids", "edge_pairs", "segments"), 256, 8_000_000, "Selection data budget exceeded"),
+        ):
+            items = value.get(collection, [])
+            if not isinstance(items, list):
+                continue  # Strict field validation rejects non-list values.
+            if len(items) > item_limit:
+                raise ValueError(message)
+            total = 0
+            for item in items:
+                for column in columns:
+                    if isinstance(item, dict):
+                        values = item.get(column, [])
+                    elif isinstance(item, Contract):
+                        values = getattr(item, column, [])
+                    else:
+                        continue
+                    if isinstance(values, list):
+                        total += len(values)
+                        if total > total_limit:
+                            raise ValueError(message)
+        return value
+
     @model_validator(mode="after")
     def valid_references(self) -> Self:
+        # Nested, already-created model instances may bypass before validation.
+        self.aggregate_budgets({"paths": self.paths, "selections": self.selections})
         if len(self.positions) % 3 or len(self.triangles) % 3:
             raise ValueError("positions and triangles must contain complete xyz/triangle triples")
         nv, nf = len(self.positions) // 3, len(self.triangles) // 3
@@ -96,16 +130,10 @@ class MeshPayload(Contract):
         if any(len(f.values) != nf for f in self.fields):
             raise ValueError("Each face scalar must have exactly one value per triangle")
         if self.triangle_source_faces is not None:
-            if len(self.triangle_source_faces) != nf or any(
-                i < 0 or i > MAX_SOURCE_FACE_ID for i in self.triangle_source_faces
-            ):
-                raise ValueError("Source face mapping must be triangle-sized with IDs in [0, 2**53 - 1]")
-        if sum(len(s.face_ids) + len(s.edge_pairs) + len(s.segments) for s in self.selections) > 8_000_000:
-            raise ValueError("Selection data budget exceeded")
+            if len(self.triangle_source_faces) != nf or any(i < 0 or i > MAX_SAFE_INTEGER for i in self.triangle_source_faces):
+                raise ValueError("Source face mapping must be nonnegative and triangle-sized")
         selections = {s.id for s in self.selections}
         paths = {p.id for p in self.paths}
-        if sum(len(p.points) for p in self.paths) > 3 * MAX_PATH_POINTS:
-            raise ValueError("Total path point budget exceeded")
         for selection in self.selections:
             if any(i < 0 or i >= nf for i in selection.face_ids):
                 raise ValueError(f"Selection {selection.id}: face ID out of range")

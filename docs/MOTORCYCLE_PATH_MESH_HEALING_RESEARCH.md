@@ -1,5 +1,13 @@
 # Motorcycle paths for mesh healing: feasibility and implementation boundary
 
+> Correction, September 20, 2026: the construction and traversal recommendations
+> below conflate the canonical vertex-to-vertex motorcycle algorithm with an
+> opposite-face-edge strip traversal. The canonical algorithm continues across
+> the opposite edge at an ordinary **vertex**, with its specified simultaneous
+> collision rules. See [Motorcycle kernel research](MOTORCYCLE_KERNEL_RESEARCH.md)
+> for the primary-source correction, evidence contracts, and qualification plan.
+> The preserved Python helper remains a separately named strip diagnostic.
+
 ## Decision brief
 
 A Python motorcycle-path implementation is feasible **as a deterministic,

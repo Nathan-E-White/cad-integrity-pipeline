@@ -16,3 +16,12 @@ def test_gradio_output_validation_and_no_browser_geometry_input():
 def test_gradio_rejects_error_instead_of_blank_fallback():
     component=MeshDiagnostics(render=False)
     with pytest.raises(ValueError): component.postprocess({"schema_version":1,"meshes":[{}]})
+
+
+def test_api_schema_is_usable_by_installed_gradio_client():
+    from gradio_client.utils import json_schema_to_python_type
+    component = MeshDiagnostics(render=False)
+    assert "meshes" in json_schema_to_python_type(component.api_info())
+    # API documentation compatibility must not weaken runtime admission.
+    with pytest.raises(ValueError):
+        component.postprocess({"schema_version": 1, "meshes": [], "extra": True})

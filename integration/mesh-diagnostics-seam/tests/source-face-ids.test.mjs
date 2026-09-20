@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { parseDocument, PayloadError } from "../.core-build/loose/contracts.js";
+import { parseDocument, PayloadError } from "../.core-build/core/contracts.js";
 
 const fixture = JSON.parse(readFileSync(new URL("./source-face-id-cases.json", import.meta.url), "utf8"));
 for (const item of fixture.cases) {

@@ -5,8 +5,8 @@ export class FrameScheduler {
   private disposed = false;
   private previous: number | null = null;
   constructor(private readonly tick: (seconds: number, delta: number) => boolean,
-    private readonly request: (fn: FrameRequestCallback) => number = requestAnimationFrame,
-    private readonly cancel: (id: number) => void = cancelAnimationFrame) {}
+    private readonly request: (fn: FrameRequestCallback) => number = fn => requestAnimationFrame(fn),
+    private readonly cancel: (id: number) => void = id => cancelAnimationFrame(id)) {}
   invalidate(): void {
     if (!this.disposed && this.enabled && this.frame === null) this.frame = this.request(this.step);
   }

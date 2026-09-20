@@ -1,8 +1,7 @@
 """Backend seam for a BUILT custom Gradio component, not a drop-in gr.HTML hack.
 
 The Gradio-generated package must include the compiled frontend and metadata.
-See ../../CURRENT_STATUS.md for the current integration guide and delivery boundaries.
-This class alone does not install a custom frontend.
+See README.md. This class alone does not install a custom frontend.
 """
 from __future__ import annotations
 from typing import Any
@@ -37,6 +36,22 @@ class MeshDiagnostics(Component):
         raw = value.model_dump() if isinstance(value, InspectorDocument) else value
         checked = InspectorDocument.model_validate(raw)
         return InspectorData(**checked.model_dump())
+
+    def api_info(self) -> dict[str, Any]:
+        """Project schema for clients that cannot parse boolean JSON schemas.
+
+        Omit only additionalProperties=false in documentation. Admission still
+        uses the original strict InspectorDocument model in postprocess.
+        """
+        def compatible(value: Any) -> Any:
+            if isinstance(value, dict):
+                return {key: compatible(item) for key, item in value.items()
+                        if not (key == "additionalProperties" and item is False)}
+            if isinstance(value, list):
+                return [compatible(item) for item in value]
+            return value
+
+        return compatible(InspectorDocument.model_json_schema())
 
     def example_payload(self) -> dict:
         return InspectorDocument().model_dump(mode="json")

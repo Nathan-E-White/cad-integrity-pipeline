@@ -5,3 +5,8 @@ __pycache__/
 node_modules/
 dist/
 .venv/
+.core-build/
+test-results/
+playwright-report/
+backend/gradio_meshdiagnostics/templates/
+*.pyi

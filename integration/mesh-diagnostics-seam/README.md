@@ -1,146 +1,156 @@
-# Mesh diagnostics: functional seams
+# Mesh diagnostics inspector
 
-A source integration bundle for triangle-mesh diagnostics and an interactive Svelte/Three.js view. It replaces the duplicated snippets with numerical, contract, transport, rendering, and UI boundaries. **It is not a prebuilt Gradio custom-component wheel, a replacement CAD kernel, or a full FEM validator.**
+A standalone Svelte/Three.js inspector and an output-only Gradio component, sharing
+one `InspectorDocument` v1 contract and renderer. This package displays prepared
+engineering reports. It does not repair meshes or replace the parent application's
+audit, upload policy, or result ledger.
 
-Start with `CODEX_INTEGRATION.md` before merging into the mother project. The standalone renderer is an exercise harness; reuse the mother's existing framework-independent viewer instead of introducing a competing renderer when one is already available.
+## Layout and public interfaces
 
-## What is implemented
-
-The viewport includes a ghost shell, subdued tessellation wireframe, batched diagnostic edges, compact failed-triangle overlays, vertex markers for collapsed triangles, hover/focus preview, click-to-pin selection, separate fit and clear controls, and an explicit X-ray toggle. A depth-only pass makes occlusion meaningful when the visible shell is transparent and X-ray is off. The default highlight is steady; an optional smooth 1 Hz pulse and orbit damping respect reduced-motion preferences.
-
-The viewport mounts even when the initial value is null, waits for nonzero container dimensions, fits on geometry replacement rather than metric clicks, renders on demand except during interaction/pulse, and pauses offscreen/when the document is hidden. Controls, observers, DOM listeners, materials, geometries, and the renderer have explicit ownership and cleanup. Context-loss/restoration handlers are present; real-browser behavior still needs the acceptance tests below.
-
-Python computes unsigned triangle mean-ratio quality, radius aspect ratio, degeneracy, unique edge incidence, boundary edges, >2-incidence edges, two-face winding conflicts, repeated-index triangles, and duplicate-face groups. Optional per-triangle reference normals supply an independent orientation comparison.
-
-## Layout and ownership
-
-| Location | Responsibility |
+| Path | Responsibility |
 |---|---|
-| `python/mesh_diagnostics/model.py` | Validated, owned, read-only triangle-array snapshots and geometry revisions |
-| `quality.py` | Vectorized, unit-invariant triangle quality and optional reference-normal alignment |
-| `topology.py` | A single reusable edge-incidence/CSR table and combinatorial defect sets |
-| `audit.py` | Configurable audit policy; no UI, serialization, or repair |
-| `contract.py` | Pydantic schema and cross-reference validation |
-| `payload.py` | Numerical results to metrics + revision-scoped targets |
-| `legacy.py` | One explicit compatibility adapter for old aliases and unclassified segments |
-| `io.py` | Bounded, pickle-free, header-validated NPZ loading |
-| `frontend/src/model/` | TypeScript contract, unknown-JSON validation, coordinate frame, compact buffers |
-| `frontend/src/render/DiagnosticsLayer.ts` | Framework-independent diagnostic overlays |
-| `frontend/src/render/ThreeMeshViewport.ts` | Standalone Three.js lifecycle/camera/render host |
-| `frontend/src/render/resources.ts` | Idempotent explicit resource ownership |
-| `frontend/src/components/` | Svelte view and accessible metric panel |
-| `frontend/Index.svelte` / `Example.svelte` | Thin Gradio-facing presentation and lightweight example view |
-| `gradio_adapter/meshdiagnostics.py` | Gradio data model, serialization, example values and select event |
-| `examples/` | Synthetic fixture generator and explicit pipeline integration examples |
-| `tests/`, `frontend/test/` | Numerical, safety, contract, buffer and ownership regressions |
-
-## Python usage
-
-```bash
-python -m pip install -e '.[test]'
-python -m pytest -q
-PYTHONPATH=python python examples/make_fixtures.py
-```
+| `python/cad_mesh_inspector/` | Validated documents, host-report adapters, numeric NPZ reader, standalone reference diagnostics |
+| `backend/gradio_meshdiagnostics/` | Installed `MeshDiagnostics` component and generated assets |
+| `src/core/` | Browser validation, revision-scoped targets, display coordinates and state |
+| `src/render/` | One viewport lifecycle, surface/diagnostic layers, picking, linked cameras |
+| `src/components/MeshInspector.svelte` | Reusable inspector accepting `value: unknown`; validates incoming documents |
+| `Index.svelte` | Gradio shared props, loading status and visibility; delegates to the inspector |
+| `src/main.ts`, `src/Demo.svelte` | Standalone fixture harness |
+| `examples/` | Python-generated torus fixture and installed-component demo |
 
 ```python
-from mesh_diagnostics import (
-    TriangleMesh, AuditPolicy, audit_mesh, payload_from_audit,
-)
+from cad_mesh_inspector import document, mesh_payload, load_numeric_npz
+from gradio_meshdiagnostics import MeshDiagnostics
 
-mesh = TriangleMesh(
-    vertices, faces,
-    mesh_id="bracket-17",
-    geometry_revision="authoritative-revision-42",  # omit to compute a geometry digest
-    stage="original", units="mm",
-)
-result = audit_mesh(mesh, AuditPolicy(
-    require_closed_surface=True,
-    min_mean_ratio=0.15,
-    max_radius_aspect=3.0,
-))
-viewer_value = payload_from_audit(result).model_dump()
+arrays = load_numeric_npz("authorized-local-mesh.npz")
+mesh = mesh_payload(arrays["positions"], arrays["triangles"],
+                    mesh_id="source", revision="source-hash", frame_id="world",
+                    length_unit="mm")
+value = document(mesh).model_dump(mode="json")
 ```
 
-The policy defaults are illustrative inspection thresholds, not industry acceptance standards. Results are for **linear surface triangles**, not tetrahedra, hexahedra, high-order elements, or native B-Rep validity.
+`adapters.from_triangle_reports` and `adapters.from_polygonal_report` project
+existing host reports. Use those adapters or `mesh_payload` when audit results
+already exist; `inspect_triangles` is a standalone reference path.
 
-When the existing pipeline has already computed the diagnostics, **do not rerun `audit_mesh` in the component**. Use the assembly seam:
+`None` clears the inspector. Invalid input produces a visible error and clears stale
+geometry. Metrics remain readable when WebGL is unavailable. Controls and hover do
+not rebuild base geometry. Replacing an incoming document remounts its panes and
+resets local selections/controls; camera poses and display controls are not persisted
+between documents. Within a document, hover temporarily overrides a pinned target.
+Linked cameras share a display frame only when units and frame IDs agree. Face IDs
+are never copied between source and candidate panes.
 
-```python
-from mesh_diagnostics import FaceTarget, Metric, assemble_payload
+## Standalone development
 
-bad_faces = FaceTarget(
-    id="analysis:low-shape-quality",
-    geometry_revision=mesh.geometry_revision,
-    ids=failed_triangle_ids,
-)
-metric = Metric(
-    id="analysis:low-shape-quality-count",
-    label="Low shape-quality triangles",
-    value=len(failed_triangle_ids),
-    status="fail" if failed_triangle_ids else "pass",
-    target_id=bad_faces.id,
-    description="Computed by the authoritative existing pipeline.",
-)
-viewer_value = assemble_payload(mesh, metrics=[metric], targets=[bad_faces]).model_dump()
-```
+From this directory, with Node available:
 
-`mesh_from_mapping` accepts exactly one position alias (`vertices`, `positions`) and one connectivity alias (`faces`, `indices`, `triangles`). It accepts flat triples or N×3 arrays, rejects quads/ragged arrays, and never silently casts fractional or negative indices into unsigned integers.
-
-`adapt_legacy_payload` preserves old metric values as producer-supplied assertions. It does not claim that a legacy “Jacobian” is a signed Jacobian. Old `error_edges` become unclassified world-coordinate segments; missing metric IDs get explicit, inspectable legacy rows. It never guesses semantic links from display labels.
-
-## Standalone frontend development
-
-```bash
-cd frontend
-bun install
-bun run test
+```sh
+bun install --frozen-lockfile --cwd ../..
 bun run check
+bun run test
+bun run build
 bun run dev
 ```
 
-`npm install` / `npm run ...` are also usable. The test script requires Node 22.6+ because it uses native TypeScript stripping. The demo uses Svelte 5's `mount`; the reusable component sources use legacy `export let` / reactive syntax to avoid forcing a compiler migration in the Gradio host. They were compiled here with Svelte 5.48.0. Svelte 4 host compatibility has not been exercised.
+The development server binds loopback. `bun run build` emits the standalone harness
+under `dist/`; it is not the Gradio wheel. Svelte 5 is the supported framework target.
+The repository root `bun.lock` includes the standalone Vite toolchain and Gradio preview's own toolchain.
+No sibling package dependency graph is changed.
 
-The Three.js reference dependency is explicitly `0.180.0`, not a claim about the newest release. Keep the mother project's vetted dependency versions and corresponding addons/types together. Resolve and commit a lockfile in that project. A full npm/Bun install/build could not be performed in the delivery environment; see `docs/VERIFICATION.md` for the exact checks that did run.
+## Build and install the Gradio wheel
 
-## Contract
+Use a separate Python environment with Python 3.11 or later. Install the project's
+Gradio extra, build tools, and editable source before building the frontend:
 
-The JSON schema is `docs/mesh-diagnostics.schema.json`, generated from `MeshPayload` by `examples/make_fixtures.py`.
-
-Each payload identifies `mesh_id`, `geometry_revision`, `diagnostic_revision`, `stage`, and `units`. Geometry is flat `positions` + `triangles`. Source triangle IDs refer to the triple ordering in **this payload**, not a previous mesh, a native CAD face, or a post-decimation mesh.
-
-Metrics contain an independent `target_id`. Targets are discriminated unions:
-
-```typescript
-type Target =
-  | { id: string; geometry_revision: string; kind: "faces"; ids: number[] }
-  | { id: string; geometry_revision: string; kind: "edges"; indices: number[] }
-  | { id: string; geometry_revision: string; kind: "segments"; positions: number[] };
+```sh
+python -m pip install hatchling build editables
+python -m pip install -e '.[gradio,test]'
+bun install --frozen-lockfile --cwd ../..
+python scripts/build_component.py
 ```
 
-An edge target contains vertex-index pairs, not coordinates. A segment target contains flat world-coordinate sextuples. Optional `triangle_parent_faces` is an explicit upstream identity map; it does not itself establish a relationship to a native B-Rep. All target revisions must match the payload geometry revision. Metric IDs and target IDs must be unique within their respective collections.
+The builder uses the installed Gradio preview tooling and checks that actual component
+assets were emitted before creating `dist/gradio_meshdiagnostics-0.1.0-py3-none-any.whl`.
+A standard wheel build now refuses missing/empty component or example assets with
+an actionable error. Editable wheels remain available for bootstrapping; source
+distributions retain the same build guard. The wheel contains both Python import packages. The numeric/document API can be
+imported without Gradio; importing `gradio_meshdiagnostics` requires the Gradio extra.
 
-A changed geometry/topology/order requires a changed geometry revision. Changed diagnostics/policy require a changed diagnostic revision. These identifiers are cache/provenance keys, not cryptographic authorization. Caller-provided revisions are trusted immutable identities. The orchestrator, not the viewer, must reject stale job responses; hashes are not timestamps.
+Install that wheel in a separate runtime environment and run:
 
-## Precision and scaling
+```sh
+python -m pip install 'dist/gradio_meshdiagnostics-0.1.0-py3-none-any.whl[gradio]'
+python examples/gradio_demo.py
+```
 
-Python keeps coordinates in float64. JSON carries finite numeric values. The frontend computes a local origin and uniform rendering scale **before** converting positions to Float32Array. Indexed overlays use the same local vertex table; legacy coordinate segments use the same transformation. This avoids unnecessary float32 precision loss from a large global offset. It does not make a float32 viewport exact metrology, preserve sub-float64 input detail, or solve huge local dynamic-range problems.
+The demo defaults to `127.0.0.1:7878`; set `GRADIO_SERVER_PORT` to change its port.
+It does not modify or launch the parent app. The generated component class owns its
+packaged frontend; `cad_mesh_inspector.gradio_component` provides backend behavior
+for that class and is not the component users should instantiate in an app.
 
-The inline contract has conservative resource ceilings: 250,000 vertices, 500,000 triangles, 128 targets, 512 metrics, and a combined diagnostic scalar budget. Wireframe construction is omitted above 150,000 triangles. These are guardrails, not benchmark-certified capacity guarantees. Large payloads must move to authorized binary artifacts, workers and explicit display-to-analysis mappings rather than casually raising every ceiling.
+## Numeric NPZ contract
 
-NPZ compression does not survive conversion into ordinary JSON lists. This implementation is not a compressed stream, a zero-copy GPU path, or an out-of-core mesh analyzer. NumPy's edge sort is O(F log F) with O(F) storage. No face decimation or vertex welding occurs silently.
+`load_numeric_npz(path, limits=ArchiveLimits())` accepts an authorized local file with
+exactly one `positions`/`vertices` array and one `triangles`/`faces` array. It returns
+read-only canonical arrays, preserving vertex and triangle order. Structured/object,
+boolean, complex and string arrays are rejected, as are fractional connectivity,
+nonfinite coordinates, bad indices, unexpected members and ambiguous aliases.
 
-## Gradio integration
+The reader checks ZIP and NPY headers before materializing arrays. Defaults are
+64 MiB compressed, 128 MiB expanded, at most four members and 10,000 header bytes;
+geometry additionally uses the contract's 500,000-vertex and 250,000-triangle bounds.
+Duplicate/encrypted members, inconsistent body sizes, oversized shapes and pickle
+payloads fail. Malformed ZIP containers retain `zipfile.BadZipFile`; invalid content
+raises `ValueError`. No archive member is extracted to disk.
 
-Generate/build the custom component using the mother's pinned Gradio toolchain. Copy the adapter's class into that generated backend package, and use `frontend/Index.svelte` and `Example.svelte` with the generated frontend configuration. Preserve the scaffold's `Block`, `StatusTracker`, styles, packaging/build hooks and compiler dependencies as appropriate. The minimal wrapper here forwards the select event without importing Gradio's private UI internals.
+Python and TypeScript share bounds for descriptive text and exact source-face IDs.
+Optional descriptive text may be empty; metric text and scalar units are bounded at
+1,024 Unicode code points, length units at 32, and termination reasons at 512.
+Source-face IDs must lie in `[0, 2**53 - 1]`. Aggregate path/selection lengths are
+checked before nested array conversion or copying.
 
-`postprocess` only validates and serializes prepared values. It does not open a user-supplied path or run the audit. `None` clears the view. Invalid payloads raise explicit errors. File upload stays in a standard `gr.File(type="filepath")`; application/session authorization precedes the local NPZ loader.
+View fitting and clipping bounds include explicit diagnostic segments as well as
+mesh positions and paths, including segment-only display documents.
+The standalone `triangle_quality` function raises `ValueError` if a nonzero area
+underflows to zero or overflows float64; it does not classify that representability
+failure as geometric degeneracy. Representable subnormal areas remain supported.
 
-Hover/focus is entirely local. Pin/unpin emits `select` with an integer metric index and a value carrying mesh/revision/metric/target identifiers. It does not resend the entire geometry or emit `change` on every backend update. Selection event data and client-returned metrics remain untrusted input.
+IDs, revisions, frame, units and provenance are explicit caller metadata. This
+optional helper does not replace the parent application's restricted
+`vertices/triangles/length_unit` upload format. It introduces no browser filesystem
+endpoint, browser NPZ worker, or inferred repair.
 
-See `examples/gradio_app.py` after the custom-component package is built; its `gradio_meshdiagnostics` import is intentionally a scaffold-dependent integration point.
+## Verification
 
-## Scientific scope
+```sh
+python -m pytest tests
+bun run check
+bun run test
+bun run build
+bunx playwright test
+INSPECTOR_PYTHON=/absolute/path/to/wheel-environment/bin/python \
+  bunx playwright test --config playwright.gradio.config.ts
+```
 
-See `docs/MATHEMATICS.md`. The audit deliberately does not compute vertex-link manifoldness, self-intersection, boundary loop counts, homology/Betti numbers, global outwardness, or signed FEM Jacobians. The UI marks these as not checked. “No edge-incidence defects” is not “valid solid.” An open surface can be correct under an open-surface policy.
+Browser tests use installed Google Chrome and loopback ports 5178 and 7878. The
+Gradio test must use a wheel installation, not the editable source. See
+`ACCEPTANCE.md` and `VERIFICATION.md` for current evidence and limits.
 
-The ghost shell is an inspection material, not physically accurate optical glass or order-independent transparency. X-ray mode prioritizes finding defects and explicitly sacrifices occlusion cues. Wireframe shows tessellation, not recovered CAD topology.
+## Provenance and integration boundary
+
+The loose delivery is the canonical working base. `PROVENANCE.json` records each
+original-to-current path, original SHA-256 and byte matches in the preserved archive.
+The archive is a distinct delivery with different Python names and payload contracts;
+it must not be extracted over this source. Its header-first numeric reader informed
+`npz_io.py`; its broader accepted aliases and error types were not adopted.
+
+The original delivery did not supply a standalone license grant. Preserve its source
+attribution and archive; do not infer a new redistribution license from third-party
+dependency licenses. Those dependencies retain their own package notices.
+
+`docs/MESH_DIAGNOSTICS_STABILIZATION_PLAN.md` in the parent repository defines this
+work. Parent integration still requires authoritative report projection, explicit
+stage/revision/units/source-face mapping, and preservation of candidate visibility.
+This v1 contract has one mesh revision; separate diagnostic revision is future,
+explicit schema work. Mesh healing and NURBS export remain separate qualification tasks.

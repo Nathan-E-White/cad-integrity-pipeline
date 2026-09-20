@@ -1,0 +1,144 @@
+[
+  {
+    "name": "empty metric text",
+    "path": [
+      "metrics",
+      0,
+      "value"
+    ],
+    "value": "",
+    "accepted": true
+  },
+  {
+    "name": "empty scope",
+    "path": [
+      "metrics",
+      0,
+      "scope"
+    ],
+    "value": "",
+    "accepted": true
+  },
+  {
+    "name": "empty provenance",
+    "path": [
+      "provenance"
+    ],
+    "value": "",
+    "accepted": true
+  },
+  {
+    "name": "empty length unit",
+    "path": [
+      "length_unit"
+    ],
+    "value": "",
+    "accepted": true
+  },
+  {
+    "name": "safe source ID",
+    "path": [
+      "triangle_source_faces"
+    ],
+    "value": [
+      9007199254740991
+    ],
+    "accepted": true
+  },
+  {
+    "name": "unsafe source ID",
+    "path": [
+      "triangle_source_faces"
+    ],
+    "value": [
+      9007199254740992
+    ],
+    "accepted": false
+  },
+  {
+    "name": "long metric text",
+    "path": [
+      "metrics",
+      0,
+      "value"
+    ],
+    "repeat": 1025,
+    "accepted": false
+  },
+  {
+    "name": "long length unit",
+    "path": [
+      "length_unit"
+    ],
+    "repeat": 33,
+    "accepted": false
+  },
+  {
+    "name": "long scalar unit",
+    "path": [
+      "fields",
+      0,
+      "unit"
+    ],
+    "repeat": 1025,
+    "accepted": false
+  },
+  {
+    "name": "empty field unit",
+    "path": [
+      "fields",
+      0,
+      "unit"
+    ],
+    "value": "",
+    "accepted": true
+  },
+  {
+    "name": "long termination reason",
+    "path": [
+      "paths",
+      0,
+      "termination_reason"
+    ],
+    "repeat": 513,
+    "accepted": false
+  },
+  {
+    "name": "empty termination reason",
+    "path": [
+      "paths",
+      0,
+      "termination_reason"
+    ],
+    "value": "",
+    "accepted": true
+  },
+  {
+    "name": "maximum metric text",
+    "path": [
+      "metrics",
+      0,
+      "value"
+    ],
+    "repeat": 1024,
+    "accepted": true
+  },
+  {
+    "name": "Unicode label boundary",
+    "path": [
+      "label"
+    ],
+    "repeat": 256,
+    "text": "🚀",
+    "accepted": true
+  },
+  {
+    "name": "Unicode label over limit",
+    "path": [
+      "label"
+    ],
+    "repeat": 257,
+    "text": "🚀",
+    "accepted": false
+  }
+]

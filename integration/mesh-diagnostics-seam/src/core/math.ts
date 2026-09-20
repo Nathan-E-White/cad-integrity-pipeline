@@ -12,16 +12,21 @@ export function boundsOf(positions: ArrayLike<number>): Bounds | null {
   }
   return { min, max };
 }
-export function frameFor(meshes: readonly MeshPayload[]): DisplayFrame {
+export function boundsFor(meshes: readonly MeshPayload[]): Bounds | null {
   const min: Vec3 = [Infinity, Infinity, Infinity], max: Vec3 = [-Infinity, -Infinity, -Infinity];
   let found = false;
   for (const mesh of meshes) {
-    for (const values of [mesh.positions, ...mesh.paths.map(p => p.points)]) {
+    for (const values of [mesh.positions, ...mesh.paths.map(p => p.points), ...mesh.selections.map(s => s.segments)]) {
       const b = boundsOf(values); if (!b) continue; found = true;
       for (let k = 0; k < 3; k++) { min[k] = Math.min(min[k], b.min[k]); max[k] = Math.max(max[k], b.max[k]); }
     }
   }
-  if (!found) return { origin: [0, 0, 0], scale: 1 };
+  return found ? { min, max } : null;
+}
+export function frameFor(meshes: readonly MeshPayload[]): DisplayFrame {
+  const bounds = boundsFor(meshes);
+  if (!bounds) return { origin: [0, 0, 0], scale: 1 };
+  const { min, max } = bounds;
   const origin = min.map((x, k) => x / 2 + max[k] / 2) as Vec3;
   const radius = Math.hypot(...min.map((x, k) => max[k] / 2 - x / 2));
   if (!Number.isFinite(radius)) throw new Error("Coordinate span exceeds display arithmetic range");

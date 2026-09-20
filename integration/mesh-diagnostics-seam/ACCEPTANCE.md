@@ -1,31 +1,27 @@
-# Browser and integration acceptance
+# Package acceptance
 
-These are required before treating the source bundle as deployed. They were not run in the delivery environment.
+Run in the canonical loose package layout, with the lockfile installed using
+`npm ci`. Historical delivery reports in the archive are not current evidence.
 
-| Case | Acceptance criterion |
-|---|---|
-| Initial null → populated | Load the demo without data, then the fixture; exactly one usable canvas appears without remounting the component. |
-| Invalid input | Negative/fractional/out-of-range indices produce visible errors; no silent empty-success fallback and no unsigned wrapping. |
-| Hover / keyboard | Hover and Tab-focus on a metric preview the corresponding target; Enter/Space pins it; blur/mouseleave restores the pinned selection. |
-| Shared target | Minimum mean-ratio and failed-quality count may reference one target. Pin/clear events retain correct metric and revision identity. |
-| Geometry reuse | Compare `getResourceStats().surfaceBuilds` before/after repeated selection. It must not increase on selection. |
-| Clear versus fit | Clear selection must not recenter the camera. Fit model explicitly reframes the geometry. |
-| Original versus repaired | Change geometry revision and triangle ordering; stale targets are rejected. Never display original indices against repaired geometry without a mapping. |
-| Report-only update | Same geometry revision, new diagnostic revision: overlay/metric updates without surface regeneration. |
-| Hidden tab | Hide the Gradio tab/container, update data, then reveal. No aspect division by zero; deferred fit runs when dimensions become nonzero. |
-| Responsive layout | Exercise narrow and wide containers, DPR 1 and 2, zoom and resize. Lines remain readable and the audit remains scrollable. |
-| Occlusion | With ghost shell and X-ray off, the depth prepass occludes rear annotations. X-ray on exposes them and the label explains the tradeoff. |
-| Degenerate face | Select the collapsed triangle in the fixture; point/edge markers make it discoverable even when it has no filled area. |
-| Reduced motion | With OS reduced motion on, no pulse or inertial orbit damping, even with the pulse checkbox enabled. |
-| Idle / visibility | No continuing RAF sequence when idle without pulse; pause when offscreen/document hidden and resume correctly. |
-| Lifetime | Repeatedly load/clear data, switch target types and unmount/remount. GPU geometries/material allocations must not grow without bound. Account for renderer-internal caches when measuring. |
-| Context loss | Use a browser test or WEBGL_lose_context extension to lose/restore the context. Status appears; restoration re-renders; unmount while lost remains safe. |
-| Real Gradio package | Build/install the scaffolded component, exercise upload → callback → value updates, loading state, examples and select callback. |
-| Multiple instances | Separate viewports, cameras, selection state, event handlers and cleanup. No global scene/controller state. |
-| Heavy fixture | Measure JSON size, parse/normalization time, renderer time and GPU allocations on target hardware; do not infer capacity from unit tests. |
+| Boundary | Required behavior | Check |
+|---|---|---|
+| Python import | Numeric/document API imports outside source checkout | Install wheel in separate environment, inspect module paths |
+| Numeric NPZ | Geometry aliases, no pickle, bounded headers/bytes, primitive arrays, preserved ordering, clear errors | `tests/test_io.py` |
+| Prepared payload | Strict fields/indices/targets; existing report authority retained | Python contract/adapter tests; `tests/document.test.mjs` consumes Python fixture |
+| Gradio backend | Null clears; output-only preprocessing; invalid payload fails; schema documentation is client-compatible | `tests/test_gradio.py` |
+| Frontend compilation | Every adopted TS/Svelte/render source typechecks | `npm run check` |
+| Standalone assets | Real production bundle resolves all imports | `npm run build`, browser suite also run against served production build |
+| Inspector | Zero/one/two views; scalar/clip controls; local selection; invalid document clears stale geometry | `tests/browser/inspector.spec.ts` |
+| Camera | Linked orbit changes both panes; independent orbit leaves other pane unchanged | Browser rendered-pixel comparison |
+| Lifecycle | Clear/remount, hidden resize, actual context loss/restoration, failed initialization cleanup | Browser suite, browser error collection |
+| Installed Gradio | Compiled assets serve; load/clear/reload; selection; visibility and resize | `tests/gradio-browser/component.spec.ts` using a wheel environment |
 
-## Suggested performance assertions
+The backend owns prepared document validation, not file upload authorization or
+engineering computation. Rendering normalization never changes source coordinates.
+Selections belong to a mesh ID and geometry revision. Empty and unknown diagnostics
+are not a pass. Synthetic paths and fixture geometry remain labeled.
 
-The current standalone host exposes `getResourceStats()` for integration instrumentation. Record surfaceBuilds, renderer memory, frame rate under interaction, idle RAF activity and allocation plateaus after repeated data replacement. Baseline edge draws scale with diagnostic target/category count, not edge count. Selected faces use a compact, bounded active overlay; they do not clone the full original vertex table.
-
-The wireframe threshold is a deliberate budget and must be visible to users. The package does not silently decimate geometry to make an oversized payload appear successful.
+Inspect captured standalone and Gradio screenshots for clipping, legibility and
+usable controls. Typechecking is not a GPU test; browser success is not general
+performance qualification. This acceptance suite does not qualify parent integration,
+NURBS/STEP export, surface repair, or arbitrary large-model GPU memory envelopes.

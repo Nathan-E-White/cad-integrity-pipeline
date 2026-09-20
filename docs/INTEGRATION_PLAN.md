@@ -1,5 +1,11 @@
 # Integration assessment and proposed delivery plan
 
+> Consolidation update: diagnostics packaging and the shared inspector are now
+> implemented. See [the current package status](../integration/mesh-diagnostics-seam/CURRENT_STATUS.md)
+> and [consolidation evidence](reviews/integration-consolidation.md). Earlier
+> packaging gaps below describe the pre-stabilization assessment. Parent-app
+> integration remains a subsequent task.
+
 Status: dependency and repository-hygiene foundation completed; application integration
 not started. Updated September 20, 2026.
 

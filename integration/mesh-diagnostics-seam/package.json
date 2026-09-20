@@ -8,22 +8,36 @@
     "test": "tsc -p tsconfig.core.json && node --test tests/*.test.mjs",
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "test:svelte": "node tests/compile-svelte.mjs",
-    "test:loose": "tsc -p tsconfig.loose.json && node --test tests_loose/*.test.mjs"
+    "test:svelte": "svelte-check --tsconfig ./tsconfig.json",
+    "test:browser": "playwright test",
+    "test:gradio": "playwright test --config playwright.gradio.config.ts"
   },
   "dependencies": {
+    "@gradio/atoms": "catalog:",
+    "@gradio/statustracker": "catalog:",
+    "@gradio/utils": "catalog:",
     "three": "catalog:"
   },
   "peerDependencies": {
     "svelte": "catalog:"
   },
   "devDependencies": {
+    "@gradio/preview": "catalog:",
+    "@playwright/test": "1.63.0",
     "@sveltejs/vite-plugin-svelte": "catalog:",
     "@types/three": "catalog:",
     "svelte": "catalog:",
     "svelte-check": "4.3.1",
     "typescript": "catalog:",
     "vite": "catalog:"
+  },
+  "exports": {
+    ".": {
+      "gradio": "./Index.svelte"
+    },
+    "./example": {
+      "gradio": "./Example.svelte"
+    }
   },
   "engines": {
     "node": ">=22.12.0"
