@@ -1,6 +1,6 @@
-# Planned LE-5 / LE-6 regression cases
+# LE-5 / LE-6 regression cases
 
-These are acceptance fixtures, not implemented repairs. Exercise the public
+Implemented in `test_payload_coverage.py`. These acceptance fixtures exercise the public
 `cad_mesh_inspector.inspect_triangles` entry point and inspect metric statuses,
 values, selection IDs, and labels in its validated payload. No NPZ or renderer is
 needed. Keep original triangle-row IDs in all expectations.

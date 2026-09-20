@@ -47,7 +47,7 @@ and must be requested separately. Host adapter tests require the host package or
 `test_io.py` remains an unfinished delivery specification outside that target:
 its `cad_mesh_inspector.npz_io.load_numeric_npz` implementation was never supplied.
 The package no longer advertises that missing function. Archive NPZ behavior is
-not substituted for it. LE-4 through LE-6 are still separate behavioral repairs.
+not substituted for it. LE-4 through LE-6 are covered by the loose contract and payload tests.
 
 ## Source-face ID validation
 
@@ -59,5 +59,8 @@ Run `bun run test:loose` here (after installing root workspace dependencies) for
 the strict TypeScript compile and Node contract tests. This targets the loose
 `contracts.ts`, independently of the archive frontend.
 
-Planned standalone diagnostic cases are enumerated in
-[LE5_LE6_CASES.md](tests_loose/LE5_LE6_CASES.md); they are not implemented repairs.
+Standalone diagnostic cases are enumerated in
+[LE5_LE6_CASES.md](tests_loose/LE5_LE6_CASES.md) and implemented in
+`tests_loose/test_payload_coverage.py`. Empty or partially covered edge checks
+cannot pass without complete coverage; detected failures remain failures. The
+low-quality selection includes degenerate faces even at threshold zero.

@@ -30,6 +30,7 @@ def inspect_triangles(vertices: ArrayLike, triangles: ArrayLike, *, mesh_id: str
     v, f = mesh_arrays(vertices, triangles)
     incidence = edge_incidence(v, f)
     quality = triangle_quality(v, f, area_tolerance=area_tolerance)
+    incidence_complete = len(f) > 0 and len(incidence.repeated_vertex_face_ids) == 0
     selections: list[Selection] = []
     metrics: list[Metric] = [Metric(id="vertices", label="Vertices", value=len(v)),
                              Metric(id="triangles", label="Triangle elements", value=len(f))]
@@ -40,18 +41,20 @@ def inspect_triangles(vertices: ArrayLike, triangles: ArrayLike, *, mesh_id: str
     ):
         selections.append(Selection(id=key, label=title, edge_pairs=edges.ravel().tolist()))
         metrics.append(Metric(id=key, label=title, value=len(edges), selection_id=key,
-                              status=("fail" if len(edges) else "pass") if failure else "info",
+                              status=("fail" if len(edges) else "pass" if incidence_complete else "unknown") if failure else "info",
                               scope="Edge incidence only; repeated-vertex faces excluded; not a manifold certificate"))
-    failed = np.flatnonzero(quality.mean_ratios < minimum_mean_ratio)
+    failed = np.union1d(
+        np.flatnonzero(quality.mean_ratios < minimum_mean_ratio), quality.degenerate_face_ids
+    )
     for key, title, ids in (
-        ("quality", f"Mean ratio below {minimum_mean_ratio:g}", failed),
+        ("quality", f"Mean ratio below {minimum_mean_ratio:g} or degenerate", failed),
         ("degenerate", "Degenerate / area-tolerance faces", quality.degenerate_face_ids),
         ("repeated", "Faces with repeated vertex indices", incidence.repeated_vertex_face_ids),
         ("duplicate", "All faces in duplicate groups", incidence.duplicate_face_ids),
     ):
         selections.append(Selection(id=key, label=title, face_ids=ids.tolist()))
         metrics.append(Metric(id=key, label=title, value=len(ids), selection_id=key,
-                              status="fail" if len(ids) else "pass", scope="Triangle display diagnostic"))
+                              status="fail" if len(ids) else "pass" if len(f) else "unknown", scope="Triangle display diagnostic"))
     metrics.append(Metric(id="minimum-quality", label="Minimum unsigned mean ratio",
                           value=float(quality.mean_ratios.min()) if len(f) else None,
                           status="info" if len(f) else "unknown"))
