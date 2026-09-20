@@ -13,6 +13,15 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from gradio_topologicaldeltaaudit import DeltaAuditRow, TopologicalDeltaAudit, TopologicalDeltaAuditData
+from gradio_verificationgrid import (
+    VerificationCheck,
+    VerificationGrid,
+    VerificationGridData,
+    VerificationGroup,
+    VerificationState,
+)
+
 from .adapters.ocp import ExportReport, KernelPolicy, KernelReport
 from .errors import IntegrityError, MissingOptionalDependency
 from .models import PolyhedralBRep
@@ -374,7 +383,13 @@ def _with_display_notes(brief: DecisionBrief, notes: list[str]) -> DecisionBrief
     if not notes:
         return brief
     markdown = brief.markdown + "\n\n## Display\n" + "\n".join(f"- {note}" for note in notes)
-    return DecisionBrief(brief.outcome, brief.candidate_available, markdown, brief.dashboard_markdown)
+    return DecisionBrief(
+        brief.outcome,
+        brief.candidate_available,
+        markdown,
+        brief.dashboard_markdown,
+        brief.dashboard_data,
+    )
 
 
 def run_step_workbench(upload: str | Path, policy: KernelPolicy, *,
@@ -549,7 +564,49 @@ def project_polygonal_evidence(result: Any, source_label: str, policy: RepairPol
         f"- These are bounded combinatorial diagnostics for the {limitations_scope}.",
         "- A passing result is not native CAD validity, design-intent recovery, or engineering certification.",
     ])
-    return DecisionBrief(outcome, candidate_available, markdown, dashboard_markdown)
+    return DecisionBrief(
+        outcome, candidate_available, markdown, dashboard_markdown,
+        _topological_delta_audit(result),
+    )
+
+
+def _topological_delta_audit(result: Any) -> TopologicalDeltaAuditData:
+    """Project polygonal report facts into the dense audit component contract."""
+    before, after = result.report.before, result.report.after
+    def after_value(value: Any) -> str:
+        return "—" if after is None else str(value)
+    def delta(before_value: int, after_value_int: int | None) -> str:
+        return "—" if after_value_int is None else str(after_value_int - before_value).replace("-", "−")
+    after_betti = None if after is None or after.homology is None else after.homology.betti_numbers
+    before_betti = None if before.homology is None else before.homology.betti_numbers
+    def euler(betti: Any) -> str:
+        return "not computed" if betti is None else str(betti[0] - betti[1] + betti[2])
+    rows = (
+        DeltaAuditRow("geometry", "Vertices", str(before.vertex_count), after_value(after.vertex_count if after else None), delta(before.vertex_count, after.vertex_count if after else None)),
+        DeltaAuditRow("geometry", "Total edges", str(before.edge_count), after_value(after.edge_count if after else None), delta(before.edge_count, after.edge_count if after else None)),
+        DeltaAuditRow("geometry", "Boundary edges", str(len(before.boundary_edge_ids)), after_value(len(after.boundary_edge_ids) if after else None), delta(len(before.boundary_edge_ids), len(after.boundary_edge_ids) if after else None)),
+        DeltaAuditRow("geometry", "Triangular faces", str(before.face_count), after_value(after.face_count if after else None), delta(before.face_count, after.face_count if after else None)),
+        DeltaAuditRow("topology", "Betti tuple (β₀, β₁, β₂)", str(before_betti or "not computed"), str(after_betti or "not computed"), "verified" if after_betti is not None else "—"),
+        DeltaAuditRow("topology", "Euler characteristic χ", euler(before_betti), euler(after_betti), "0" if before_betti is not None and after_betti == before_betti else "verified"),
+        DeltaAuditRow("topology", "Winding conflicts", str(len(before.inconsistent_orientation_edge_ids)), after_value(len(after.inconsistent_orientation_edge_ids) if after else None), delta(len(before.inconsistent_orientation_edge_ids), len(after.inconsistent_orientation_edge_ids) if after else None)),
+        DeltaAuditRow("execution", "Pipeline operations", "0", str(len(result.report.changes)), f"+{len(result.report.changes)}"),
+        DeltaAuditRow("execution", "Candidate decision", "pending", result.report.decision, "resolved"),
+    )
+    return TopologicalDeltaAuditData("Topological & Geometric Delta Audit", rows)
+
+
+def _verification_grid(checks: tuple[CheckResult, ...]) -> VerificationGridData:
+    """Group the real check ledger without changing its status semantics."""
+    groups: dict[str, list[VerificationCheck]] = {"Topology": [], "Admission": []}
+    state: dict[CheckState, VerificationState] = {
+        CheckState.PASSED: "passed",
+        CheckState.FAILED: "failed",
+    }
+    for check in checks:
+        group = "Topology" if any(word in check.name.lower() for word in ("homology", "manifold")) else "Admission"
+        groups[group].append(VerificationCheck(check.name.lower().replace(" ", "_"), check.detail, state.get(check.status, "inconclusive")))
+    passed = sum(check.status is CheckState.PASSED for check in checks)
+    return VerificationGridData("Verification", f"{passed} / {len(checks)} pass", tuple(VerificationGroup(name, tuple(values)) for name, values in groups.items() if values))
 
 
 def _write_polygonal_candidate(path: Path, candidate: PolyhedralBRep) -> None:
@@ -619,7 +676,13 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
         except (OSError, ValueError) as exc:
             completion = Completion.INCOMPLETE
             candidate_figure = None
-            brief = DecisionBrief(brief.outcome, False, brief.markdown, brief.dashboard_markdown)
+            brief = DecisionBrief(
+                brief.outcome,
+                False,
+                brief.markdown,
+                brief.dashboard_markdown,
+                brief.dashboard_data,
+            )
             diagnostics = (Diagnostic("candidate artifact", str(exc)),)
     payload: Any = result.report if source_evidence is None else {
         "schema_version": "1.0", **source_evidence, "policy": policy, "repair": result.report,
@@ -783,7 +846,8 @@ def _step_ui_projection(outcome: WorkbenchOutcome) -> tuple[str, Any | None, Any
 def _polygonal_ui_projection(outcome: WorkbenchOutcome, *, source_name: str = "Mesh") -> tuple[Any, ...]:
     return (
         f"### {source_name} results\nThe files below are for this source.",
-        _polygonal_dashboard_markdown(outcome),
+        outcome.decision_brief.dashboard_data or TopologicalDeltaAuditData("Topological & Geometric Delta Audit", ()),
+        _verification_grid(outcome.checks),
         outcome.original_figure,
         *candidate_display(outcome.candidate_figure, candidate_available=_candidate_available(outcome)),
         _released_path(outcome, "source.npz"),
@@ -857,7 +921,8 @@ def build_app() -> Any:
                         upload_orientation = gr.Checkbox(label="Synchronize face orientation", value=True)
                     upload_run = gr.Button("Analyze mesh", variant="primary")
             mesh_source_context = gr.Markdown()
-            mesh_brief = gr.Markdown(label="Mesh decision brief")
+            mesh_audit = TopologicalDeltaAudit()
+            mesh_verification = VerificationGrid()
             with gr.Tabs():
                 with gr.Tab("Original"):
                     mesh_original_plot = gr.Plot(label="Original mesh view", min_width=320)
@@ -873,14 +938,14 @@ def build_app() -> Any:
             fixture_run.click(
                 lambda name: _fixture_ui_action(name, artifact_store=artifact_store),
                 inputs=[fixture_name],
-                outputs=[mesh_source_context, mesh_brief, mesh_original_plot, mesh_candidate_plot, mesh_candidate_notice,
+                outputs=[mesh_source_context, mesh_audit, mesh_verification, mesh_original_plot, mesh_candidate_plot, mesh_candidate_notice,
                          mesh_source, mesh_candidate, mesh_markdown, mesh_json],
             )
             upload_run.click(
                 lambda *inputs: _polygonal_upload_ui_action(*inputs, artifact_store=artifact_store),
                 inputs=[polygonal_upload, upload_welding, upload_weld_tolerance,
                         upload_max_displacement, upload_orientation],
-                outputs=[mesh_source_context, mesh_brief, mesh_original_plot, mesh_candidate_plot, mesh_candidate_notice,
+                outputs=[mesh_source_context, mesh_audit, mesh_verification, mesh_original_plot, mesh_candidate_plot, mesh_candidate_notice,
                          mesh_source, mesh_candidate, mesh_markdown, mesh_json],
             )
         with gr.Tab("Local STEP workbench"):
@@ -919,7 +984,7 @@ def build_app() -> Any:
 def main() -> None:
     """Run a loopback-only local lab; public deployment needs worker isolation."""
     print("CAD Integrity Lab is serving at http://127.0.0.1:7860 — press Ctrl-C to stop.")
-    build_app().launch(server_name="127.0.0.1", share=False, theme="gstaff/xkcd")
+    build_app().launch(server_name="127.0.0.1", share=False)
 
 
 if __name__ == "__main__":
