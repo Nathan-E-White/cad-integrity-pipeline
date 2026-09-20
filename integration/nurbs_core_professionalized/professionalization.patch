@@ -1,0 +1,2599 @@
+--- a/NURBSCoreEngine.py
++++ b/NURBSCoreEngine.py
+@@ -1,543 +1,1123 @@
+ #!/usr/bin/env python3
+-"""
+-Automated CAD Translation, Feature Segmentation, and STEP Export Pipeline.
++"""NURBS differential geometry, primitive segmentation, and bounded STEP export.
++
+ Author: Nathan White
+ License: MIT
+ 
+-Deploys vectorized analytical differential geometry invariants, RANSAC multi-constraint
+-pruning, and structured STEP (AP203/AP214) boundary representation string generation.
++Existing class names and tuple/dictionary entry points are preserved. New result
++objects expose validity and unassigned samples. STEP export uses optional OCP;
++this module never fabricates unbounded ADVANCED_FACE records or claims to have
++reconstructed a watertight solid from surface samples.
+ """
+ 
++from __future__ import annotations
++
++import io
++import json
++import logging
+ import os
+-import sys
++import tempfile
++import threading
++import warnings
++from collections.abc import Mapping, Sequence
++from dataclasses import dataclass
++from pathlib import Path
++from typing import Any, Literal
++
+ import numpy as np
+-from typing import Dict, Any, List, Tuple, Optional
+-
+-
+-# ==============================================================================
+-# 1. VECTORIZED NURBS & DIFFERENTIAL GEOMETRY PIPELINE
+-# ==============================================================================
++from numpy.typing import ArrayLike, NDArray
++from scipy.optimize import least_squares
++from scipy.spatial import ConvexHull, QhullError
++
++__all__ = [
++    "NURBSCoreEngine", "SurfaceGeometry", "RANSACPrimitiveClassifier",
++    "SegmentationResult", "CADGeometryCardEngine", "STEPGeometryExportEngine",
++    "GeometryValidationError", "SurfaceEvaluationError", "STEPExportError",
++    "OptionalDependencyError", "write_text_atomic",
++]
++
++LOGGER = logging.getLogger(__name__)
++LOGGER.addHandler(logging.NullHandler())
++FloatArray = NDArray[np.float64]
++IntArray = NDArray[np.int64]
++BoolArray = NDArray[np.bool_]
++Primitive = dict[str, Any]
++CylinderGeometry = tuple[FloatArray, FloatArray, float]
++_UNIT_TO_MM = {"mm": 1.0, "cm": 10.0, "m": 1000.0, "in": 25.4}
++_STEP_LOCK = threading.RLock()
++
++
++class GeometryValidationError(ValueError):
++    """An input violates a geometry, shape, units, or parameter contract."""
++
++
++class SurfaceEvaluationError(ArithmeticError):
++    """A rational denominator or requested regular surface is undefined."""
++
++
++class STEPExportError(RuntimeError):
++    """A bounded face could not be constructed, validated, or exchanged."""
++
++
++class OptionalDependencyError(ImportError):
++    """An explicitly requested optional backend is not installed."""
++
++
++def _integer(value: int, name: str, minimum: int = 0) -> int:
++    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
++        raise GeometryValidationError(f"{name} must be an integer")
++    if value < minimum:
++        raise GeometryValidationError(f"{name} must be >= {minimum}")
++    return int(value)
++
++
++def _positive(value: float, name: str) -> float:
++    if not np.isfinite(value) or value <= 0:
++        raise GeometryValidationError(f"{name} must be finite and positive")
++    return float(value)
++
++
++def _array(value: ArrayLike, name: str, *, finite: bool = True) -> FloatArray:
++    if np.iscomplexobj(value):
++        raise GeometryValidationError(f"{name} must be real-valued")
++    try:
++        result = np.asarray(value, dtype=np.float64)
++    except (TypeError, ValueError) as exc:
++        raise GeometryValidationError(f"{name} must be numeric") from exc
++    if finite and not np.isfinite(result).all():
++        raise GeometryValidationError(f"{name} must contain only finite values")
++    return result
++
++
++def _vectors(value: ArrayLike, name: str) -> FloatArray:
++    result = _array(value, name)
++    if result.ndim != 2 or result.shape[1] != 3:
++        raise GeometryValidationError(f"{name} must have shape (N, 3); got {result.shape}")
++    return result
++
++
++def _vector(value: ArrayLike, name: str) -> FloatArray:
++    result = _array(value, name)
++    if result.shape != (3,):
++        raise GeometryValidationError(f"{name} must have shape (3,)")
++    return result
++
++
++def _unit(value: ArrayLike, name: str) -> FloatArray:
++    vector = _vector(value, name)
++    length = np.linalg.norm(vector)
++    if not np.isfinite(length) or length == 0:
++        raise GeometryValidationError(f"{name} must have a finite, nonzero norm")
++    return vector / length
++
++
++def _canonical(vector: FloatArray) -> FloatArray:
++    return -vector if vector[np.argmax(np.abs(vector))] < 0 else vector
++
++
++def _frame(axis: FloatArray) -> tuple[FloatArray, FloatArray]:
++    seed = np.eye(3)[np.argmin(np.abs(axis))]
++    first = seed - np.dot(seed, axis) * axis
++    first /= np.linalg.norm(first)
++    return first, np.cross(axis, first)
++
++
++def _divide(numerator: FloatArray, denominator: FloatArray) -> FloatArray:
++    """Zero-support B-spline terms at repeated knots contribute zero."""
++    return np.divide(
++        numerator, denominator, out=np.zeros_like(numerator), where=denominator != 0,
++    )
++
++
++def write_text_atomic(
++    file_path: str | os.PathLike[str], text: str, *, overwrite: bool = False,
++) -> Path:
++    """Publish UTF-8/LF text without exposing a partially written destination.
++
++    A same-directory temporary file is fsynced before publication. By default a
++    hard-link publication is atomic and refuses an existing destination (including
++    a concurrent creator). ``overwrite=True`` uses ``os.replace``. These are
++    per-file guarantees, not a multi-output transaction or power-loss guarantee.
++    """
++    path = Path(file_path)
++    fd, temporary = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
++    temporary_path = Path(temporary)
++    try:
++        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
++            stream.write(text)
++            stream.flush()
++            os.fsync(stream.fileno())
++        if overwrite:
++            os.replace(temporary_path, path)
++        else:
++            os.link(temporary_path, path)
++    finally:
++        temporary_path.unlink(missing_ok=True)
++    return path
++
++
++@dataclass(frozen=True, slots=True)
++class SurfaceGeometry:
++    """Tensor-grid result. Arrays are caller-owned and remain writable.
++
++    Normal orientation is ``S_u cross S_v``. Principal_Max/Min are algebraically
++    ordered, NOT sorted by magnitude. Invalid normals are zero and invalid
++    curvatures are NaN. ``valid_mask`` denotes a regular parameterization, not
++    smoothness across repeated knots.
++    """
++
++    points: FloatArray
++    normals: FloatArray
++    principal_max: FloatArray
++    principal_min: FloatArray
++    mean: FloatArray
++    gaussian: FloatArray
++    valid_mask: BoolArray
++
++    @property
++    def curvatures(self) -> dict[str, NDArray]:
++        return {
++            "Principal_Max": self.principal_max, "Principal_Min": self.principal_min,
++            "Mean": self.mean, "Gaussian": self.gaussian, "Valid": self.valid_mask,
++        }
++
++    def as_tuple(self) -> tuple[FloatArray, FloatArray, dict[str, NDArray]]:
++        return self.points, self.normals, self.curvatures
+ 
+ 
+ class NURBSCoreEngine:
+-    """Vectorized mathematical utilities for NURBS evaluation and derivative calculations."""
++    """Local-support vectorized B-spline derivatives and rational surface geometry.
++
++    Four-component control points use HOMOGENEOUS ``(x*w, y*w, z*w, w)`` storage,
++    matching the original evaluator. Three-component nets use unit weights.
++    Use ``to_homogeneous`` to convert Cartesian points plus positive weights.
++    Parameter arrays are independent 1-D vectors: evaluation returns their
++    Cartesian product, not pairwise samples. No extrapolation is performed.
++    """
++
++    @staticmethod
++    def _validate_knots(p: int, knot_vector: ArrayLike) -> tuple[int, FloatArray]:
++        p = _integer(p, "degree")
++        knots = _array(knot_vector, "knot_vector")
++        if knots.ndim != 1:
++            raise GeometryValidationError("knot_vector must be one-dimensional")
++        n = len(knots) - p - 2
++        if n < p or np.any(np.diff(knots) < 0):
++            raise GeometryValidationError("knot vector is too short or is not nondecreasing")
++        if knots[p] >= knots[n + 1]:
++            raise GeometryValidationError("active knot domain must have positive width")
++        _, counts = np.unique(knots, return_counts=True)
++        if np.any(counts > p + 1):
++            raise GeometryValidationError("knot multiplicity exceeds degree + 1")
++        return n, knots
+ 
+     @staticmethod
+     def find_span_vectorized(
+-        n: int, p: int, u: np.ndarray, knot_vector: np.ndarray
+-    ) -> np.ndarray:
+-        eps = 1e-15
+-        u_clipped = np.clip(u, knot_vector[p], knot_vector[n + 1] - eps)
+-        return np.searchsorted(knot_vector, u_clipped, side='right') - 1
++        n: int, p: int, u: ArrayLike, knot_vector: ArrayLike,
++    ) -> IntArray:
++        actual_n, knots = NURBSCoreEngine._validate_knots(p, knot_vector)
++        if _integer(n, "n") != actual_n:
++            raise GeometryValidationError("n must equal the final control-point index")
++        parameters = _array(u, "u")
++        if parameters.ndim != 1:
++            raise GeometryValidationError("u must be a one-dimensional parameter vector")
++        if np.any(parameters < knots[p]) or np.any(parameters > knots[n + 1]):
++            raise GeometryValidationError(f"parameters must lie in [{knots[p]}, {knots[n + 1]}]")
++        # The exact upper endpoint belongs to the last active span. No epsilon
++        # is subtracted: subtraction fails on large or tiny knot scales.
++        return np.clip(np.searchsorted(knots, parameters, side="right") - 1, p, n).astype(np.int64)
+ 
+     @staticmethod
+     def basis_derivatives_vectorized(
+-        p: int,
+-        u: np.ndarray,
+-        knot_vector: np.ndarray,
+-        max_deriv: int = 2,
+-    ) -> Tuple[np.ndarray, np.ndarray]:
+-        n = len(knot_vector) - p - 2
+-        spans = NURBSCoreEngine.find_span_vectorized(n, p, u, knot_vector)
+-        num_pts = len(u)
+-
+-        ders = np.zeros((max_deriv + 1, num_pts, p + 1))
+-        ndu = np.zeros((num_pts, p + 1, p + 1))
++        p: int, u: ArrayLike, knot_vector: ArrayLike, max_deriv: int = 2,
++    ) -> tuple[IntArray, FloatArray]:
++        """Return spans and local derivatives ``(order+1, samples, degree+1)``.
++
++        Implements the local triangular derivative recurrence. Orders above the
++        degree are exactly zero. At an interior knot, the right-hand polynomial
++        piece is selected; at the upper endpoint, the left-hand piece is used.
++        Classical two-sided derivatives need not exist at repeated knots.
++        """
++        max_deriv = _integer(max_deriv, "max_deriv")
++        n, knots = NURBSCoreEngine._validate_knots(p, knot_vector)
++        parameters = _array(u, "u")
++        spans = NURBSCoreEngine.find_span_vectorized(n, p, parameters, knots)
++        count = len(parameters)
++        order = min(max_deriv, p)
++        ders = np.zeros((max_deriv + 1, count, p + 1))
++        ndu = np.zeros((count, p + 1, p + 1))
+         ndu[:, 0, 0] = 1.0
+-        left = np.zeros((num_pts, p + 1))
+-        right = np.zeros((num_pts, p + 1))
+-
++        left = np.zeros((count, p + 1))
++        right = np.zeros_like(left)
+         for j in range(1, p + 1):
+-            left[:, j] = u - knot_vector[spans - j + 1]
+-            right[:, j] = knot_vector[spans + j] - u
+-            saved = np.zeros(num_pts)
++            left[:, j] = parameters - knots[spans - j + 1]
++            right[:, j] = knots[spans + j] - parameters
++            saved = np.zeros(count)
+             for r in range(j):
+                 ndu[:, j, r] = right[:, r + 1] + left[:, j - r]
+-                temp = ndu[:, r, j - 1] / ndu[:, j, r]
++                temp = _divide(ndu[:, r, j - 1], ndu[:, j, r])
+                 ndu[:, r, j] = saved + right[:, r + 1] * temp
+                 saved = left[:, j - r] * temp
+             ndu[:, j, j] = saved
+-
+-        ders[0, :, :] = ndu[:, :, p]
+-        a = np.zeros((num_pts, 2, p + 1))
++        ders[0] = ndu[:, :, p]
+         for r in range(p + 1):
++            a = np.zeros((count, 2, p + 1))
+             s1, s2 = 0, 1
+             a[:, 0, 0] = 1.0
+-            for k in range(1, max_deriv + 1):
+-                d = np.zeros(num_pts)
+-                rk = r - k
+-                pk = p - k
++            for k in range(1, order + 1):
++                a[:, s2, :] = 0.0
++                derivative = np.zeros(count)
++                rk, pk = r - k, p - k
+                 if r >= k:
+-                    a[:, s2, 0] = a[:, s1, 0] / ndu[:, pk + 1, rk]
+-                    d = a[:, s2, 0] * ndu[:, rk, pk]
+-
++                    a[:, s2, 0] = _divide(a[:, s1, 0], ndu[:, pk + 1, rk])
++                    derivative = a[:, s2, 0] * ndu[:, rk, pk]
+                 j1 = 1 if rk >= -1 else -rk
+                 j2 = k - 1 if r - 1 <= pk else p - r
+-
+                 for j in range(j1, j2 + 1):
+-                    a[:, s2, j] = (a[:, s1, j] - a[:, s1, j - 1]) / ndu[:, pk + 1, rk + j]
+-                    d += a[:, s2, j] * ndu[:, rk + j, pk]
+-
++                    a[:, s2, j] = _divide(
++                        a[:, s1, j] - a[:, s1, j - 1], ndu[:, pk + 1, rk + j],
++                    )
++                    derivative += a[:, s2, j] * ndu[:, rk + j, pk]
+                 if r <= pk:
+-                    a[:, s2, k] = -a[:, s1, k - 1] / ndu[:, pk + 1, r]
+-                    d += a[:, s2, k] * ndu[:, r, pk]
+-                ders[k, :, r] = d
++                    a[:, s2, k] = _divide(-a[:, s1, k - 1], ndu[:, pk + 1, r])
++                    derivative += a[:, s2, k] * ndu[:, r, pk]
++                ders[k, :, r] = derivative
+                 s1, s2 = s2, s1
+-
+-        r_factor = float(p)
+-        for k in range(1, max_deriv + 1):
+-            ders[k, :, :] *= r_factor
+-            r_factor *= (p - k)
+-
++        factor = float(p)
++        for k in range(1, order + 1):
++            ders[k] *= factor
++            factor *= p - k
+         return spans, ders
++
++    @staticmethod
++    def to_homogeneous(control_points: ArrayLike, weights: ArrayLike) -> FloatArray:
++        points = _array(control_points, "control_points")
++        weight = _array(weights, "weights")
++        if points.ndim != 3 or points.shape[-1] != 3 or weight.shape != points.shape[:2]:
++            raise GeometryValidationError("expected control_points (Nu,Nv,3) and weights (Nu,Nv)")
++        if np.any(weight <= 0):
++            raise GeometryValidationError("weights must be strictly positive")
++        return np.concatenate((points * weight[..., None], weight[..., None]), axis=-1)
+ 
+     @staticmethod
+     def evaluate_surface_geometry(
+-        degree_u: int,
+-        degree_v: int,
+-        knots_u: np.ndarray,
+-        knots_v: np.ndarray,
+-        control_points: np.ndarray,
+-        u_vec: np.ndarray,
+-        v_vec: np.ndarray,
+-    ) -> Tuple[np.ndarray, np.ndarray, Dict[str, np.ndarray]]:
+-        """Computes analytical Cartesian surface coordinates, normals, and metric curvatures."""
+-        Nu_pts, Nv_pts = len(u_vec), len(v_vec)
+-        spans_u, ders_u = NURBSCoreEngine.basis_derivatives_vectorized(
+-            degree_u, u_vec, knots_u, max_deriv=2
++        degree_u: int, degree_v: int, knots_u: ArrayLike, knots_v: ArrayLike,
++        control_points: ArrayLike, u_vec: ArrayLike, v_vec: ArrayLike,
++        *, batch_size: int = 64, singular_policy: Literal["mask", "raise"] = "mask",
++        regularity_tolerance: float = 1e-10,
++    ) -> tuple[FloatArray, FloatArray, dict[str, NDArray]]:
++        """Compatibility tuple interface; see ``evaluate_surface`` for diagnostics."""
++        return NURBSCoreEngine.evaluate_surface(
++            degree_u, degree_v, knots_u, knots_v, control_points, u_vec, v_vec,
++            batch_size=batch_size, singular_policy=singular_policy,
++            regularity_tolerance=regularity_tolerance,
++        ).as_tuple()
++
++    @staticmethod
++    def evaluate_surface(
++        degree_u: int, degree_v: int, knots_u: ArrayLike, knots_v: ArrayLike,
++        control_points: ArrayLike, u_vec: ArrayLike, v_vec: ArrayLike,
++        *, batch_size: int = 64, singular_policy: Literal["mask", "raise"] = "mask",
++        regularity_tolerance: float = 1e-10,
++    ) -> SurfaceGeometry:
++        """Evaluate in bounded tiles while retaining the full requested output.
++
++        ``batch_size`` limits each parameter tile's side, not total output
++        storage. ``regularity_tolerance`` bounds the sine of the tangent angle
++        and is dimensionless; small models are not invalidated by a fixed area
++        epsilon. Only positive rational weights are supported.
++        """
++        batch_size = _integer(batch_size, "batch_size", 1)
++        if singular_policy not in ("mask", "raise"):
++            raise GeometryValidationError("singular_policy must be 'mask' or 'raise'")
++        if not 0 < regularity_tolerance < 1:
++            raise GeometryValidationError("regularity_tolerance must lie in (0, 1)")
++        nu, ku = NURBSCoreEngine._validate_knots(degree_u, knots_u)
++        nv, kv = NURBSCoreEngine._validate_knots(degree_v, knots_v)
++        cp = _array(control_points, "control_points")
++        if cp.shape not in ((nu + 1, nv + 1, 3), (nu + 1, nv + 1, 4)):
++            raise GeometryValidationError("control net shape disagrees with knots and degrees")
++        if cp.shape[-1] == 3:
++            cp = NURBSCoreEngine.to_homogeneous(cp, np.ones(cp.shape[:2]))
++        if np.any(cp[..., 3] <= 0):
++            raise GeometryValidationError("homogeneous control weights must be strictly positive")
++        # Uniform rescaling does not change the rational surface.
++        cp = cp / np.max(cp[..., 3])
++        # Translate the weighted net before differentiation to avoid subtracting
++        # large world coordinates in the rational quotient rule.
++        world_origin = cp[0, 0, :3] / cp[0, 0, 3]
++        cp[..., :3] -= cp[..., 3, None] * world_origin
++        su, du = NURBSCoreEngine.basis_derivatives_vectorized(degree_u, u_vec, ku)
++        sv, dv = NURBSCoreEngine.basis_derivatives_vectorized(degree_v, v_vec, kv)
++        shape = (len(su), len(sv))
++        points = np.empty((*shape, 3))
++        normals = np.zeros_like(points)
++        maximum, minimum, mean, gaussian = (np.full(shape, np.nan) for _ in range(4))
++        valid = np.zeros(shape, dtype=bool)
++        iu = su[:, None] - degree_u + np.arange(degree_u + 1)
++        iv = sv[:, None] - degree_v + np.arange(degree_v + 1)
++        for first_u in range(0, len(su), batch_size):
++            us = slice(first_u, first_u + batch_size)
++            for first_v in range(0, len(sv), batch_size):
++                vs = slice(first_v, first_v + batch_size)
++                window = cp[iu[us, :, None, None], iv[None, None, vs, :]]
++                # Local-support contraction from the original evaluator, now
++                # tiled so the 5-D control-point gather is not whole-grid sized.
++                A = np.einsum("kui,lvh,uivhd->kluvd", du[:, us], dv[:, vs], window, optimize=True)
++                weight = A[0, 0, ..., 3, None]
++                if np.any(weight <= np.finfo(float).tiny) or not np.isfinite(A).all():
++                    raise SurfaceEvaluationError(
++                        "non-finite homogeneous derivatives or tiny weight"
++                    )
++                wu, wv = A[1, 0, ..., 3, None], A[0, 1, ..., 3, None]
++                pt = A[0, 0, ..., :3] / weight
++                U = (A[1, 0, ..., :3] - wu * pt) / weight
++                V = (A[0, 1, ..., :3] - wv * pt) / weight
++                UU = (A[2, 0, ..., :3] - 2 * wu * U - A[2, 0, ..., 3, None] * pt) / weight
++                VV = (A[0, 2, ..., :3] - 2 * wv * V - A[0, 2, ..., 3, None] * pt) / weight
++                UV = (A[1, 1, ..., :3] - wu * V - wv * U - A[1, 1, ..., 3, None] * pt) / weight
++                if not all(np.isfinite(a).all() for a in (pt, U, V, UU, VV, UV)):
++                    raise SurfaceEvaluationError("Cartesian derivative overflow; rescale the model")
++                lu, lv = np.linalg.norm(U, axis=-1), np.linalg.norm(V, axis=-1)
++                safe_u, safe_v = np.where(lu > 0, lu, 1), np.where(lv > 0, lv, 1)
++                tu, tv = U / safe_u[..., None], V / safe_v[..., None]
++                cross = np.cross(tu, tv)
++                sine = np.linalg.norm(cross, axis=-1)
++                good = (lu > 0) & (lv > 0) & (sine > regularity_tolerance)
++                normal = cross / np.where(good, sine, 1)[..., None]
++                normal[~good] = 0
++                cosine = np.einsum("...i,...i->...", tu, tv)
++                b11 = np.einsum("...i,...i->...", UU, normal) / safe_u / safe_u
++                b12 = np.einsum("...i,...i->...", UV, normal) / safe_u / safe_v
++                b22 = np.einsum("...i,...i->...", VV, normal) / safe_v / safe_v
++                determinant = np.where(good, sine * sine, 1)
++                K = (b11 * b22 - b12 * b12) / determinant
++                H = (b11 + b22 - 2 * cosine * b12) / (2 * determinant)
++                root = np.sqrt(np.maximum(0, H * H - K))
++                good &= np.isfinite(H) & np.isfinite(K) & np.isfinite(root)
++                normal[~good] = 0
++                points[us, vs] = pt + world_origin
++                normals[us, vs], valid[us, vs] = normal, good
++                maximum[us, vs] = np.where(good, H + root, np.nan)
++                minimum[us, vs] = np.where(good, H - root, np.nan)
++                mean[us, vs], gaussian[us, vs] = (
++                    np.where(good, H, np.nan), np.where(good, K, np.nan),
++                )
++        if singular_policy == "raise" and not valid.all():
++            raise SurfaceEvaluationError(
++                f"{np.count_nonzero(~valid)} samples are singular/ill-conditioned"
++            )
++        return SurfaceGeometry(points, normals, maximum, minimum, mean, gaussian, valid)
++
++
++@dataclass(frozen=True, slots=True)
++class SegmentationResult:
++    """Greedy analytic support sets, with original flattened sample indices.
++
++    Coplanar/disconnected supports may form one primitive. This is not a mesh
++    connectivity, trimming, or fillet-adjacency reconstruction result.
++    """
++
++    primitives: list[Primitive]
++    unassigned_indices: IntArray
++    topology_labels: IntArray
++
++
++@dataclass(slots=True)
++class _Fit:
++    model: Any
++    inliers: BoolArray
++    rmse: float = np.inf
++    iterations: int = 0
++
++
++def _score(mask: BoolArray, residual: FloatArray) -> tuple[int, float]:
++    count = int(np.count_nonzero(mask))
++    return count, -float(np.mean(residual[mask] ** 2)) if count else -np.inf
++
++
++class RANSACPrimitiveClassifier:
++    """Normal-constrained plane/cylinder RANSAC, with reproducible local RNG.
++
++    Spatial tolerance uses input length units; planar_threshold uses inverse
++    input length units. Normals are normalized internally and their signs do not
++    affect membership. A seeded instance advances its RNG across calls; create
++    separate seeded instances for repeated runs or concurrent workers.
++    """
++
++    def __init__(
++        self, spatial_tol: float = 0.005, normal_tol_deg: float = 3.0,
++        *, random_state: int | np.random.Generator | None = None,
++        planar_threshold: float = 0.05, min_plane_inliers: int = 6,
++        min_cylinder_inliers: int = 12, max_primitives: int = 100,
++        plane_iterations: int = 150, cylinder_iterations: int = 300,
++        radius_relative_tolerance: float = 0.35, refine: bool = True,
++    ) -> None:
++        self.spatial_tol = _positive(spatial_tol, "spatial_tol")
++        if not np.isfinite(normal_tol_deg) or not 0 < normal_tol_deg <= 90:
++            raise GeometryValidationError("normal_tol_deg must lie in (0, 90]")
++        self.normal_tol_rad = float(np.radians(normal_tol_deg))
++        self._cos_tol = float(np.cos(self.normal_tol_rad))
++        self.planar_threshold = _positive(planar_threshold, "planar_threshold")
++        self.min_plane_inliers = _integer(min_plane_inliers, "min_plane_inliers", 3)
++        self.min_cylinder_inliers = _integer(min_cylinder_inliers, "min_cylinder_inliers", 3)
++        self.max_primitives = _integer(max_primitives, "max_primitives", 1)
++        self.plane_iterations = _integer(plane_iterations, "plane_iterations", 1)
++        self.cylinder_iterations = _integer(cylinder_iterations, "cylinder_iterations", 1)
++        self.radius_relative_tolerance = _positive(
++            radius_relative_tolerance, "radius_relative_tolerance",
+         )
+-        spans_v, ders_v = NURBSCoreEngine.basis_derivatives_vectorized(
+-            degree_v, v_vec, knots_v, max_deriv=2
++        self.refine = bool(refine)
++        self._rng = (
++            random_state
++            if isinstance(random_state, np.random.Generator)
++            else np.random.default_rng(random_state)
+         )
+ 
+-        idx_u = (spans_u[:, None] - degree_u + np.arange(degree_u + 1)).astype(int)
+-        idx_v = (spans_v[:, None] - degree_v + np.arange(degree_v + 1)).astype(int)
+-        cp_window = control_points[idx_u[:, :, None, None], idx_v[None, None, :, :]]
+-
+-        A = np.einsum('kui,lvh,uivhd->kluvd', ders_u, ders_v, cp_window)
+-
+-        w = A[0, 0, ..., 3, None]
+-        w_u = A[1, 0, ..., 3, None]
+-        w_v = A[0, 1, ..., 3, None]
+-        w_uu = A[2, 0, ..., 3, None]
+-        w_vv = A[0, 2, ..., 3, None]
+-        w_uv = A[1, 1, ..., 3, None]
+-
+-        points = A[0, 0, ..., :3] / w
+-
+-        S_u = (A[1, 0, ..., :3] - w_u * points) / w
+-        S_v = (A[0, 1, ..., :3] - w_v * points) / w
+-        S_uu = (A[2, 0, ..., :3] - 2.0 * w_u * S_u - w_uu * points) / w
+-        S_vv = (A[0, 2, ..., :3] - 2.0 * w_v * S_v - w_vv * points) / w
+-        S_uv = (A[1, 1, ..., :3] - w_u * S_v - w_v * S_u - w_uv * points) / w
+-
+-        raw_normal = np.cross(S_u, S_v, axis=-1)
+-        norm_normal = np.linalg.norm(raw_normal, axis=-1)
+-        eps = 1e-14
+-        valid_mask = norm_normal > eps
+-        n = raw_normal / np.where(valid_mask, norm_normal, 1.0)[..., None]
+-
+-        E = np.einsum('ijk,ijk->ij', S_u, S_u)
+-        F = np.einsum('ijk,ijk->ij', S_u, S_v)
+-        G = np.einsum('ijk,ijk->ij', S_v, S_v)
+-        L = np.einsum('ijk,ijk->ij', S_uu, n)
+-        M = np.einsum('ijk,ijk->ij', S_uv, n)
+-        N = np.einsum('ijk,ijk->ij', S_vv, n)
+-
+-        eg_f2 = E * G - F ** 2
+-        safe_eg_f2 = np.where(eg_f2 > eps, eg_f2, 1.0)
+-
+-        K = (L * N - M ** 2) / safe_eg_f2
+-        H = (E * N - 2.0 * F * M + G * L) / (2.0 * safe_eg_f2)
+-
+-        disc = np.clip(H ** 2 - K, 0.0, None)
+-        sqrt_disc = np.sqrt(disc)
+-        kappa_1 = H + sqrt_disc
+-        kappa_2 = H - sqrt_disc
+-
+-        curvatures = {
+-            'Principal_Max': np.where(valid_mask, kappa_1, 0.0),
+-            'Principal_Min': np.where(valid_mask, kappa_2, 0.0)
++    def classify_local_topology(
++        self, curvatures: Mapping[str, ArrayLike], planar_threshold: float | None = None,
++    ) -> IntArray:
++        """Labels: 0 planar, 1 cylinder-like, 2 other/invalid.
++
++        The near-zero principal curvature can be either algebraic eigenvalue.
++        This is important when normals reverse the signs of both eigenvalues.
++        """
++        threshold = (
++            self.planar_threshold
++            if planar_threshold is None
++            else _positive(planar_threshold, "planar_threshold")
++        )
++        try:
++            k1 = _array(curvatures["Principal_Max"], "Principal_Max", finite=False)
++            k2 = _array(curvatures["Principal_Min"], "Principal_Min", finite=False)
++        except KeyError as exc:
++            raise GeometryValidationError(f"missing curvature field {exc.args[0]}") from exc
++        if k1.shape != k2.shape:
++            raise GeometryValidationError("principal curvature arrays must have the same shape")
++        valid = np.isfinite(k1) & np.isfinite(k2)
++        if "Valid" in curvatures:
++            supplied = np.asarray(curvatures["Valid"])
++            if supplied.shape != k1.shape or supplied.dtype.kind != "b":
++                raise GeometryValidationError(
++                    "Valid must be a boolean array with the curvature shape"
++                )
++            valid &= supplied
++        high, low = np.maximum(np.abs(k1), np.abs(k2)), np.minimum(np.abs(k1), np.abs(k2))
++        labels = np.full(k1.shape, 2, dtype=np.int64)
++        labels[valid & (high < threshold)] = 0
++        labels[valid & (high >= threshold) & (low < threshold)] = 1
++        return labels
++
++    @staticmethod
++    def _prepare(points: ArrayLike, normals: ArrayLike) -> tuple[FloatArray, FloatArray, BoolArray]:
++        pts, normal = _vectors(points, "points"), _vectors(normals, "normals")
++        if pts.shape != normal.shape:
++            raise GeometryValidationError("points and normals must have the same shape")
++        lengths = np.linalg.norm(normal, axis=1)
++        usable = (lengths > 0) & np.isfinite(lengths)
++        normal = normal / np.where(usable, lengths, 1)[:, None]
++        return pts, normal, usable
++
++    def _plane_fit(self, points: ArrayLike, normals: ArrayLike, max_iter: int) -> _Fit:
++        max_iter = _integer(max_iter, "max_iter", 1)
++        pts, normal, usable = self._prepare(points, normals)
++        candidates = np.flatnonzero(usable)
++        best = _Fit(None, np.zeros(len(pts), dtype=bool))
++        best_score = (0, -np.inf)
++        if len(candidates) < 3:
++            return best
++        for iteration in range(max_iter):
++            best.iterations = iteration + 1
++            sample = pts[self._rng.choice(candidates, 3, replace=False)]
++            e1, e2 = sample[1] - sample[0], sample[2] - sample[0]
++            raw = np.cross(e1, e2)
++            length = np.linalg.norm(raw)
++            if length <= 1e-12 * np.linalg.norm(e1) * np.linalg.norm(e2) or length == 0:
++                continue
++            axis = _canonical(raw / length)
++            residual = np.abs((pts - sample[0]) @ axis)
++            mask = (
++                usable & (residual <= self.spatial_tol)
++                & (np.abs(normal @ axis) >= self._cos_tol)
++            )
++            score = _score(mask, residual)
++            if score > best_score:
++                best_score = score
++                best.model = np.r_[axis, -np.dot(axis, sample[0])]
++                best.inliers, best.rmse = mask, float(np.sqrt(-score[1]))
++            if score[0] == len(candidates):
++                break
++        if self.refine and best.model is not None and np.count_nonzero(best.inliers) >= 3:
++            support = pts[best.inliers]
++            center = np.mean(support, axis=0)
++            try:
++                _, singular, vh = np.linalg.svd(support - center, full_matrices=False)
++                if singular[1] > 1e-12 * singular[0]:
++                    axis = _canonical(vh[-1])
++                    residual = np.abs((pts - center) @ axis)
++                    mask = (
++                        usable & (residual <= self.spatial_tol)
++                        & (np.abs(normal @ axis) >= self._cos_tol)
++                    )
++                    score = _score(mask, residual)
++                    if score >= best_score:
++                        best.model = np.r_[axis, -np.dot(axis, center)]
++                        best.inliers, best.rmse = mask, float(np.sqrt(-score[1]))
++            except np.linalg.LinAlgError:
++                LOGGER.debug("Plane refinement failed; retaining RANSAC hypothesis", exc_info=True)
++        return best
++
++    def fit_plane_ransac(
++        self, points: ArrayLike, normals: ArrayLike, max_iter: int = 150,
++    ) -> tuple[FloatArray, BoolArray]:
++        """Return plane equation and an N-element mask; zero equation means no fit."""
++        result = self._plane_fit(points, normals, max_iter)
++        return np.zeros(4) if result.model is None else result.model, result.inliers
++
++    def _cylinder_membership(
++        self, points: FloatArray, normals: FloatArray, usable: BoolArray,
++        geometry: CylinderGeometry,
++    ) -> tuple[BoolArray, FloatArray]:
++        origin, axis, radius = geometry
++        vectors = points - origin
++        # Projection requires the axial scalar AND axis direction (outer product).
++        radial = vectors - (vectors @ axis)[:, None] * axis
++        lengths = np.linalg.norm(radial, axis=1)
++        expected = radial / np.where(lengths > 0, lengths, 1)[:, None]
++        residual = np.abs(lengths - radius)
++        aligned = np.abs(np.einsum("ij,ij->i", normals, expected)) >= self._cos_tol
++        return usable & (lengths > 0) & (residual <= self.spatial_tol) & aligned, residual
++
++    def _refine_cylinder(
++        self, points: FloatArray, normals: FloatArray, geometry: CylinderGeometry,
++    ) -> CylinderGeometry:
++        origin, axis, radius = geometry
++        if len(points) > 4096:
++            selection = np.linspace(0, len(points) - 1, 4096, dtype=np.int64)
++            points, normals = points[selection], normals[selection]
++        anchor = np.mean(points, axis=0)
++        e1, e2 = _frame(axis)
++        offset = origin - anchor
++        initial = np.array([offset @ e1, offset @ e2, 0.0, 0.0, np.log(radius)])
++
++        def unpack(parameters: FloatArray) -> CylinderGeometry:
++            center = anchor + parameters[0] * e1 + parameters[1] * e2
++            direction = axis + parameters[2] * e1 + parameters[3] * e2
++            direction /= np.linalg.norm(direction)
++            return center, direction, float(np.exp(parameters[4]))
++
++        normal_scale = self.spatial_tol / max(np.sin(self.normal_tol_rad), 0.01)
++
++        def residuals(parameters: FloatArray) -> FloatArray:
++            center, direction, rad = unpack(parameters)
++            vec = points - center
++            radial = vec - (vec @ direction)[:, None] * direction
++            lengths = np.linalg.norm(radial, axis=1)
++            radial /= np.where(lengths > 0, lengths, 1)[:, None]
++            angular = np.cross(normals, radial) * normal_scale
++            return np.r_[lengths - rad, angular.ravel()]
++
++        result = least_squares(
++            residuals, initial, loss="soft_l1", f_scale=self.spatial_tol,
++            max_nfev=100, x_scale="jac",
++            bounds=(
++                [-np.inf, -np.inf, -1.0, -1.0, np.log(radius) - np.log(10.0)],
++                [np.inf, np.inf, 1.0, 1.0, np.log(radius) + np.log(10.0)],
++            ),
++        )
++        return unpack(result.x) if result.success else geometry
++
++    def _cylinder_fit(
++        self, points: ArrayLike, normals: ArrayLike,
++        target_curvature: float | None, max_iter: int,
++    ) -> _Fit:
++        max_iter = _integer(max_iter, "max_iter", 1)
++        prior_radius = None
++        if target_curvature is not None:
++            prior_radius = 1.0 / _positive(abs(target_curvature), "abs(target_curvature)")
++        pts, normal, usable = self._prepare(points, normals)
++        candidates = np.flatnonzero(usable)
++        best = _Fit(None, np.zeros(len(pts), dtype=bool))
++        best_score = (0, -np.inf)
++        if len(candidates) < 2:
++            return best
++        anchor = np.mean(pts[candidates], axis=0)
++        for iteration in range(max_iter):
++            best.iterations = iteration + 1
++            indices = self._rng.choice(candidates, 2, replace=False)
++            n1, n2 = normal[indices]
++            axis = np.cross(n1, n2)
++            length = np.linalg.norm(axis)
++            if length < 1e-6:
++                # Parallel normals do not identify a unique cylinder axis.
++                continue
++            axis = _canonical(axis / length)
++            pair = pts[indices] - anchor
++            pair -= (pair @ axis)[:, None] * axis
++            # Both relative normal signs are considered. A signed radius then
++            # handles inward and outward normals without moving to the wrong axis.
++            for sign in (1.0, -1.0):
++                delta_normal = n1 - sign * n2
++                denominator = np.dot(delta_normal, delta_normal)
++                if denominator < 1e-12:
++                    continue
++                signed_radius = float(np.dot(pair[0] - pair[1], delta_normal) / denominator)
++                radius = abs(signed_radius)
++                if not np.isfinite(radius) or radius <= np.finfo(float).tiny:
++                    continue
++                if (
++                    prior_radius is not None
++                    and abs(radius - prior_radius) > self.radius_relative_tolerance * prior_radius
++                ):
++                    continue
++                center = anchor + 0.5 * (
++                    pair[0] - signed_radius * n1 + pair[1] - signed_radius * sign * n2
++                )
++                geometry = (center, axis, radius)
++                mask, residual = self._cylinder_membership(pts, normal, usable, geometry)
++                score = _score(mask, residual)
++                if score > best_score:
++                    best_score = score
++                    best.model, best.inliers, best.rmse = geometry, mask, float(np.sqrt(-score[1]))
++            if best_score[0] == len(candidates):
++                break
++        if self.refine and best.model is not None and np.count_nonzero(best.inliers) >= 6:
++            try:
++                geometry = self._refine_cylinder(
++                    pts[best.inliers], normal[best.inliers], best.model,
++                )
++                radius_ok = (
++                    prior_radius is None
++                    or abs(geometry[2] - prior_radius)
++                    <= self.radius_relative_tolerance * prior_radius
++                )
++                mask, residual = self._cylinder_membership(pts, normal, usable, geometry)
++                score = _score(mask, residual)
++                if radius_ok and score >= best_score:
++                    best.model, best.inliers, best.rmse = geometry, mask, float(np.sqrt(-score[1]))
++            except (np.linalg.LinAlgError, ValueError, FloatingPointError):
++                LOGGER.debug(
++                    "Cylinder refinement failed; retaining RANSAC hypothesis", exc_info=True,
++                )
++        return best
++
++    def fit_cylinder_ransac(
++        self, points: ArrayLike, normals: ArrayLike,
++        target_curvature: float | None = None, max_iter: int = 300,
++    ) -> tuple[CylinderGeometry | None, BoolArray]:
++        """Estimate axis and radius; optional curvature is a radius prior, not a constant fit.
++
++        Two point/normal samples identify a hypothesis. Radius is estimated from
++        those samples and optionally refined. Mixed radii should use no global
++        prior; segmentation deliberately does not use a single median radius.
++        """
++        result = self._cylinder_fit(points, normals, target_curvature, max_iter)
++        return result.model, result.inliers
++
++    def segment_primitives(
++        self, points: ArrayLike, normals: ArrayLike, curvatures: Mapping[str, ArrayLike],
++    ) -> list[Primitive]:
++        return self.segment(points, normals, curvatures).primitives
++
++    def segment(
++        self, points: ArrayLike, normals: ArrayLike, curvatures: Mapping[str, ArrayLike],
++    ) -> SegmentationResult:
++        pts = _array(points, "points")
++        normal = _array(normals, "normals")
++        if pts.ndim < 2 or pts.shape[-1] != 3 or pts.shape != normal.shape:
++            raise GeometryValidationError("points/normals must have matching (...,3) shapes")
++        labels = self.classify_local_topology(curvatures)
++        if labels.shape != pts.shape[:-1]:
++            raise GeometryValidationError("curvature grid must match points.shape[:-1]")
++        pts, normal = pts.reshape(-1, 3), normal.reshape(-1, 3)
++        labels = labels.reshape(-1)
++        _, _, usable = self._prepare(pts, normal)
++        labels[~usable] = 2
++        remaining = np.ones(len(pts), dtype=bool)
++        primitives: list[Primitive] = []
++        for label, minimum in ((1, self.min_cylinder_inliers), (0, self.min_plane_inliers)):
++            while len(primitives) < self.max_primitives:
++                indices = np.flatnonzero(remaining & (labels == label))
++                if len(indices) < minimum:
++                    break
++                result = (
++                    self._cylinder_fit(
++                        pts[indices], normal[indices], None, self.cylinder_iterations,
++                    )
++                    if label == 1
++                    else self._plane_fit(pts[indices], normal[indices], self.plane_iterations)
++                )
++                support = indices[result.inliers]
++                if result.model is None or len(support) < minimum:
++                    break
++                primitive: Primitive
++                if label == 1:
++                    origin, axis, radius = result.model
++                    primitive = {
++                        "type": "cylinder_fillet",  # Legacy key: does NOT prove a fillet.
++                        "geometry": {"origin": origin, "axis": axis, "radius": radius},
++                    }
++                else:
++                    primitive = {"type": "plane", "geometry": {"plane_equation": result.model}}
++                primitive.update({
++                    "point_indices": support,
++                    "diagnostics": {"inlier_count": len(support), "rmse": result.rmse,
++                                    "iterations": result.iterations},
++                })
++                primitives.append(primitive)
++                remaining[support] = False
++        LOGGER.info(
++            "Extracted %d primitives; %d/%d samples unassigned",
++            len(primitives), np.count_nonzero(remaining), len(pts),
++        )
++        return SegmentationResult(primitives, np.flatnonzero(remaining), labels)
++
++
++class CADGeometryCardEngine:
++    """Versioned, JSON-safe analytic surface cards with explicit approximate bounds.
++
++    Machine parameters retain full precision. ``precision`` applies only to the
++    optional display_parameters, so rounding cannot silently destroy small parts.
++    Plane bounds are projected convex hulls: holes, concavities, and disconnected
++    support are NOT reconstructed. Cylinders use the minimum sampled angular
++    envelope and axial extent, not a manufactured full cylinder or closed solid.
++    """
++
++    def __init__(self, precision: int | None = 4, *, length_unit: str = "unspecified") -> None:
++        if precision is not None:
++            precision = _integer(precision, "precision")
++            if precision > 15:
++                raise GeometryValidationError("precision must be <= 15 or None")
++        if length_unit not in (*_UNIT_TO_MM, "unspecified"):
++            raise GeometryValidationError("length_unit must be mm, cm, m, in, or unspecified")
++        self.prec = precision
++        self.length_unit = length_unit
++
++    def compute_cards(
++        self, primitives: Sequence[Primitive], flattened_pts: ArrayLike,
++    ) -> dict[str, Any]:
++        points = _vectors(flattened_pts, "flattened_pts")
++        operations: list[dict[str, Any]] = []
++        for index, primitive in enumerate(primitives):
++            try:
++                indices = np.asarray(primitive["point_indices"])
++                kind, geometry = primitive["type"], primitive["geometry"]
++            except (KeyError, TypeError) as exc:
++                raise GeometryValidationError(
++                    f"primitive {index} is missing required fields"
++                ) from exc
++            if indices.ndim != 1 or indices.dtype.kind not in "iu" or len(indices) < 3:
++                raise GeometryValidationError(
++                    f"primitive {index}: expected at least 3 integer point_indices"
++                )
++            if (
++                np.any(indices < 0)
++                or np.any(indices >= len(points))
++                or len(np.unique(indices)) != len(indices)
++            ):
++                raise GeometryValidationError(
++                    f"primitive {index}: invalid or duplicate point_indices"
++                )
++            subset = points[indices]
++            parameters: dict[str, Any]
++            operation: dict[str, Any]
++            try:
++                if kind == "plane":
++                    equation = _array(geometry["plane_equation"], "plane_equation")
++                    if equation.shape != (4,):
++                        raise GeometryValidationError("plane_equation must have shape (4,)")
++                    normal = _unit(equation[:3], "plane normal")
++                    intercept = float(equation[3] / np.linalg.norm(equation[:3]))
++                    center = np.mean(subset, axis=0)
++                    center -= (center @ normal + intercept) * normal
++                    x_axis, y_axis = _frame(normal)
++                    uv = np.column_stack(((subset - center) @ x_axis, (subset - center) @ y_axis))
++                    try:
++                        hull = ConvexHull(uv)
++                    except QhullError as exc:
++                        raise GeometryValidationError(
++                            f"primitive {index}: planar support has no finite area"
++                        ) from exc
++                    boundary = (
++                        center + uv[hull.vertices, :1] * x_axis
++                        + uv[hull.vertices, 1:] * y_axis
++                    )
++                    parameters = {
++                        "normal": normal.tolist(),
++                        "intercept": intercept,
++                        "reference_centroid": center.tolist(),
++                        "boundary_vertices": boundary.tolist(),
++                    }
++                    operation = {
++                        "op_index": index,
++                        "primitive": "PLANE",
++                        "parameters": parameters,
++                        "bounds_method": "projected_convex_hull",
++                    }
++                elif kind in ("cylinder_fillet", "cylinder"):
++                    origin = _vector(geometry["origin"], "origin")
++                    axis = _unit(geometry["axis"], "axis")
++                    radius = _positive(geometry["radius"], "radius")
++                    vectors = subset - origin
++                    t = vectors @ axis
++                    length = _positive(float(np.ptp(t)), "cylinder axial extent")
++                    x_axis, y_axis = _frame(axis)
++                    angles = np.unique(
++                        np.mod(np.arctan2(vectors @ y_axis, vectors @ x_axis), 2 * np.pi),
++                    )
++                    if len(angles) < 2:
++                        raise GeometryValidationError("cylinder samples have no angular extent")
++                    gaps = np.diff(np.r_[angles, angles[0] + 2 * np.pi])
++                    gap_index = int(np.argmax(gaps))
++                    start = float(angles[(gap_index + 1) % len(angles)])
++                    sweep = _positive(float(2 * np.pi - gaps[gap_index]), "cylinder angular extent")
++                    parameters = {
++                        "axis_origin": (origin + np.min(t) * axis).tolist(),
++                        "axis_direction": axis.tolist(), "reference_direction": x_axis.tolist(),
++                        "radius": radius,
++                        "length": length,
++                        "angular_bounds": [start, start + sweep],
++                    }
++                    operation = {
++                        "op_index": index,
++                        "primitive": "CYLINDER",
++                        "parameters": parameters,
++                        "bounds_method": "sample_angular_envelope_and_axial_range",
++                    }
++                else:
++                    raise GeometryValidationError(f"unsupported primitive type: {kind!r}")
++            except KeyError as exc:
++                raise GeometryValidationError(
++                    f"primitive {index}: missing geometry field {exc.args[0]}"
++                ) from exc
++            operation["source_point_indices"] = indices.tolist()
++            if self.prec is not None:
++                operation["display_parameters"] = self._rounded(parameters)
++            if "diagnostics" in primitive:
++                operation["fit_diagnostics"] = dict(primitive["diagnostics"])
++            operations.append(operation)
++        card = {
++            "schema_version": "1.0", "length_unit": self.length_unit,
++            "representation": "bounded_analytic_surface_fragments",
++            "bounds_are_reconstructed_topology": False,
++            "total_primitives": len(operations), "operations": operations,
+         }
+-
+-        return points, n, curvatures
+-
+-
+-# ==============================================================================
+-# 2. RANSAC PRIMITIVE GEOMETRY SEGMENTER
+-# ==============================================================================
+-
+-
+-class RANSACPrimitiveClassifier:
+-    """Identifies and isolates planar and cylindrical structures from differential features."""
+-
+-    def __init__(self, spatial_tol: float = 0.005, normal_tol_deg: float = 3.0):
+-        self.spatial_tol = spatial_tol
+-        self.normal_tol_rad = np.radians(normal_tol_deg)
+-
+-    def classify_local_topology(
+-        self,
+-        curvatures: Dict[str, np.ndarray],
+-        planar_threshold: float = 0.05,
+-    ) -> np.ndarray:
+-        k1 = curvatures['Principal_Max']
+-        k2 = curvatures['Principal_Min']
+-        is_planar = (np.abs(k1) < planar_threshold) & (np.abs(k2) < planar_threshold)
+-        is_cylindrical = ~is_planar & (np.abs(k2) < planar_threshold)
+-
+-        labels = np.zeros_like(k1, dtype=np.int32)
+-        labels[is_cylindrical] = 1
+-        labels[~is_planar & ~is_cylindrical] = 2
+-        return labels
+-
+-    def fit_plane_ransac(
+-        self,
+-        points: np.ndarray,
+-        normals: np.ndarray,
+-        max_iter: int = 150,
+-    ) -> Tuple[np.ndarray, np.ndarray]:
+-        num_pts = points.shape[0]
+-        if num_pts < 3:
+-            return np.zeros(4), np.zeros(0, dtype=bool)
+-
+-        best_inliers = np.zeros(num_pts, dtype=bool)
+-        best_model = np.zeros(4)
+-
+-        for _ in range(max_iter):
+-            idx = np.random.choice(num_pts, 3, replace=False)
+-            p_sample = points[idx]
+-            v1 = p_sample[1] - p_sample[0]
+-            v2 = p_sample[2] - p_sample[0]
+-            n_fit = np.cross(v1, v2)
+-            norm = np.linalg.norm(n_fit)
+-            if norm < 1e-6:
+-                continue
+-            n_fit /= norm
+-            d_fit = -np.dot(n_fit, p_sample[0])
+-
+-            distances = np.abs(np.dot(points, n_fit) + d_fit)
+-            spatial_mask = distances < self.spatial_tol
+-            normal_angles = np.arccos(np.clip(np.abs(np.dot(normals, n_fit)), 0.0, 1.0))
+-            inliers = spatial_mask & (normal_angles < self.normal_tol_rad)
+-
+-            if np.sum(inliers) > np.sum(best_inliers):
+-                best_inliers = inliers
+-                best_model = np.array([n_fit[0], n_fit[1], n_fit[2], d_fit])
+-
+-        return best_model, best_inliers
+-
+-    def fit_cylinder_ransac(
+-        self,
+-        points: np.ndarray,
+-        normals: np.ndarray,
+-        target_curvature: float,
+-        max_iter: int = 300,
+-    ) -> Tuple[Optional[Tuple[np.ndarray, np.ndarray, float]], np.ndarray]:
+-        num_pts = points.shape[0]
+-        expected_radius = 1.0 / (abs(target_curvature) + 1e-12)
+-        if num_pts < 2:
+-            return None, np.zeros(0, dtype=bool)
+-
+-        best_inliers = np.zeros(num_pts, dtype=bool)
+-        best_geometry = None
+-
+-        for _ in range(max_iter):
+-            idx = np.random.choice(num_pts, 2, replace=False)
+-            p1, p2 = points[idx[0]], points[idx[1]]
+-            n1, n2 = normals[idx[0]], normals[idx[1]]
+-
+-            axis_dir = np.cross(n1, n2)
+-            norm_axis = np.linalg.norm(axis_dir)
+-            if norm_axis < 1e-4:
+-                axis_dir = np.cross(n1, p2 - p1)
+-                norm_axis = np.linalg.norm(axis_dir)
+-                if norm_axis < 1e-4:
+-                    continue
+-            axis_dir /= norm_axis
+-
+-            proj_p1 = p1 - np.dot(p1, axis_dir) * axis_dir
+-            axis_origin = proj_p1 - n1 * expected_radius
+-
+-            v_vec = points - axis_origin
+-            cross_prods = np.cross(v_vec, axis_dir)
+-            distances_to_axis = np.linalg.norm(cross_prods, axis=-1)
+-            spatial_mask = np.abs(distances_to_axis - expected_radius) < self.spatial_tol
+-
+-            proj_v = v_vec - np.dot(v_vec, axis_dir)[:, None]
+-            norm_proj = np.linalg.norm(proj_v, axis=-1, keepdims=True)
+-            expected_n = proj_v / (norm_proj + 1e-12)
+-
+-            normal_dot = np.abs(np.einsum('ij,ij->i', normals, expected_n))
+-            normal_mask = np.arccos(np.clip(normal_dot, 0.0, 1.0)) < self.normal_tol_rad
+-            inliers = spatial_mask & normal_mask
+-            if np.sum(inliers) > np.sum(best_inliers):
+-                best_inliers = inliers
+-                best_geometry = (axis_origin, axis_dir, expected_radius)
+-
+-        return best_geometry, best_inliers
+-
+-    def segment_primitives(
+-        self,
+-        points: np.ndarray,
+-        normals: np.ndarray,
+-        curvatures: Dict[str, np.ndarray]
+-    ) -> List[Dict[str, Any]]:
+-        pts_f = points.reshape(-1, 3)
+-        n_f = normals.reshape(-1, 3)
+-        labels = self.classify_local_topology(curvatures).flatten()
+-        k1_f = curvatures['Principal_Max'].flatten()
+-        unassigned = np.arange(pts_f.shape[0])
+-        primitives = []
+-
+-        # Segment Cylindrical Fillets
+-        cyl_idx = unassigned[labels[unassigned] == 1]
+-        if len(cyl_idx) > 10:
+-            median_k = np.median(k1_f[cyl_idx])
+-            geom, inliers = self.fit_cylinder_ransac(
+-                pts_f[cyl_idx], n_f[cyl_idx], median_k
++        # Check the exact interchange boundary, not only NumPy arrays upstream.
++        self.to_json(card)
++        return card
++
++    def _rounded(self, value: Any) -> Any:
++        if isinstance(value, dict):
++            return {key: self._rounded(item) for key, item in value.items()}
++        if isinstance(value, list):
++            return [self._rounded(item) for item in value]
++        if isinstance(value, float) and self.prec is not None:
++            return round(value, self.prec)
++        return value
++
++    @staticmethod
++    def to_json(card_data: Mapping[str, Any], *, indent: int = 2) -> str:
++        try:
++            return json.dumps(card_data, indent=indent, allow_nan=False, sort_keys=True) + "\n"
++        except (TypeError, ValueError) as exc:
++            raise GeometryValidationError(f"card is not finite JSON data: {exc}") from exc
++
++    def write_json(
++        self, card_data: Mapping[str, Any], file_path: str | os.PathLike[str],
++        *, overwrite: bool = False,
++    ) -> Path:
++        return write_text_atomic(file_path, self.to_json(card_data), overwrite=overwrite)
++
++
++class STEPGeometryExportEngine:
++    """Construct actual bounded faces and exchange them through Open CASCADE.
++
++    Requires optional ``cadquery-ocp`` (OCP 7.9.x tested). The file contains a
++    compound of surface fragments, NOT a sewn shell or watertight solid. Source
++    units must be explicit; geometry is converted to millimetres for exchange.
++    Entity IDs and STEP headers are kernel-managed, not hand-authored. Repeated
++    calls use fresh writers; byte-identical timestamps/headers are not promised.
++    Native OCCT transfer diagnostics may be written to the process console.
++    """
++
++    def __init__(
++        self, start_id: int = 10, *, length_unit: str | None = None,
++        schema: Literal["AP203", "AP214IS", "AP242DIS"] = "AP214IS", tolerance: float = 1e-7,
++    ) -> None:
++        _integer(start_id, "start_id", 1)
++        if start_id != 10:
++            warnings.warn(
++                "start_id is deprecated; Open CASCADE owns STEP entity numbering",
++                DeprecationWarning, stacklevel=2,
+             )
+-            if geom is not None and np.sum(inliers) > 10:
+-                global_inliers = cyl_idx[inliers]
+-                primitives.append({
+-                    'type': 'cylinder_fillet',
+-                    'geometry': {
+-                        'origin': geom[0],
+-                        'axis': geom[1],
+-                        'radius': geom[2]
+-                    },
+-                    'point_indices': global_inliers
+-                })
+-                unassigned = np.setdiff1d(unassigned, global_inliers)
+-
+-        # Segment Planes
+-        flat_idx = unassigned[labels[unassigned] == 0]
+-        if len(flat_idx) > 3:
+-            eq, inliers = self.fit_plane_ransac(pts_f[flat_idx], n_f[flat_idx])
+-            if np.sum(inliers) > 5:
+-                global_inliers = flat_idx[inliers]
+-                primitives.append({
+-                    'type': 'plane',
+-                    'geometry': {'plane_equation': eq},
+-                    'point_indices': global_inliers
+-                })
+-
+-        return primitives
+-
+-
+-# ==============================================================================
+-# 3. INTERMEDIATE SPECIFICATION CARD ENGINE
+-# ==============================================================================
+-
+-
+-class CADGeometryCardEngine:
+-    """Resolves computational boundaries and formats unified CSG operation descriptions."""
+-
+-    def __init__(self, precision: int = 4):
+-        self.prec = precision
+-
+-    def compute_cards(
+-        self,
+-        primitives: List[Dict[str, Any]],
+-        flattened_pts: np.ndarray
+-    ) -> Dict[str, Any]:
+-        operations = []
+-        for op_id, prim in enumerate(primitives):
+-            pt_idx = prim['point_indices']
+-            subset = flattened_pts[pt_idx]
+-
+-            if prim['type'] == 'plane':
+-                eq = prim['geometry']['plane_equation']
+-                operations.append({
+-                    "op_index": op_id,
+-                    "primitive": "PLANE",
+-                    "parameters": {
+-                        "normal": [float(np.round(x, self.prec)) for x in eq[:3]],
+-                        "intercept": float(np.round(eq[3], self.prec)),
+-                        "reference_centroid": [
+-                            float(np.round(x, self.prec))
+-                            for x in np.mean(subset, axis=0)
+-                        ]
+-                    }
+-                })
+-
+-            elif prim['type'] == 'cylinder_fillet':
+-                orig = prim['geometry']['origin']
+-                axis = prim['geometry']['axis']
+-                rad = prim['geometry']['radius']
+-                vecs = subset - orig
+-                t_vals = np.dot(vecs, axis)
+-                t_min, t_max = np.min(t_vals), np.max(t_vals)
+-                operations.append({
+-                    "op_index": op_id,
+-                    "primitive": "CYLINDER",
+-                    "parameters": {
+-                        "axis_origin": [
+-                            float(np.round(x, self.prec))
+-                            for x in (orig + t_min * axis)
+-                        ],
+-                        "axis_direction": [
+-                            float(np.round(x, self.prec)) for x in axis
+-                        ],
+-                        "radius": float(np.round(rad, self.prec)),
+-                        "length": float(np.round(t_max - t_min, self.prec))
+-                    }
+-                })
+-
+-        return {"total_primitives": len(operations), "operations": operations}
+-
+-
+-# ==============================================================================
+-# 4. ISO-10303-21 STEP EXCHANGE FILE EXPORTER
+-# ==============================================================================
+-
+-
+-class STEPGeometryExportEngine:
+-    """Translates macro specifications into explicit topological exchange data instances."""
+-
+-    def __init__(self, start_id: int = 10):
+-        self.curr_id = start_id
+-        self.lines: List[str] = []
+-
+-    def _emit(self, syntax: str) -> str:
+-        tid = f"#{self.curr_id}"
+-        self.lines.append(f"{tid}={syntax};")
+-        self.curr_id += 1
+-        return tid
+-
+-    def export(self, card_data: Dict[str, Any]) -> str:
+-        self.lines = []
+-        face_ids = []
+-        z_glob = self._emit("DIRECTION('Global Z Axis',(0.0,0.0,1.0))")
+-        x_glob = self._emit("DIRECTION('Global X Axis',(1.0,0.0,0.0))")
+-        orig_glob = self._emit("CARTESIAN_POINT('Global Origin',(0.0,0.0,0.0))")
+-        self._emit(
+-            f"AXIS2_PLACEMENT_3D('Global Reference Frame',{orig_glob},{z_glob},{x_glob})"
+-        )
+-
+-        for op in card_data["operations"]:
+-            prim = op["primitive"]
+-            params = op["parameters"]
+-            idx = op["op_index"]
+-
+-            if prim == "PLANE":
+-                n = tuple(params["normal"])
+-                c = tuple(params["reference_centroid"])
+-                pt = self._emit(f"CARTESIAN_POINT('Centroid{idx}',{c})")
+-                dn = self._emit(f"DIRECTION('Normal{idx}',{n})")
+-                ref = (
+-                    (0.0, 0.0, 1.0)
+-                    if abs(n[0]) > 0.9 or abs(n[1]) > 0.9
+-                    else (1.0, 0.0, 0.0)
+-                )
+-                dr = self._emit(f"DIRECTION('Ref{idx}',{ref})")
+-                placement = self._emit(f"AXIS2_PLACEMENT_3D('',{pt},{dn},{dr})")
+-                surf = self._emit(f"PLANE('Surface_Plane{idx}',{placement})")
+-                face_ids.append(
+-                    self._emit(f"ADVANCED_FACE('Face_Plane{idx}',(),{surf},.T.)")
+-                )
+-
+-            elif prim == "CYLINDER":
+-                o = tuple(params["axis_origin"])
+-                d = tuple(params["axis_direction"])
+-                r = params["radius"]
+-                pt = self._emit(f"CARTESIAN_POINT('Origin{idx}',{o})")
+-                da = self._emit(f"DIRECTION('Axis{idx}',{d})")
+-                ref = (0.0, 1.0, 0.0) if abs(d[2]) > 0.9 else (0.0, 0.0, 1.0)
+-                dr = self._emit(f"DIRECTION('Ref{idx}',{ref})")
+-                placement = self._emit(f"AXIS2_PLACEMENT_3D('',{pt},{da},{dr})")
+-                surf = self._emit(
+-                    f"CYLINDRICAL_SURFACE('Surface_Cyl{idx}',{placement},{r})"
+-                )
+-                face_ids.append(
+-                    self._emit(f"ADVANCED_FACE('Face_Cylinder{idx}',(),{surf},.T.)")
+-                )
+-
+-        shell = self._emit(f"OPEN_SHELL('Healed Extract Shell',({','.join(face_ids)}))")
+-        self._emit(
+-            f"SHELL_BASED_SURFACE_MODEL('Analytical Fragment Model',({shell}))"
+-        )
+-        return (
+-            "ISO-10303-21;\nHEADER;\n"
+-            "FILE_DESCRIPTION(('Extracted B-Rep Geometric Primitives'),'2;1');\n"
+-            "FILE_NAME('primitives.stp','2026-09-17T09:00:00',('Nathan White'),('Pipeline Engine'),"
+-            "'Processor v1.0','Open-Source Script Fragment','');\n"
+-            "FILE_SCHEMA(('CONFIG_CONTROL_DESIGN'));\nENDSEC;\nDATA;\n"
+-            + "\n".join(self.lines)
+-            + "\nENDSEC;\nEND-ISO-10303-21;\n"
+-        )
+-
+-
+-# ==============================================================================
+-# 5. EXECUTION PIPELINE HARNESS
+-# ==============================================================================
+-
+-
+-def main():
+-    print("[*] Generating structural geometry simulation grid...")
+-    # 1. Synthesize explicit analytical primitives: a plane transitioning into
+-    # a cylindrical fillet patch
+-    grid_res = 30
+-    u_vals = np.linspace(0.0, 1.0, grid_res)
+-    v_vals = np.linspace(0.0, 1.0, grid_res)
+-
+-    # Target values: Cylinder with radius=5.0 tracking along Z-axis, flat surface adjacent
+-    points = np.zeros((grid_res, grid_res, 3))
+-    normals = np.zeros((grid_res, grid_res, 3))
+-    # Initialize mock curvature fields mapping directly to standard profiles
+-    k_max = np.zeros((grid_res, grid_res))
+-    k_min = np.zeros((grid_res, grid_res))
+-
+-    for i, u in enumerate(u_vals):
+-        for j, v in enumerate(v_vals):
+-            if u < 0.5:
+-                # Planar segment configuration
+-                points[i, j] = [u * 10.0, v * 10.0, 0.0]
+-                normals[i, j] = [0.0, 0.0, 1.0]
+-                k_max[i, j] = 0.001
+-                k_min[i, j] = 0.000
+-            else:
+-                # Cylindrical Fillet patch configuration (Radius = 5.0 -> Curvature = 0.2)
+-                theta = (u - 0.5) * np.pi / 2.0
+-                points[i, j] = [
+-                    5.0 + 5.0 * np.sin(theta), v * 10.0, 5.0 - 5.0 * np.cos(theta)
+-                ]
+-                normals[i, j] = [-np.sin(theta), 0.0, np.cos(theta)]
+-                k_max[i, j] = 0.200
+-                k_min[i, j] = 0.000
+-
+-    curvatures = {'Principal_Max': k_max, 'Principal_Min': k_min}
+-    flattened_pts = points.reshape(-1, 3)
+-
+-    # 2. Segment spatial items via differential parameters
+-    print("[*] Launching multi-constraint RANSAC classifier engine...")
+-    segmenter = RANSACPrimitiveClassifier(spatial_tol=0.01, normal_tol_deg=2.0)
+-    primitives = segmenter.segment_primitives(points, normals, curvatures)
+-    print(
+-        f"    -> Successfully isolated {len(primitives)} structural primitive entities."
++        if length_unit is not None and length_unit not in _UNIT_TO_MM:
++            raise GeometryValidationError("length_unit must be mm, cm, m, or in")
++        if schema not in ("AP203", "AP214IS", "AP242DIS"):
++            raise GeometryValidationError("unsupported STEP schema")
++        self.length_unit = length_unit
++        self.schema = schema
++        self.tolerance = _positive(tolerance, "tolerance (mm)")
++
++    def export(self, card_data: Mapping[str, Any]) -> str:
++        """Return STEP text. Missing units/bounds or a missing backend are errors."""
++        if not isinstance(card_data, Mapping):
++            raise GeometryValidationError("card_data must be a mapping")
++        operations = card_data.get("operations")
++        if not isinstance(operations, list) or not operations:
++            raise GeometryValidationError("STEP export requires at least one bounded operation")
++        if card_data.get("total_primitives") != len(operations):
++            raise GeometryValidationError("total_primitives disagrees with operations")
++        declared = card_data.get("length_unit", "unspecified")
++        if self.length_unit is not None and declared not in ("unspecified", self.length_unit):
++            raise GeometryValidationError("exporter units conflict with the card's declared units")
++        units = self.length_unit or declared
++        if units not in _UNIT_TO_MM:
++            raise GeometryValidationError("STEP requires explicit source units: mm, cm, m, or in")
++        CADGeometryCardEngine.to_json(card_data)
++        try:
++            from OCP.BRep import BRep_Builder
++            from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakePolygon
++            from OCP.BRepCheck import BRepCheck_Analyzer
++            from OCP.IFSelect import IFSelect_RetDone
++            from OCP.Interface import Interface_Static
++            from OCP.STEPControl import STEPControl_AsIs, STEPControl_Controller, STEPControl_Writer
++            from OCP.TopoDS import TopoDS_Compound
++            from OCP.gp import gp_Ax3, gp_Cylinder, gp_Dir, gp_Pln, gp_Pnt
++        except ImportError as exc:
++            raise OptionalDependencyError(
++                "STEP export requires OCP: install 'cadquery-ocp>=7.9,<8' "
++                "or this project's [step] extra"
++            ) from exc
++        scale = _UNIT_TO_MM[units]
++        # OCCT exposes process-global exchange settings. Serialize this module's
++        # writers and restore all settings. External OCCT code must coordinate
++        # separately; this is not a global thread-safety guarantee for OCP.
++        with _STEP_LOCK:
++            try:
++                compound = TopoDS_Compound()
++                builder = BRep_Builder()
++                builder.MakeCompound(compound)
++                for index, op in enumerate(operations):
++                    try:
++                        parameters = op["parameters"]
++                        if op["primitive"] == "PLANE":
++                            normal = _unit(parameters["normal"], "plane normal")
++                            center = _vector(
++                                parameters["reference_centroid"], "reference_centroid",
++                            ) * scale
++                            boundary = _vectors(
++                                parameters["boundary_vertices"], "boundary_vertices",
++                            ) * scale
++                            if (
++                                len(boundary) < 3
++                                or np.any(np.abs((boundary - center) @ normal) > self.tolerance)
++                            ):
++                                raise GeometryValidationError(
++                                    "plane boundary must have >=3 coplanar vertices"
++                                )
++                            polygon = BRepBuilderAPI_MakePolygon()
++                            for vertex in boundary:
++                                polygon.Add(gp_Pnt(*map(float, vertex)))
++                            polygon.Close()
++                            if not polygon.IsDone():
++                                raise STEPExportError(
++                                    f"operation {index}: could not construct boundary wire"
++                                )
++                            plane = gp_Pln(gp_Pnt(*map(float, center)), gp_Dir(*map(float, normal)))
++                            face_builder = BRepBuilderAPI_MakeFace(plane, polygon.Wire(), True)
++                        elif op["primitive"] == "CYLINDER":
++                            origin = _vector(parameters["axis_origin"], "axis_origin") * scale
++                            axis = _unit(parameters["axis_direction"], "axis_direction")
++                            reference = _unit(
++                                parameters["reference_direction"], "reference_direction",
++                            )
++                            if abs(reference @ axis) > 1e-8:
++                                raise GeometryValidationError(
++                                    "cylinder reference_direction must be perpendicular to its axis"
++                                )
++                            radius = _positive(parameters["radius"], "radius") * scale
++                            length = _positive(parameters["length"], "length") * scale
++                            angles = _array(parameters["angular_bounds"], "angular_bounds")
++                            if (
++                                angles.shape != (2,)
++                                or not 0 < angles[1] - angles[0] <= 2 * np.pi + 1e-12
++                            ):
++                                raise GeometryValidationError(
++                                    "cylinder angular_bounds must span (0, 2*pi]"
++                                )
++                            placement = gp_Ax3(
++                                gp_Pnt(*map(float, origin)), gp_Dir(*map(float, axis)),
++                                gp_Dir(*map(float, reference)),
++                            )
++                            face_builder = BRepBuilderAPI_MakeFace(
++                                gp_Cylinder(placement, radius),
++                                float(angles[0]), float(angles[1]), 0.0, length,
++                            )
++                        else:
++                            raise GeometryValidationError(
++                                f"unsupported STEP primitive {op['primitive']!r}"
++                            )
++                    except (KeyError, TypeError) as exc:
++                        raise GeometryValidationError(
++                            f"operation {index} lacks required bounded-geometry fields"
++                        ) from exc
++                    if not face_builder.IsDone():
++                        raise STEPExportError(
++                            f"operation {index}: face builder failed: {face_builder.Error()}"
++                        )
++                    face = face_builder.Face()
++                    if not BRepCheck_Analyzer(face).IsValid():
++                        raise STEPExportError(
++                            f"operation {index}: Open CASCADE reports an invalid face"
++                        )
++                    builder.Add(compound, face)
++                STEPControl_Controller.Init_s()
++                settings = {"write.step.schema": self.schema, "write.step.unit": "MM"}
++                previous = {key: Interface_Static.CVal_s(key) for key in settings}
++                try:
++                    for key, value in settings.items():
++                        if not Interface_Static.SetCVal_s(key, value):
++                            raise STEPExportError(f"Open CASCADE rejected setting {key}={value}")
++                    writer = STEPControl_Writer()
++                    writer.Model().SetLocalLengthUnit(1.0)
++                    writer.Model().SetWriteLengthUnit(1.0)
++                    writer.SetTolerance(self.tolerance)
++                    if writer.Transfer(compound, STEPControl_AsIs) != IFSelect_RetDone:
++                        raise STEPExportError("Open CASCADE STEP transfer failed")
++                    stream = io.BytesIO()
++                    if writer.WriteStream(stream) != IFSelect_RetDone:
++                        raise STEPExportError("Open CASCADE STEP serialization failed")
++                    text = stream.getvalue().decode("utf-8")
++                finally:
++                    for key, value in previous.items():
++                        Interface_Static.SetCVal_s(key, value)
++            except (GeometryValidationError, STEPExportError):
++                raise
++            except Exception as exc:
++                # Foreign C++ boundary: retain the cause, do not swallow failures.
++                raise STEPExportError(f"Open CASCADE export failed: {exc}") from exc
++        LOGGER.info("Exported %d bounded surface fragments in millimetres", len(operations))
++        return text
++
++    def write(
++        self, card_data: Mapping[str, Any], file_path: str | os.PathLike[str],
++        *, overwrite: bool = False,
++    ) -> Path:
++        return write_text_atomic(file_path, self.export(card_data), overwrite=overwrite)
++
++
++def main() -> None:
++    """Small deterministic primitive demo; JSON needs no STEP backend or input file."""
++    grid = np.linspace(-2.0, 2.0, 12)
++    x, y = np.meshgrid(grid, grid, indexing="ij")
++    points = np.column_stack((x.ravel(), y.ravel(), np.zeros(x.size)))
++    normals = np.tile([0.0, 0.0, 1.0], (len(points), 1))
++    curvature = {"Principal_Max": np.zeros(len(points)), "Principal_Min": np.zeros(len(points))}
++    primitives = RANSACPrimitiveClassifier(random_state=42).segment_primitives(
++        points, normals, curvature,
+     )
+-
+-    # 3. Compute intermediate specification tokens
+-    print("[*] Synthesizing structural CAD parameters metadata card...")
+-    card_engine = CADGeometryCardEngine(precision=4)
+-    geometry_card = card_engine.compute_cards(primitives, flattened_pts)
+-
+-    # 4. Generate formal standardized file entries
+-    print("[*] Rendering macro parameters down to official STEP exchange text blocks...")
+-    step_engine = STEPGeometryExportEngine(start_id=100)
+-    step_file_content = step_engine.export(geometry_card)
+-
+-    output_filename = "extracted_primitives.stp"
+-    with open(output_filename, "w") as f:
+-        f.write(step_file_content)
+-    print(
+-        f"[+] Diagnostic STEP pipeline complete! File saved successfully: '{output_filename}'\n"
+-    )
+-
+-    # Output an overview summary text dump to stdout
+-    print("=== EXPORTED INSTANCES PREVIEW ===")
+-    for line in step_file_content.splitlines()[10:25]:
+-        print(line)
+-    print("==================================")
++    engine = CADGeometryCardEngine(length_unit="mm")
++    print(engine.to_json(engine.compute_cards(primitives, points)), end="")
+ 
+ 
+ if __name__ == "__main__":
+--- a/STLReader.py
++++ b/STLReader.py
+@@ -1,234 +1,514 @@
+ #!/usr/bin/env python3
+-"""
+-CAD Mesh and Noisy Point Cloud Adapter for RANSAC Primitive Extraction.
++"""STL ingestion and local differential geometry estimation.
++
+ Author: Nathan White
+ License: MIT
+ 
+-Implements an open-source parsing interface to load binary/ASCII STL files, 
+-estimate differential surface attributes (normals and principal curvatures) 
+-from noisy unorganized point clouds using local covariance quadric fitting, 
+-and stream data into the downstream RANSAC primitive segmenter.
++The legacy ``load_stl`` and ``estimate_features`` tuple interfaces are preserved.
++Use ``read`` and ``estimate`` for structured results and diagnostics. Lengths are
++in the input coordinate system; STL does not supply units. Curvature has inverse
++length units. No library function configures logging or writes to stdout.
+ """
+ 
++from __future__ import annotations
++
++import io
++import logging
++import os
+ import struct
++from dataclasses import dataclass
++from pathlib import Path
++from typing import BinaryIO, Literal
++
+ import numpy as np
+-from typing import Dict, Any, List, Tuple, Optional
++from numpy.typing import ArrayLike, NDArray
++from scipy.spatial import cKDTree
++
++__all__ = [
++    "STLReader", "STLParseError", "STLReadReport", "MeshData",
++    "PointCloudGeometryEstimator", "FeatureEstimationResult",
++]
++
++LOGGER = logging.getLogger(__name__)
++LOGGER.addHandler(logging.NullHandler())
++FloatArray = NDArray[np.float64]
++IntArray = NDArray[np.int64]
++BoolArray = NDArray[np.bool_]
++STLFormat = Literal["auto", "ascii", "binary"]
++Orientation = Literal["centroid", "canonical", "none"]
++
++# align=False is essential: each little-endian facet occupies exactly 50 bytes.
++_FACET_DTYPE = np.dtype([
++    ("normal", "<f4", (3,)),
++    ("vertices", "<f4", (3, 3)),
++    ("attribute", "<u2"),
++], align=False)
++
++
++class STLParseError(ValueError):
++    """Malformed STL input, non-finite geometry, or an exceeded resource limit."""
++
++
++def _integer(value: int, name: str, minimum: int = 1) -> int:
++    if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)):
++        raise ValueError(f"{name} must be an integer")
++    if value < minimum:
++        raise ValueError(f"{name} must be >= {minimum}")
++    return int(value)
++
++
++def _points(value: ArrayLike, name: str = "points") -> FloatArray:
++    if np.iscomplexobj(value):
++        raise ValueError(f"{name} must be real-valued")
++    data = np.asarray(value, dtype=np.float64)
++    if data.ndim != 2 or data.shape[1] != 3:
++        raise ValueError(f"{name} must have shape (N, 3); got {data.shape}")
++    if not np.isfinite(data).all():
++        raise ValueError(f"{name} must contain only finite coordinates")
++    return data
++
++
++@dataclass(frozen=True, slots=True)
++class STLReadReport:
++    """Ingestion provenance. No unit or watertightness claim is inferred."""
++
++    source: str
++    format: str
++    input_facets: int
++    loaded_facets: int
++    dropped_degenerate_facets: int
++    unique_vertices: int
++
++
++@dataclass(frozen=True, slots=True)
++class MeshData:
++    """Indexed triangle mesh; arrays are owned by the result and remain writable.
++
++    ``face_normals`` are recomputed from winding for both file encodings. Stored
++    STL normals and vendor-specific attribute/color bytes are not trusted or
++    preserved. Deduplication is exact, not tolerance-based welding.
++    """
++
++    points: FloatArray
++    face_normals: FloatArray
++    faces: IntArray
++    report: STLReadReport
++
++    def as_tuple(self) -> tuple[FloatArray, FloatArray, IntArray]:
++        return self.points, self.face_normals, self.faces
++
++    def vertex_normals(self) -> FloatArray:
++        """Area-weighted winding normals; zero means cancellation/undefined.
++
++        This averages across creases. It is an orientation hint, not a claim
++        that a vertex at a sharp edge has a unique differential normal.
++        """
++        result = np.zeros_like(self.points)
++        tri = self.points[self.faces]
++        cross = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
++        for corner in range(3):
++            np.add.at(result, self.faces[:, corner], cross)
++        lengths = np.linalg.norm(result, axis=1, keepdims=True)
++        np.divide(result, lengths, out=result, where=lengths > 0)
++        return result
++
+ 
+ class STLReader:
+-    """Reads binary or ASCII STL files and extracts unorganized triangle facets."""
+-    
++    """Strict, bounded ASCII/binary STL reader with consistent return shapes."""
++
+     @staticmethod
+-    def load_stl(file_path: str) -> Tuple[np.ndarray, np.ndarray]:
++    def load_stl(
++        file_path: str | os.PathLike[str],
++        *,
++        format: STLFormat = "auto",
++        max_facets: int = 2_000_000,
++        max_file_bytes: int = 256 * 1024 * 1024,
++        degenerate_policy: Literal["drop", "error"] = "drop",
++        area_tolerance: float = 0.0,
++    ) -> tuple[FloatArray, FloatArray, IntArray]:
++        """Return ``(vertices[V,3], face_normals[F,3], faces[F,3])``.
++
++        Resource limits apply to input, not peak process memory. Indexed mesh
++        construction and vertex deduplication require additional allocations.
++        ``area_tolerance`` is in squared input length units.
+         """
+-        Parses an STL file and returns unique vertices and face connectivity.
+-        
+-        Returns:
+-            points: Array of shape (V, 3) containing unique 3D vertex positions.
+-            normals: Array of shape (F, 3) containing face normal vectors.
+-            faces: Array of shape (F, 3) containing indices referencing vertex points.
++        return STLReader.read(
++            file_path, format=format, max_facets=max_facets,
++            max_file_bytes=max_file_bytes, degenerate_policy=degenerate_policy,
++            area_tolerance=area_tolerance,
++        ).as_tuple()
++
++    @staticmethod
++    def read(
++        file_path: str | os.PathLike[str],
++        *,
++        format: STLFormat = "auto",
++        max_facets: int = 2_000_000,
++        max_file_bytes: int = 256 * 1024 * 1024,
++        degenerate_policy: Literal["drop", "error"] = "drop",
++        area_tolerance: float = 0.0,
++    ) -> MeshData:
++        """Load one file; reject truncation, trailing binary data, and bad syntax.
++
++        Auto-detection first checks the binary length/count relationship, so a
++        binary header beginning with ``solid`` is not mistaken for ASCII.
++        Explicit ``format`` is available for genuinely ambiguous input.
++        ASCII supports multiple complete ``solid ... endsolid`` blocks.
+         """
+-        if not os.path.exists(file_path):
+-            raise FileNotFoundError(f"Target STL file not found: {file_path}")
+-            
+-        with open(file_path, 'rb') as f:
+-            header = f.read(5)
+-            
+-        if header == b'solid':
+-            return STLReader._parse_ascii(file_path)
+-        else:
+-            return STLReader._parse_binary(file_path)
++        max_facets = _integer(max_facets, "max_facets")
++        max_file_bytes = _integer(max_file_bytes, "max_file_bytes")
++        if format not in ("auto", "ascii", "binary"):
++            raise ValueError("format must be 'auto', 'ascii', or 'binary'")
++        if degenerate_policy not in ("drop", "error"):
++            raise ValueError("degenerate_policy must be 'drop' or 'error'")
++        if not np.isfinite(area_tolerance) or area_tolerance < 0:
++            raise ValueError("area_tolerance must be finite and nonnegative")
++        path = Path(file_path)
++        with path.open("rb") as stream:
++            size = os.fstat(stream.fileno()).st_size
++            if size > max_file_bytes:
++                raise STLParseError(f"{path}: {size} bytes exceeds max_file_bytes")
++            header = stream.read(84)
++            count = struct.unpack("<I", header[80:84])[0] if len(header) == 84 else None
++            exact_binary = count is not None and size == 84 + 50 * count
++            selected = format
++            if selected == "auto":
++                if exact_binary:
++                    selected = "binary"
++                elif header.lstrip(b"\xef\xbb\xbf \t\r\n").lower().startswith(b"solid"):
++                    selected = "ascii"
++                else:
++                    selected = "binary"
++            stream.seek(0)
++            if selected == "binary":
++                triangles = STLReader._read_binary(stream, size, max_facets)
++            else:
++                triangles = STLReader._read_ascii(stream, max_facets)
++        if not np.isfinite(triangles).all():
++            raise STLParseError(f"{path}: STL vertices contain NaN or infinity")
++        input_facets = len(triangles)
++        edges1 = triangles[:, 1] - triangles[:, 0]
++        edges2 = triangles[:, 2] - triangles[:, 0]
++        with np.errstate(over="ignore", invalid="ignore"):
++            cross = np.cross(edges1, edges2)
++            doubled_area = np.linalg.norm(cross, axis=1)
++        if not np.isfinite(doubled_area).all():
++            raise STLParseError(f"{path}: coordinates exceed safe float64 area range")
++        valid = doubled_area > 2.0 * area_tolerance
++        dropped = int(np.count_nonzero(~valid))
++        if dropped and degenerate_policy == "error":
++            raise STLParseError(f"{path}: found {dropped} degenerate/below-tolerance facets")
++        triangles = triangles[valid]
++        face_normals = cross[valid] / doubled_area[valid, None]
++        points, inverse = np.unique(triangles.reshape(-1, 3), axis=0, return_inverse=True)
++        faces = inverse.reshape(-1, 3).astype(np.int64, copy=False)
++        report = STLReadReport(
++            str(path), selected, input_facets, len(faces), dropped, len(points),
++        )
++        LOGGER.info(
++            "Read %s STL: %d vertices, %d facets, %d degenerate facets dropped",
++            selected, len(points), len(faces), dropped,
++        )
++        return MeshData(points, face_normals, faces, report)
+ 
+     @staticmethod
+-    def _parse_binary(file_path: str) -> Tuple[np.ndarray, np.ndarray]:
+-        with open(file_path, 'rb') as f:
+-            f.read(80) # Skip header bytes
+-            num_facets = struct.unpack('<I', f.read(4))[0]
+-            
+-            # Read all facet records: 3 floats (normal) + 9 floats (3 vertices) + 2 bytes (attr) = 50 bytes
+-            data = f.read(num_facets * 50)
+-            
+-        raw_data = np.frombuffer(data, dtype=np.float32).reshape(num_facets, 12 + 0.5) # Hack for the 2 attribute bytes
+-        # Clean unpacking mapping float boundary data lines
+-        normals = raw_data[:, 0:3].astype(np.float64)
+-        v_all = raw_data[:, 3:12].reshape(-1, 3).astype(np.float64)
+-        
+-        # Consolidate duplicate vertex allocations using unique row identifiers
+-        points, inverse_indices = np.unique(v_all, axis=0, return_inverse=True)
+-        faces = inverse_indices.reshape(num_facets, 3)
+-        
+-        return points, normals, faces
++    def _read_binary(stream: BinaryIO, size: int, max_facets: int) -> FloatArray:
++        header = stream.read(84)
++        if len(header) != 84:
++            raise STLParseError("binary STL requires an 80-byte header and a 4-byte count")
++        count = struct.unpack("<I", header[80:84])[0]
++        if count > max_facets:
++            raise STLParseError(f"binary facet count {count} exceeds max_facets={max_facets}")
++        expected = 84 + 50 * count
++        if size != expected:
++            raise STLParseError(f"binary STL byte length is {size}; count requires {expected}")
++        records = np.fromfile(stream, dtype=_FACET_DTYPE, count=count)
++        if len(records) != count or stream.read(1):
++            raise STLParseError("binary STL changed or was truncated during reading")
++        return records["vertices"].astype(np.float64)
+ 
+     @staticmethod
+-    def _parse_ascii(file_path: str) -> Tuple[np.ndarray, np.ndarray]:
+-        vertices_list = []
+-        normals_list = []
+-        
+-        with open(file_path, 'r') as f:
+-            current_normal = [0.0, 0.0, 0.0]
+-            for line in f:
++    def _read_ascii(stream: BinaryIO, max_facets: int) -> FloatArray:
++        state = "outside"
++        triangles: list[list[list[float]]] = []
++        vertices: list[list[float]] = []
++        saw_solid = False
++        text = io.TextIOWrapper(stream, encoding="utf-8-sig", errors="strict", newline=None)
++        line_number = 0
++        try:
++            while True:
++                # Bound an individual allocation even on malicious single-line files.
++                line = text.readline(16_385)
++                if not line:
++                    break
++                line_number += 1
++                if len(line) > 16_384:
++                    raise STLParseError(f"ASCII STL line {line_number} exceeds 16384 characters")
+                 tokens = line.strip().split()
+                 if not tokens:
+                     continue
+-                if tokens[0] == 'facet' and tokens[1] == 'normal':
+-                    current_normal = [float(x) for x in tokens[2:5]]
+-                elif tokens[0] == 'vertex':
+-                    vertices_list.append([float(x) for x in tokens[1:4]])
+-                    normals_list.append(current_normal) # Per-vertex naive mapping allocation
+-                    
+-        v_all = np.array(vertices_list, dtype=np.float64)
+-        points, inverse_indices = np.unique(v_all, axis=0, return_inverse=True)
+-        faces = inverse_indices.reshape(-1, 3)
+-        
+-        # Re-estimate accurate face normals from true vertex loops
+-        v0 = points[faces[:, 0]]
+-        v1 = points[faces[:, 1]]
+-        v2 = points[faces[:, 2]]
+-        calculated_normals = np.cross(v1 - v0, v2 - v0)
+-        norms = np.linalg.norm(calculated_normals, axis=-1, keepdims=True)
+-        calculated_normals /= np.where(norms < 1e-12, 1.0, norms)
+-        
+-        return points, calculated_normals, faces
++                words = [token.lower() for token in tokens]
++                error = f"ASCII STL line {line_number}: unexpected {tokens[0]!r} in {state}"
++                if state == "outside" and words[0] == "solid":
++                    state, saw_solid = "solid", True
++                elif state == "solid" and words[0] == "endsolid":
++                    state = "outside"
++                elif state == "solid" and words[:2] == ["facet", "normal"] and len(words) == 5:
++                    # Validate syntax; geometry normals are recomputed from winding.
++                    normal = np.asarray([float(x) for x in tokens[2:]], dtype=np.float64)
++                    if not np.isfinite(normal).all():
++                        raise STLParseError(f"ASCII STL line {line_number}: non-finite normal")
++                    if len(triangles) >= max_facets:
++                        raise STLParseError("ASCII facet count exceeds max_facets")
++                    state, vertices = "facet", []
++                elif state == "facet" and words == ["outer", "loop"]:
++                    state = "vertices"
++                elif state == "vertices" and words[0] == "vertex" and len(words) == 4:
++                    if len(vertices) == 3:
++                        raise STLParseError(
++                            f"ASCII STL line {line_number}: more than three vertices"
++                        )
++                    vertices.append([float(x) for x in tokens[1:]])
++                elif state == "vertices" and words == ["endloop"] and len(vertices) == 3:
++                    state = "endloop"
++                elif state == "endloop" and words == ["endfacet"]:
++                    triangles.append(vertices)
++                    state = "solid"
++                else:
++                    raise STLParseError(error)
++        except (UnicodeDecodeError, ValueError) as exc:
++            if isinstance(exc, STLParseError):
++                raise
++            raise STLParseError(f"invalid ASCII STL near line {line_number}: {exc}") from exc
++        finally:
++            # The outer context manager owns the binary stream.
++            text.detach()
++        if not saw_solid or state != "outside":
++            raise STLParseError(f"incomplete ASCII STL: final parser state is {state!r}")
++        return np.asarray(triangles, dtype=np.float64).reshape(-1, 3, 3)
++
++    @staticmethod
++    def _parse_binary(file_path: str | os.PathLike[str]) -> tuple[FloatArray, FloatArray, IntArray]:
++        """Compatibility wrapper for the former private parser."""
++        return STLReader.load_stl(file_path, format="binary")
++
++    @staticmethod
++    def _parse_ascii(file_path: str | os.PathLike[str]) -> tuple[FloatArray, FloatArray, IntArray]:
++        """Compatibility wrapper for the former private parser."""
++        return STLReader.load_stl(file_path, format="ascii")
++
++
++@dataclass(frozen=True, slots=True)
++class FeatureEstimationResult:
++    """Arrays share point order; ``valid_mask`` governs curvature usability.
++
++    A failed quadratic fit retains a PCA normal when possible, but returns NaN
++    curvature, never fabricated zero/planar curvature. Arrays remain writable.
++    """
++
++    normals: FloatArray
++    principal_max: FloatArray
++    principal_min: FloatArray
++    valid_mask: BoolArray
++    fit_rmse: FloatArray
++    condition_number: FloatArray
++    neighbor_count: IntArray
++
++    @property
++    def curvatures(self) -> dict[str, NDArray]:
++        return {
++            "Principal_Max": self.principal_max,
++            "Principal_Min": self.principal_min,
++            "Valid": self.valid_mask,
++        }
++
++    def as_tuple(self) -> tuple[FloatArray, dict[str, NDArray]]:
++        return self.normals, self.curvatures
+ 
+ 
+ class PointCloudGeometryEstimator:
+-    """Estimates surface normals and principal curvatures from unorganized/noisy point clouds."""
+-    
+-    def __init__(self, k_neighbors: int = 15):
+-        self.k = k_neighbors
+-
+-    def _build_naive_knn(self, points: np.ndarray) -> np.ndarray:
+-        """Vectorized brute-force calculation of nearest neighbor lookup arrays."""
+-        num_pts = len(points)
+-        # Compute full pair-wise distance matrices safely via matrix broadcasting
+-        dists = np.sum((points[:, None, :] - points[None, :, :])**2, axis=-1)
+-        # Sort spatial arrays and return top k indices matching local regions
+-        neighbors = np.argsort(dists, axis=-1)[:, :self.k]
+-        return neighbors
+-
+-    def estimate_features(self, points: np.ndarray) -> Tuple[np.ndarray, Dict[str, np.ndarray]]:
+-        """
+-        Fits local quadric surfaces to compute smooth normals and analytical principal curvatures.
+-        
+-        Fits z = ax^2 + by^2 + cxy + dx + ey + f dynamically inside localized reference frames.
+-        """
+-        num_pts = len(points)
+-        estimated_normals = np.zeros_like(points)
+-        k_max = np.zeros(num_pts)
+-        k_min = np.zeros(num_pts)
+-        
+-        print(f"[*] Analyzing local geometric covariance networks (k={self.k})...")
+-        neighbors_matrix = self._build_naive_knn(points)
+-        
+-        for i in range(num_pts):
+-            local_indices = neighbors_matrix[i]
+-            local_pts = points[local_indices]
+-            
+-            # 1. Establish principal plane coordinates using local PCA (SVD decomposition)
+-            centroid = np.mean(local_pts, axis=0)
+-            centered_pts = local_pts - centroid
+-            _, _, vh = np.linalg.svd(centered_pts, full_matrices=False)
+-            
+-            # Third eigenvector corresponds to the local surface normal indicator coordinate
+-            z_axis = vh[2, :]
+-            x_axis = vh[0, :]
+-            y_axis = np.cross(z_axis, x_axis)
+-            
+-            # Project neighboring points into the local coordinate framework (U, V, W)
+-            u = np.dot(centered_pts, x_axis)
+-            v = np.dot(centered_pts, y_axis)
+-            w = np.dot(centered_pts, z_axis)
+-            
+-            # 2. Setup linear regression equations matrix for local paraboloid model fitting
+-            # w = a*u^2 + b*v^2 + c*u*v + d*u + e*v + f
+-            M = np.column_stack([u**2, v**2, u*v, u, v, np.ones_like(u)])
+-            
+-            try:
+-                # Solve using least-squares mapping criteria
+-                coeffs, _, _, _ = np.linalg.lstsq(M, w, rcond=None)
+-                a, b, c, d, e, _ = coeffs
+-                
+-                # 3. Derive Weingarten shape attributes analytically at local origin (u=0, v=0)
+-                # First fundamental components
+-                E = 1.0 + d**2
+-                F = d * e
+-                G = 1.0 + e**2
+-                
+-                # Second fundamental components
+-                denom = np.sqrt(1.0 + d**2 + e**2)
+-                L = 2.0 * a / denom
+-                M_coeff = c / denom
+-                N = 2.0 * b / denom
+-                
+-                eg_f2 = E * G - F**2
+-                K = (L * N - M_coeff**2) / eg_f2
+-                H = (E * N - 2.0 * F * M_coeff + G * L) / (2.0 * eg_f2)
+-                
+-                disc = np.clip(H**2 - K, 0.0, None)
+-                sqrt_disc = np.sqrt(disc)
+-                
+-                k_max[i] = H + sqrt_disc
+-                k_min[i] = H - sqrt_disc
+-                
+-                # Update normal accounting for parabolic parameter orientations
+-                raw_n = -d * x_axis - e * y_axis + z_axis
+-                estimated_normals[i] = raw_n / np.linalg.norm(raw_n)
+-                
+-            except np.linalg.LinAlgError:
+-                # Fallback to pure PCA configurations on algebraic failures
+-                estimated_normals[i] = z_axis
+-                k_max[i] = 0.0
+-                k_min[i] = 0.0
+-                
+-        # Orient normal fields uniformly relative to global geometric centers
+-        global_center = np.mean(points, axis=0)
+-        outward_vectors = points - global_center
+-        dots = np.einsum('ij,ij->i', estimated_normals, outward_vectors)
+-        estimated_normals = np.where(dots[:, None] < 0, -estimated_normals, estimated_normals)
+-        
+-        curvatures = {
+-            'Principal_Max': k_max,
+-            'Principal_Min': k_min
+-        }
+-        
+-        return estimated_normals, curvatures
+-
+-
+-# ==============================================================================
+-# INTEGRATION TESTING HARNESS
+-# ==============================================================================
++    """Weighted, query-centered quadratic fits in local PCA tangent frames.
++
++    KD-tree queries are batched: no N-by-N distance matrix is constructed.
++    ``k_neighbors`` includes the query point, matching the original convention.
++    ``max_radius`` and ``max_fit_rmse`` use input length units. The centroid
++    orientation default preserves the old heuristic; it is NOT an orientation
++    solver for concave/open surfaces. Prefer winding-based ``reference_normals``
++    or a scanner ``viewpoint`` when these are known.
++    """
++
++    def __init__(
++        self,
++        k_neighbors: int = 15,
++        *,
++        batch_size: int = 1024,
++        workers: int = 1,
++        max_condition: float = 1e8,
++        max_radius: float | None = None,
++        max_fit_rmse: float | None = None,
++        orientation: Orientation = "centroid",
++    ) -> None:
++        self.k = _integer(k_neighbors, "k_neighbors", 6)
++        self.batch_size = _integer(batch_size, "batch_size")
++        if workers != -1:
++            workers = _integer(workers, "workers")
++        self.workers = workers
++        if not np.isfinite(max_condition) or max_condition <= 1:
++            raise ValueError("max_condition must be finite and > 1")
++        for name, value in (("max_radius", max_radius), ("max_fit_rmse", max_fit_rmse)):
++            if value is not None and (not np.isfinite(value) or value <= 0):
++                raise ValueError(f"{name} must be finite and positive")
++        if orientation not in ("centroid", "canonical", "none"):
++            raise ValueError("orientation must be 'centroid', 'canonical', or 'none'")
++        self.max_condition = float(max_condition)
++        self.max_radius = max_radius
++        self.max_fit_rmse = max_fit_rmse
++        self.orientation = orientation
++
++    def estimate_features(
++        self,
++        points: ArrayLike,
++        *,
++        reference_normals: ArrayLike | None = None,
++        viewpoint: ArrayLike | None = None,
++    ) -> tuple[FloatArray, dict[str, NDArray]]:
++        """Legacy tuple interface; the curvature mapping now also contains ``Valid``."""
++        return self.estimate(
++            points, reference_normals=reference_normals, viewpoint=viewpoint,
++        ).as_tuple()
++
++    def estimate(
++        self,
++        points: ArrayLike,
++        *,
++        reference_normals: ArrayLike | None = None,
++        viewpoint: ArrayLike | None = None,
++    ) -> FeatureEstimationResult:
++        points = _points(points)
++        count = len(points)
++        if reference_normals is not None and viewpoint is not None:
++            raise ValueError("provide reference_normals or viewpoint, not both")
++        reference = None
++        if reference_normals is not None:
++            reference = _points(reference_normals, "reference_normals")
++            if reference.shape != points.shape:
++                raise ValueError("reference_normals must have the same shape as points")
++        view = None
++        if viewpoint is not None:
++            view = np.asarray(viewpoint, dtype=np.float64)
++            if view.shape != (3,) or not np.isfinite(view).all():
++                raise ValueError("viewpoint must be a finite 3-vector")
++
++        normals = np.zeros((count, 3), dtype=np.float64)
++        k_max = np.full(count, np.nan)
++        k_min = np.full(count, np.nan)
++        valid = np.zeros(count, dtype=bool)
++        rmses = np.full(count, np.nan)
++        conditions = np.full(count, np.inf)
++        n_neighbors = np.zeros(count, dtype=np.int64)
++        if count:
++            tree = cKDTree(points)
++            k = min(self.k, count)
++            LOGGER.info("Estimating features for %d points with k=%d", count, k)
++            for first in range(0, count, self.batch_size):
++                stop = min(first + self.batch_size, count)
++                distances, neighbors = tree.query(
++                    points[first:stop], k=list(range(1, k + 1)), workers=self.workers,
++                    distance_upper_bound=self.max_radius if self.max_radius is not None else np.inf,
++                )
++                for offset, (dist, indices) in enumerate(zip(distances, neighbors, strict=True)):
++                    i = first + offset
++                    indices = indices[np.isfinite(dist)]
++                    n_neighbors[i] = len(indices)
++                    if len(indices) < 3:
++                        continue
++                    # PCA can be centered at its centroid, but the polynomial
++                    # coordinates must be centered at the query, not the centroid.
++                    patch = points[indices] - points[i]
++                    scale = float(np.max(np.linalg.norm(patch, axis=1)))
++                    if scale == 0 or not np.isfinite(scale):
++                        continue
++                    patch = patch / scale
++                    centered = patch - np.mean(patch, axis=0)
++                    try:
++                        _, singular, vh = np.linalg.svd(centered, full_matrices=False)
++                    except np.linalg.LinAlgError:
++                        continue
++                    if singular[0] == 0 or singular[1] <= 1e-12 * singular[0]:
++                        continue
++                    z_axis, x_axis = vh[2], vh[0]
++                    y_axis = np.cross(z_axis, x_axis)
++                    normals[i] = z_axis  # PCA fallback, curvature remains invalid.
++                    if len(indices) < 6:
++                        continue
++                    u, v, w = patch @ x_axis, patch @ y_axis, patch @ z_axis
++                    matrix = np.column_stack((u * u, v * v, u * v, u, v, np.ones_like(u)))
++                    sqrt_weights = np.exp(-np.sum(patch * patch, axis=1))
++                    try:
++                        coefficients, _, rank, sv = np.linalg.lstsq(
++                            matrix * sqrt_weights[:, None], w * sqrt_weights, rcond=None,
++                        )
++                    except np.linalg.LinAlgError:
++                        continue
++                    condition = float(sv[0] / sv[-1]) if sv[-1] > 0 else np.inf
++                    conditions[i] = condition
++                    if rank < 6 or condition > self.max_condition:
++                        continue
++                    residual = matrix @ coefficients - w
++                    rmses[i] = float(np.sqrt(np.mean(residual**2)) * scale)
++                    if self.max_fit_rmse is not None and rmses[i] > self.max_fit_rmse:
++                        continue
++                    a, b, c, d, e, _ = coefficients
++                    E, F, G = 1.0 + d * d, d * e, 1.0 + e * e
++                    denom = np.sqrt(1.0 + d * d + e * e)
++                    L, M, N = 2.0 * a / denom, c / denom, 2.0 * b / denom
++                    determinant = 1.0 + d * d + e * e
++                    gaussian = (L * N - M * M) / determinant
++                    mean = (E * N - 2.0 * F * M + G * L) / (2.0 * determinant)
++                    root = np.sqrt(max(0.0, mean * mean - gaussian))
++                    k_max[i], k_min[i] = (mean + root) / scale, (mean - root) / scale
++                    normals[i] = (-d * x_axis - e * y_axis + z_axis) / denom
++                    valid[i] = np.isfinite(k_max[i]) and np.isfinite(k_min[i])
++
++        if count:
++            # Deterministic fallback resolves the zero-dot ambiguity on planes.
++            dominant = normals[np.arange(count), np.argmax(np.abs(normals), axis=1)]
++            flip = dominant < 0
++            if self.orientation == "none":
++                flip[:] = False
++            elif self.orientation == "centroid":
++                directions = points - np.mean(points, axis=0)
++                dot = np.einsum("ij,ij->i", normals, directions)
++                significant = np.abs(dot) > 1e-12 * np.linalg.norm(directions, axis=1)
++                flip[significant] = dot[significant] < 0
++            if reference is not None or view is not None:
++                if reference is not None:
++                    directions = reference
++                else:
++                    assert view is not None  # Guaranteed by the branch above.
++                    directions = view - points
++                dot = np.einsum("ij,ij->i", normals, directions)
++                significant = np.abs(dot) > 1e-12 * np.linalg.norm(directions, axis=1)
++                flip[significant] = dot[significant] < 0
++            normals[flip] *= -1.0
++            # Normal reversal changes BOTH signs and the algebraic ordering.
++            old_max = k_max[flip].copy()
++            k_max[flip], k_min[flip] = -k_min[flip], -old_max
++        k_max[~valid] = np.nan
++        k_min[~valid] = np.nan
++        LOGGER.info("Quadratic features valid for %d/%d points", np.count_nonzero(valid), count)
++        return FeatureEstimationResult(normals, k_max, k_min, valid, rmses, conditions, n_neighbors)
++
++
+ if __name__ == "__main__":
+-    print("[*] Simulating a noisy unorganized point cloud sample (Flat patch + Fillet)...")
+-    np.random.seed(42)
+-    
+-    # Construct synthetic mixed geometry point distributions
+-    n_samples = 60
+-    t = np.linspace(0, 2, n_samples)
+-    x = np.linspace(0, 5, n_samples)
+-    T, X = np.meshgrid(t, x)
+-    
+-    pts_list = []
+-    for val_t in np.linspace(0, 2, 10):
+-        for val_x in np.linspace(0, 5, 15):
+-            if val_t < 1.0:
+-                # Plane surface segment
+-                pts_list.append([val_t * 5.0, val_x, 0.0])
+-            else:
+-                # Cylindrical segment sweep axis (Radius = 2.0)
+-                angle = (val_t - 1.0) * np.pi / 2.0
+-                pts_list.append([5.0 + 2.0 * np.sin(angle), val_x, 2.0 - 2.0 * np.cos(angle)])
+-                
+-    raw_cloud = np.array(pts_list)
+-    # Inject Gaussian sensory noise matching broken CAD laser scans
+-    noise = np.random.normal(0, 0.002, raw_cloud.shape)
+-    noisy_cloud = raw_cloud + noise
+-    
+-    # Process features via Quadric Local Estimation
+-    estimator = PointCloudGeometryEstimator(k_neighbors=12)
+-    estimated_normals, computed_curvatures = estimator.estimate_features(noisy_cloud)
+-    
+-    print("[+] Feature processing complete across noisy point data structures!")
+-    print(f"    Estimated Points Count:  {noisy_cloud.shape[0]}")
+-    print(f"    Mean Max Curvature (Cylindrical region target): {np.mean(computed_curvatures['Principal_Max'][100:]):.4f} (Target ~0.500)")
+-    print(f"    Mean Min Curvature (Planar zone target):       {np.mean(computed_curvatures['Principal_Min'][:50]):.4f} (Target ~0.000)")
+-
+-
++    import argparse
++    import json
++    from dataclasses import asdict
++
++    parser = argparse.ArgumentParser(description="Inspect an STL without fitting or exporting CAD")
++    parser.add_argument("input", type=Path)
++    args = parser.parse_args()
++    try:
++        print(json.dumps(asdict(STLReader.read(args.input).report), indent=2))
++    except (OSError, ValueError) as exc:
++        parser.exit(2, f"error: {exc}\n")
+--- a/main.py
++++ b/main.py
+@@ -1,19 +1,227 @@
+-from STLReader import STLReader, PointCloudGeometryEstimator
+-from NURBSCoreEngine import RANSACPrimitiveClassifier, CADGeometryCardEngine, STEPGeometryExportEngine
+-
+-# 1. Parse external STL geometry asset or raw point array
+-points, face_normals, faces = STLReader.load_stl("noisy_scan_input.stl")
+-
+-# 2. Extract analytical curvature metrics from unorganized points
+-estimator = PointCloudGeometryEstimator(k_neighbors=15)
+-normals, curvatures = estimator.estimate_features(points)
+-
+-# 3. Stream smooth geometry variables directly into downstream RANSAC/STEP engines
+-segmenter = RANSACPrimitiveClassifier(spatial_tol=0.01, normal_tol_deg=3.0)
+-primitives = segmenter.segment_primitives(points, normals, curvatures)
+-
+-card_engine = CADGeometryCardEngine(precision=4)
+-geometry_card = card_engine.compute_cards(primitives, points)
+-
+-step_engine = STEPGeometryExportEngine(start_id=100)
+-step_file_content = step_engine.export(geometry_card)
++#!/usr/bin/env python3
++"""CLI and callable STL -> features -> primitives -> JSON/optional STEP pipeline.
++
++Example (coordinates measured in millimetres):
++    python main.py scan.stl --units mm --cards scan.json --step scan.step --seed 42
++
++STL has no unit metadata. JSON-only runs may leave units unspecified; STEP may
++not. Thresholds are always expressed in the ORIGINAL input coordinate system.
++"""
++
++from __future__ import annotations
++
++import argparse
++import logging
++import time
++from dataclasses import asdict, dataclass
++from pathlib import Path
++from typing import Any
++
++import numpy as np
++
++from NURBSCoreEngine import (
++    CADGeometryCardEngine,
++    GeometryValidationError,
++    OptionalDependencyError,
++    RANSACPrimitiveClassifier,
++    STEPExportError,
++    STEPGeometryExportEngine,
++    write_text_atomic,
++)
++from STLReader import PointCloudGeometryEstimator, STLReader
++
++LOGGER = logging.getLogger(__name__)
++
++
++@dataclass(frozen=True, slots=True)
++class PipelineConfig:
++    input_path: Path
++    cards_path: Path
++    step_path: Path | None = None
++    units: str = "unspecified"
++    neighbors: int = 15
++    spatial_tol: float = 0.01
++    normal_tol_deg: float = 3.0
++    curvature_threshold: float = 0.05
++    max_fit_rmse: float | None = None
++    max_radius: float | None = None
++    seed: int = 42
++    workers: int = 1
++    batch_size: int = 1024
++    max_facets: int = 2_000_000
++    max_primitives: int = 100
++    overwrite: bool = False
++
++
++@dataclass(frozen=True, slots=True)
++class PipelineResult:
++    cards: dict[str, Any]
++    input_vertices: int
++    valid_feature_count: int
++    primitive_count: int
++    unassigned_count: int
++    elapsed_seconds: float
++    cards_path: Path
++    step_path: Path | None
++
++
++def run_pipeline(config: PipelineConfig) -> PipelineResult:
++    """Execute the reference pipeline; no logging configuration or swallowed errors.
++
++    Export contents are generated before publishing either output. Each file is
++    published atomically, but JSON and STEP are NOT a two-file transaction. A
++    publication failure can leave one complete output; the error propagates.
++    """
++    started = time.perf_counter()
++    source = Path(config.input_path)
++    cards_path = Path(config.cards_path)
++    step_path = Path(config.step_path) if config.step_path is not None else None
++    paths = [source.resolve(), cards_path.resolve()]
++    if step_path is not None:
++        paths.append(step_path.resolve())
++    if len(set(paths)) != len(paths):
++        raise GeometryValidationError("input, JSON output, and STEP output must be distinct paths")
++    for output in (cards_path, step_path):
++        if output is not None:
++            if not output.parent.is_dir():
++                raise FileNotFoundError(f"output directory does not exist: {output.parent}")
++            if output.exists() and not config.overwrite:
++                raise FileExistsError(f"refusing to overwrite {output}; use --overwrite explicitly")
++    if step_path is not None and config.units == "unspecified":
++        raise GeometryValidationError("--units is required when exporting STEP")
++
++    estimator = PointCloudGeometryEstimator(
++        k_neighbors=config.neighbors, batch_size=config.batch_size, workers=config.workers,
++        max_radius=config.max_radius, max_fit_rmse=config.max_fit_rmse,
++    )
++    segmenter = RANSACPrimitiveClassifier(
++        spatial_tol=config.spatial_tol, normal_tol_deg=config.normal_tol_deg,
++        planar_threshold=config.curvature_threshold, random_state=config.seed,
++        max_primitives=config.max_primitives,
++    )
++    card_engine = CADGeometryCardEngine(precision=4, length_unit=config.units)
++    mesh = STLReader.read(source, max_facets=config.max_facets)
++    if len(mesh.points) < 6:
++        raise GeometryValidationError(
++            "at least six distinct vertices are needed for quadratic features"
++        )
++    features = estimator.estimate(mesh.points, reference_normals=mesh.vertex_normals())
++    segmentation = segmenter.segment(mesh.points, features.normals, features.curvatures)
++    cards = card_engine.compute_cards(segmentation.primitives, mesh.points)
++    valid_count = int(np.count_nonzero(features.valid_mask))
++    unassigned_count = len(segmentation.unassigned_indices)
++    settings = asdict(config)
++    settings = {
++        key: str(value) if isinstance(value, Path) else value
++        for key, value in settings.items()
++    }
++    cards["provenance"] = {
++        "input_mesh": asdict(mesh.report), "pipeline_settings": settings,
++        "valid_feature_count": valid_count, "unassigned_count": unassigned_count,
++        "unassigned_fraction": unassigned_count / len(mesh.points),
++        "index_space": "exactly deduplicated STLReader vertex order",
++    }
++    if not segmentation.primitives:
++        LOGGER.warning(
++            "No supported primitives found; inspect feature validity and unit-dependent tolerances",
++        )
++    # Resolve backend / geometry failures before writing JSON, but do not claim
++    # transactionality across these two separately published files.
++    step_text = STEPGeometryExportEngine().export(cards) if step_path is not None else None
++    json_text = card_engine.to_json(cards)
++    write_text_atomic(cards_path, json_text, overwrite=config.overwrite)
++    if step_path is not None and step_text is not None:
++        write_text_atomic(step_path, step_text, overwrite=config.overwrite)
++    elapsed = time.perf_counter() - started
++    LOGGER.info(
++        "Finished in %.3fs: %d valid features, %d primitives, %d/%d unassigned vertices",
++        elapsed, valid_count, len(segmentation.primitives), unassigned_count, len(mesh.points),
++    )
++    return PipelineResult(
++        cards, len(mesh.points), valid_count, len(segmentation.primitives),
++        unassigned_count, elapsed, cards_path, step_path,
++    )
++
++
++def build_parser() -> argparse.ArgumentParser:
++    parser = argparse.ArgumentParser(
++        description=(
++            "Extract bounded plane/cylinder surface fragments from an STL "
++            "(not a solid reconstruction)"
++        ),
++        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
++    )
++    parser.add_argument("input", type=Path, help="binary or ASCII STL")
++    parser.add_argument("--cards", type=Path, help="JSON output; default: <input>.geometry.json")
++    parser.add_argument("--step", type=Path, help="optional STEP output; requires the [step] extra")
++    parser.add_argument(
++        "--units", choices=("mm", "cm", "m", "in"), default="unspecified",
++        help="input length units; mandatory for STEP",
++    )
++    parser.add_argument(
++        "--neighbors", type=int, default=15,
++        help="local neighbor count, including query point",
++    )
++    parser.add_argument(
++        "--spatial-tol", type=float, default=0.01,
++        help="RANSAC distance tolerance in input units",
++    )
++    parser.add_argument("--normal-tol-deg", type=float, default=3.0)
++    parser.add_argument(
++        "--curvature-threshold", type=float, default=0.05,
++        help="planarity cutoff in inverse input units",
++    )
++    parser.add_argument(
++        "--max-fit-rmse", type=float,
++        help="reject local fits above this input-unit RMSE",
++    )
++    parser.add_argument("--max-radius", type=float, help="maximum neighbor radius in input units")
++    parser.add_argument("--seed", type=int, default=42)
++    parser.add_argument(
++        "--workers", type=int, default=1,
++        help="KD-tree query workers; -1 uses all available",
++    )
++    parser.add_argument("--batch-size", type=int, default=1024)
++    parser.add_argument("--max-facets", type=int, default=2_000_000)
++    parser.add_argument("--max-primitives", type=int, default=100)
++    parser.add_argument(
++        "--overwrite", action="store_true",
++        help="allow replacement of existing outputs",
++    )
++    parser.add_argument("--verbose", action="store_true")
++    return parser
++
++
++def main(argv: list[str] | None = None) -> int:
++    parser = build_parser()
++    args = parser.parse_args(argv)
++    logging.basicConfig(
++        level=logging.DEBUG if args.verbose else logging.INFO,
++        format="%(levelname)s %(name)s: %(message)s",
++    )
++    config = PipelineConfig(
++        input_path=args.input,
++        cards_path=args.cards or args.input.with_suffix(".geometry.json"),
++        step_path=args.step, units=args.units, neighbors=args.neighbors,
++        spatial_tol=args.spatial_tol, normal_tol_deg=args.normal_tol_deg,
++        curvature_threshold=args.curvature_threshold, max_fit_rmse=args.max_fit_rmse,
++        max_radius=args.max_radius, seed=args.seed, workers=args.workers,
++        batch_size=args.batch_size, max_facets=args.max_facets,
++        max_primitives=args.max_primitives, overwrite=args.overwrite,
++    )
++    try:
++        result = run_pipeline(config)
++    except (OSError, ValueError) as exc:
++        LOGGER.error("%s", exc, exc_info=args.verbose)
++        return 2
++    except (OptionalDependencyError, STEPExportError) as exc:
++        LOGGER.error("%s", exc, exc_info=args.verbose)
++        return 3
++    LOGGER.info("JSON: %s", result.cards_path)
++    if result.step_path is not None:
++        LOGGER.info("STEP: %s", result.step_path)
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
