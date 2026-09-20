@@ -1,0 +1,8 @@
+{
+  "purpose": "Isolate maximum-size delivery from rendering; local Chrome, captured real controller payload",
+  "raw_parser": {"fetch_ms": 689.2, "parse_ms": 538.5, "heap_bytes": 329198334},
+  "parser_and_two_viewports": {"fetch_ms": 369.7, "parse_ms": 457.1, "render_ms": 1937.4, "heap_bytes": 564018123},
+  "dense_bounded_wire_decode": {"fetch_ms": 302.2, "decode_ms": 852.1, "decoded_bytes": 206293653, "heap_bytes": 688464637},
+  "qualification": false,
+  "notes": "These isolated probes diagnose failures; installed-parent tests supply qualification evidence. Temporary replay harnesses were removed after diagnosis."
+}

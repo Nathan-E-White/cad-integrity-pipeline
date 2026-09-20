@@ -105,6 +105,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/yaml-0.2.5-h74c22ad_3.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/zstd-1.5.7-hf451053_7.conda
       - pypi: ./
+      - pypi: ./components/inspection_workspace
       - pypi: ./components/topological_delta_audit
       - pypi: ./components/verification_grid
       - pypi: https://files.pythonhosted.org/packages/00/51/5abfa4dc321b864e57bde87be8a328ee97b3aa33cc5e8f736c162fac63cb/vtk-9.6.2-cp313-cp313-macosx_11_0_arm64.whl
@@ -1621,6 +1622,7 @@ packages:
   - gradio>=6.27,<7 ; extra == 'ui'
   - gradio-topologicaldeltaaudit==0.0.1 ; extra == 'ui'
   - gradio-verificationgrid==0.0.1 ; extra == 'ui'
+  - gradio-inspectionworkspace==0.0.1 ; extra == 'ui'
   - pytest>=8,<10 ; extra == 'dev'
   - pytest-cov>=5,<8 ; extra == 'dev'
   - ruff>=0.11,<1 ; extra == 'dev'
@@ -1631,6 +1633,13 @@ packages:
   - packaging>=24,<27 ; extra == 'dev'
   - pyyaml>=6,<7 ; extra == 'dev'
   requires_python: '>=3.13'
+- pypi: ./components/inspection_workspace
+  name: gradio-inspectionworkspace
+  requires_dist:
+  - gradio>=6.27,<7
+  - build ; extra == 'dev'
+  - twine ; extra == 'dev'
+  requires_python: '>=3.10'
 - pypi: ./components/topological_delta_audit
   name: gradio-topologicaldeltaaudit
   requires_dist:

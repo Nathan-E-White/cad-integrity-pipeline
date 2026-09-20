@@ -1,7 +1,9 @@
 # Polygonal inspection integration — implementation plan
 
-Status: planned; implementation has not started. This document consolidates the
-accepted design decisions. Creating the plan does not authorize implementation.
+Status: implemented and locally qualified on 2026-09-20; see
+[implementation evidence](evidence/polygonal-inspection/IMPLEMENTATION.md).
+This document records the accepted requirements. D-001 now permits runtime candidate
+inspection without a retained download; see the decision register.
 
 ## Objective
 
@@ -22,6 +24,7 @@ Related documents:
 - [Desired features](DESIRED_FEATURES.md)
 - [Unanswered design decisions](OPEN_DESIGN_DECISIONS.md)
 - [Earlier integration assessment](INTEGRATION_PLAN.md)
+- [TDD case catalogue](POLYGONAL_INSPECTION_TDD_CASES.md)
 
 This focused plan supersedes the earlier report's recommendation to start with
 only three overlay categories or to withhold display above the inspector's old
@@ -351,7 +354,7 @@ because it currently has few callers.
 | F-004: concurrency management | One active computation per browser session; broader policy deferred |
 | F-005: multi-selection | One entity or one whole category per viewport |
 | F-006: picking shortcuts | Explicit mode control only; keyboard bindings deferred |
-| D-001: candidate-file write failure | Unanswered; blocks finalizing that behavior and its acceptance tests, not independent projection work |
+| D-001: candidate-file write failure | Resolved: keep runtime candidate inspection; no download for an unretained file |
 | D-002: no-candidate layout | Vacant candidate pane, no automatic resizing; explicit maximize retained |
 
 Exact backend types, wire encoding/version, package placement, and performance
@@ -368,5 +371,5 @@ hold; D-001 is resolved and verified; the parent admission range is qualified; a
 the existing reporting and artifact behavior is preserved.
 
 Update integration documentation and artifact manifests with implementation
-evidence when that work is performed. This planning change does not establish
-test, browser, capacity, or runtime qualification.
+evidence when that work is performed. Evidence records distinguish numerical tests, real-controller delivery, synthetic
+dense display stress, and browser resource measurements.

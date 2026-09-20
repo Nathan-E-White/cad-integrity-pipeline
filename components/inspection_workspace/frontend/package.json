@@ -1,0 +1,53 @@
+{
+  "name": "gradio_inspectionworkspace",
+  "version": "0.0.1",
+  "description": "CAD Integrity polygonal inspection workspace",
+  "type": "module",
+  "author": "Nathan White",
+  "license": "Apache-2.0",
+  "private": true,
+  "exports": {
+    ".": {
+      "gradio": "./Index.svelte",
+      "svelte": "./dist/Index.svelte",
+      "types": "./dist/Index.svelte.d.ts"
+    },
+    "./example": {
+      "gradio": "./Example.svelte",
+      "svelte": "./dist/Example.svelte",
+      "types": "./dist/Example.svelte.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@gradio/atoms": "catalog:",
+    "@gradio/statustracker": "catalog:",
+    "@gradio/utils": "catalog:",
+    "@zerodevx/svelte-json-view": "catalog:",
+    "svelte": "catalog:",
+    "three": "catalog:"
+  },
+  "devDependencies": {
+    "@gradio/preview": "catalog:",
+    "typescript": "catalog:",
+    "@types/three": "catalog:",
+    "svelte-check": "4.3.1",
+    "@playwright/test": "1.63.0"
+  },
+  "peerDependencies": {
+    "svelte": "catalog:"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Nathan-E-White/cad-integrity-pipeline.git",
+    "directory": "components/inspection_workspace/frontend"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "test": "bun test tests/*.test.ts",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test:browser": "playwright test"
+  }
+}

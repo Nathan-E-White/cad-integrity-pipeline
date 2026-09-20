@@ -1,0 +1,22 @@
+{
+  "controller_seconds": 59.488077291985974,
+  "completion": "completed",
+  "checks": [
+    {
+      "name": "Polygonal-cell admission",
+      "status": "PASSED"
+    },
+    {
+      "name": "Homology evaluation",
+      "status": "UNAVAILABLE"
+    },
+    {
+      "name": "Closed oriented 2-manifold",
+      "status": "PASSED"
+    }
+  ],
+  "inspection_meshes": 2,
+  "backend_peak_rss_bytes": 931676160,
+  "candidate_retained": true,
+  "diagnostics": []
+}

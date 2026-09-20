@@ -1,12 +1,25 @@
-# Inspection workspace placeholders
+# Polygonal inspection workspace
 
-Directory placeholders for the orthogonal Svelte components proposed in the
-integrated architecture review. Each component has a comment-only Svelte file.
-Interfaces, rendering, backend integration, packaging, and application wiring
-are not implemented.
+Installed Gradio component for the parent-owned V2 polygonal inspection snapshot.
+GeometryViewport, MetricTable and EntityTable implement the current topology-only
+workspace. Camera, clipping, selection, hover, filters and picking stay local.
+Original and Candidate keep independent revision-scoped identities.
 
-These components are intended for composition within an inspection workspace.
-The existing Topological Delta Audit and Verification Grid remain separate.
+The existing report components remain separate. The installed workspace is the default polygonal display after local qualification.
+`build_app(inspection_enabled=False)` retains the legacy display path. Run the installed-parent
+preview with `.pixi/envs/default/bin/python scripts/run_inspection_preview.py`
+from the repository root; it binds only to `127.0.0.1:7863`.
+
+Build with `pixi run build-inspection-component`. From the frontend directory,
+`bun run check`, `bun run test`, and `bun run test:browser` perform type, public
+contract/state, and installed-parent browser checks. Browser tests start and stop
+their own parent server on port 7863.
+
+Geometry travels as a bounded gzip document through Gradio-managed file delivery;
+interaction stays local after the initial fetch. This cache is distinct from
+retained release artifacts and does not add snapshot export/reopen functionality.
+
+The remaining component files are reserved placeholders, outside this cut.
 
 | Component | Intended responsibility |
 | --- | --- |

@@ -1,0 +1,8 @@
+{
+  "status": "failed",
+  "vertices_per_pane": 250000,
+  "triangles_per_pane": 500000,
+  "observation": "Browser remained busy beyond 180 seconds after run start; the 30-second browser delivery/load gate was not met.",
+  "investigation": "Large numeric arrays were entering Gradio's deeply reactive Svelte props before inspection validation.",
+  "disposition": "Stopped the owned qualification process; testing primitive JSON transport to avoid deep reactive numeric arrays."
+}

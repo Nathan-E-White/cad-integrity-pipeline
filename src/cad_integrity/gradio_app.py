@@ -10,10 +10,18 @@ import hashlib
 import json
 import shutil
 import zipfile
+from collections.abc import Iterator
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from gradio_topologicaldeltaaudit import DeltaAuditRow, TopologicalDeltaAudit, TopologicalDeltaAuditData
+import gradio as gr
+from gradio_inspectionworkspace import InspectionWorkspace
+from gradio_topologicaldeltaaudit import (
+    DeltaAuditRow,
+    TopologicalDeltaAudit,
+    TopologicalDeltaAuditData,
+)
 from gradio_verificationgrid import (
     VerificationCheck,
     VerificationGrid,
@@ -24,10 +32,12 @@ from gradio_verificationgrid import (
 
 from .adapters.ocp import ExportReport, KernelPolicy, KernelReport
 from .errors import IntegrityError, MissingOptionalDependency
+from .inspection import encode_inspection, project_polygonal_inspection
 from .models import PolyhedralBRep
 from .pipeline import RepairPipeline, RepairPolicy, fingerprint
 from .repair import WeldPolicy
 from .serialization import dumps
+from .session_admission import SessionAdmission, SessionBusy
 from .visualization import mesh_figure, polygonal_audit_figure
 from .workbench_results import (
     ArtifactStore,
@@ -643,7 +653,8 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
                                 original_title: str, candidate_title: str,
                                 requires_review_outcome: str = "Fixture requires review",
                                 limitations_scope: str = "qualified polygonal fixture",
-                                source_evidence: dict[str, str] | None = None
+                                source_evidence: dict[str, str] | None = None,
+                                include_legacy_figures: bool = True
                                 ) -> WorkbenchOutcome:
     brief = project_polygonal_evidence(
         result,
@@ -653,14 +664,15 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
         limitations_scope=limitations_scope,
     )
     try:
-        original_figure = polygonal_audit_figure(result.original, result.report.before, title=original_title)
+        original_figure = (polygonal_audit_figure(result.original, result.report.before, title=original_title)
+                           if include_legacy_figures else None)
     except IntegrityError as exc:
         original_figure = None
         brief = _with_display_notes(brief, [f"Original diagnostic view unavailable: {exc}"])
     try:
         candidate_figure = (
             polygonal_audit_figure(result.candidate, result.report.after, title=candidate_title)
-            if brief.candidate_available and result.candidate is not None and result.report.after is not None else None
+            if include_legacy_figures and brief.candidate_available and result.candidate is not None and result.report.after is not None else None
         )
     except IntegrityError as exc:
         candidate_figure = None
@@ -687,7 +699,7 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
     payload: Any = result.report if source_evidence is None else {
         "schema_version": "1.0", **source_evidence, "policy": policy, "repair": result.report,
     }
-    return _release_outcome(
+    outcome = _release_outcome(
         draft=draft,
         candidate=candidate_artifact,
         brief=brief,
@@ -699,8 +711,15 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
         payload=payload,
     )
 
+    try:
+        inspection = project_polygonal_inspection(result)
+    except (IntegrityError, ValueError) as exc:
+        return replace(outcome, diagnostics=(*outcome.diagnostics, Diagnostic("inspection", str(exc))))
+    return replace(outcome, inspection=inspection)
 
-def run_polygonal_fixture(name: str, *, artifact_store: ArtifactStore | None = None) -> WorkbenchOutcome:
+
+def run_polygonal_fixture(name: str, *, artifact_store: ArtifactStore | None = None,
+                          include_legacy_figures: bool = True) -> WorkbenchOutcome:
     """Run one saved example through its recorded conservative policy."""
     try:
         source_path = _fixture_root() / "meshes" / f"{name}.npz"
@@ -719,7 +738,7 @@ def run_polygonal_fixture(name: str, *, artifact_store: ArtifactStore | None = N
     draft = store.begin_release(source_artifact)
     result = RepairPipeline(policy).run(source)
     return _polygonal_analysis_outcome(
-        result, f"Example: {_FIXTURE_LABELS[name]}.", policy, draft=draft,
+        result, f"Example: {_FIXTURE_LABELS[name]}.", policy, draft=draft, include_legacy_figures=include_legacy_figures,
         original_title="Original mesh", candidate_title="Candidate mesh",
         source_evidence={
             "source_kind": "saved_example",
@@ -730,7 +749,8 @@ def run_polygonal_fixture(name: str, *, artifact_store: ArtifactStore | None = N
 
 
 def run_polygonal_upload(upload: str | Path, policy: RepairPolicy, *,
-                         artifact_store: ArtifactStore | None = None) -> WorkbenchOutcome:
+                         artifact_store: ArtifactStore | None = None,
+                         include_legacy_figures: bool = True) -> WorkbenchOutcome:
     """Analyze and optionally stitch one restricted uploaded NPZ mesh."""
     supplied = Path(upload)
     try:
@@ -761,7 +781,7 @@ def run_polygonal_upload(upload: str | Path, policy: RepairPolicy, *,
         )
     result = RepairPipeline(policy).run(source)
     return _polygonal_analysis_outcome(
-        result, "Uploaded NPZ — restricted array contract.", policy, draft=draft,
+        result, "Uploaded NPZ — restricted array contract.", policy, draft=draft, include_legacy_figures=include_legacy_figures,
         original_title="Original upload", candidate_title="Candidate upload",
         requires_review_outcome="Uploaded polygonal input requires review",
         limitations_scope="uploaded NPZ array contract",
@@ -879,7 +899,7 @@ def candidate_display(figure: Any | None, *, candidate_available: bool = False) 
     )
 
 
-def build_app() -> Any:
+def build_app(*, inspection_enabled: bool = True) -> Any:
     """Build the local UI without starting a server or touching geometry."""
     try:
         import gradio as gr
@@ -893,7 +913,7 @@ def build_app() -> Any:
         )
         with gr.Tab("Mesh Lab"):
             with gr.Tabs(selected=0):
-                with gr.Tab("Examples"):
+                with gr.Tab("Examples", id=0):
                     gr.Markdown("Explore saved meshes that demonstrate common topology cases.")
                     fixture_name = gr.Dropdown(
                         label="Choose an example",
@@ -902,7 +922,7 @@ def build_app() -> Any:
                     )
                     fixture_description = gr.Markdown(_example_description("01_detached_reversed_cap"))
                     fixture_run = gr.Button("Run this example", variant="primary")
-                with gr.Tab("Upload your NPZ"):
+                with gr.Tab("Upload your NPZ", id=1):
                     gr.Markdown(
                         "Upload a triangle mesh with `vertices`, `triangles`, and `length_unit`; "
                         "OBJ and GLB are not supported here yet."
@@ -923,7 +943,8 @@ def build_app() -> Any:
             mesh_source_context = gr.Markdown()
             mesh_audit = TopologicalDeltaAudit()
             mesh_verification = VerificationGrid()
-            with gr.Tabs():
+            inspector = InspectionWorkspace(visible=inspection_enabled)
+            with gr.Tabs(visible=not inspection_enabled):
                 with gr.Tab("Original"):
                     mesh_original_plot = gr.Plot(label="Original mesh view", min_width=320)
                 with gr.Tab("Candidate"):
@@ -935,19 +956,6 @@ def build_app() -> Any:
                 mesh_markdown = gr.File(label="Mesh decision brief download")
                 mesh_json = gr.File(label="Mesh raw JSON evidence")
             fixture_name.change(_example_description, inputs=[fixture_name], outputs=[fixture_description])
-            fixture_run.click(
-                lambda name: _fixture_ui_action(name, artifact_store=artifact_store),
-                inputs=[fixture_name],
-                outputs=[mesh_source_context, mesh_audit, mesh_verification, mesh_original_plot, mesh_candidate_plot, mesh_candidate_notice,
-                         mesh_source, mesh_candidate, mesh_markdown, mesh_json],
-            )
-            upload_run.click(
-                lambda *inputs: _polygonal_upload_ui_action(*inputs, artifact_store=artifact_store),
-                inputs=[polygonal_upload, upload_welding, upload_weld_tolerance,
-                        upload_max_displacement, upload_orientation],
-                outputs=[mesh_source_context, mesh_audit, mesh_verification, mesh_original_plot, mesh_candidate_plot, mesh_candidate_notice,
-                         mesh_source, mesh_candidate, mesh_markdown, mesh_json],
-            )
         with gr.Tab("Local STEP workbench"):
             step_upload = gr.File(label="Local STEP file", file_types=[".step", ".stp"], type="filepath")
             with gr.Accordion("Advanced repair policy", open=False):
@@ -971,13 +979,83 @@ def build_app() -> Any:
                 checked_step = gr.File(label="Checked STEP download")
                 step_markdown = gr.File(label="Decision brief download")
                 step_json = gr.File(label="Raw JSON evidence")
-            step_run.click(
-                lambda *inputs: _step_ui_action(*inputs, artifact_store=artifact_store),
-                inputs=[step_upload, precision, maximum_tolerance, expected_solids, self_interference,
-                        area_change, volume_change, allow_face_count],
-                outputs=[step_brief, original_plot, candidate_plot, candidate_notice,
-                         step_source, checked_step, step_markdown, step_json],
-            )
+        admission = SessionAdmission()
+        starts = [fixture_run, upload_run, step_run]
+        mesh_outputs = [mesh_source_context, mesh_audit, mesh_verification,
+                        mesh_original_plot, mesh_candidate_plot, mesh_candidate_notice,
+                        mesh_source, mesh_candidate, mesh_markdown, mesh_json]
+        step_outputs = [step_brief, original_plot, candidate_plot, candidate_notice,
+                        step_source, checked_step, step_markdown, step_json]
+        all_outputs = [*mesh_outputs, inspector, *step_outputs, *starts]
+
+        def execute(route: str, inputs: tuple[Any, ...], request: gr.Request) -> Iterator[tuple[Any, ...]]:
+            try:
+                with admission.admit(request.session_hash or ""):
+                    # Clearing is emitted only after acquiring the session guard.
+                    empty: list[Any] = [None] * (len(mesh_outputs) + 1 + len(step_outputs))
+                    empty[1] = TopologicalDeltaAuditData("Topological & Geometric Delta Audit", ())
+                    empty[2] = _verification_grid(())
+                    empty[len(mesh_outputs)] = encode_inspection(None)
+                    yield (*empty, *(gr.update(interactive=False) for _ in starts))
+                    try:
+                        if route == "example":
+                            outcome = run_polygonal_fixture(inputs[0], artifact_store=artifact_store, include_legacy_figures=not inspection_enabled)
+                        elif route == "upload":
+                            if inputs[0] is None:
+                                raise ValueError("Choose a restricted polygonal NPZ file before analysis")
+                            outcome = run_polygonal_upload(inputs[0], polygonal_policy_from_controls(*inputs[1:]), artifact_store=artifact_store, include_legacy_figures=not inspection_enabled)
+                        else:
+                            if inputs[0] is None:
+                                raise ValueError("Choose a STEP file before analysis")
+                            outcome = run_step_workbench(inputs[0], kernel_policy_from_controls(*inputs[1:]), artifact_store=artifact_store)
+                    except Exception as exc:
+                        outcome = failed_outcome("Computation", str(exc))
+                    try:
+                        if route == "step":
+                            values = [*empty[:len(mesh_outputs)+1], *_step_ui_projection(outcome)]
+                        else:
+                            projection = list(_polygonal_ui_projection(outcome, source_name="Example" if route == "example" else "Uploaded NPZ"))
+                            try:
+                                inspection_value = encode_inspection(outcome.inspection)
+                            except Exception as exc:
+                                inspection_value = encode_inspection(None)
+                                projection[0] = f"### Inspection unavailable\n{exc}"
+                            values = [*projection, inspection_value, *empty[len(mesh_outputs)+1:]]
+                    except Exception as exc:
+                        failure = failed_outcome("Result delivery", str(exc))
+                        if route == "step":
+                            values = [*empty[:len(mesh_outputs)+1], *_step_ui_projection(failure)]
+                        else:
+                            values = [*_polygonal_ui_projection(failure, source_name="Polygonal input"),
+                                      encode_inspection(None), *empty[len(mesh_outputs)+1:]]
+                    yield (*values, *(gr.update(interactive=False) for _ in starts))
+                # Release admission only after result delivery has advanced. The
+                # final generator frame changes controls alone, so Gradio cannot
+                # replay a large geometry value after a subsequent start.
+                yield (*(gr.skip() for _ in empty), *(gr.update(interactive=True) for _ in starts))
+            except (SessionBusy, ValueError) as exc:
+                raise gr.Error(str(exc)) from exc
+
+        def example_action(name: str, request: gr.Request) -> Iterator[tuple[Any, ...]]:
+            yield from execute("example", (name,), request)
+
+        def upload_action(upload: str | None, welding: bool, tolerance: float,
+                          displacement: float, orientation: bool, request: gr.Request) -> Iterator[tuple[Any, ...]]:
+            yield from execute("upload", (upload, welding, tolerance, displacement, orientation), request)
+
+        def step_action(upload: str | None, precision_value: float, tolerance: float,
+                        solids: float, interference: bool, area: float, volume: float,
+                        faces: bool, request: gr.Request) -> Iterator[tuple[Any, ...]]:
+            yield from execute("step", (upload, precision_value, tolerance, solids, interference, area, volume, faces), request)
+
+        fixture_run.click(example_action, inputs=[fixture_name], outputs=all_outputs,
+                          concurrency_limit=None, trigger_mode="multiple", api_name="run_example")
+        upload_run.click(upload_action, inputs=[polygonal_upload, upload_welding, upload_weld_tolerance,
+                         upload_max_displacement, upload_orientation], outputs=all_outputs,
+                         concurrency_limit=None, trigger_mode="multiple", api_name="run_upload")
+        step_run.click(step_action, inputs=[step_upload, precision, maximum_tolerance, expected_solids,
+                       self_interference, area_change, volume_change, allow_face_count], outputs=all_outputs,
+                       concurrency_limit=None, trigger_mode="multiple", api_name="run_step")
     return app
 
 

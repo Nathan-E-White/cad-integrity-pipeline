@@ -15,6 +15,8 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from .inspection import InspectionSnapshot
+
 
 class Completion(StrEnum):
     COMPLETED = "completed"
@@ -146,6 +148,7 @@ class WorkbenchOutcome:
     release: ArtifactRelease | None
     original_figure: Any | None
     candidate_figure: Any | None
+    inspection: InspectionSnapshot | None = None
 
 
 class ArtifactStore:

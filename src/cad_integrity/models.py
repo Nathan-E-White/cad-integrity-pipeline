@@ -151,23 +151,30 @@ class PolyhedralBRep:
         positive(planarity_tolerance, "planarity_tolerance", allow_zero=True)
         triangles: list[tuple[int, int, int]] = []
         for f in range(self.face_count):
-            ids = self.face_vertices(f)
-            xyz = self.vertices[list(ids)]
-            relative = xyz - xyz[0]
-            normal = np.cross(relative[1], relative[2])
-            norm = np.linalg.norm(normal)
-            if norm == 0:
-                raise InvalidGeometry(f"Face {f}: degenerate initial triangle")
-            normal /= norm
-            if np.max(np.abs(relative @ normal)) > planarity_tolerance:
-                raise InvalidGeometry(f"Face {f}: nonplanar; fan triangulation is unsupported")
-            # Every directed edge must see all remaining points on its inward side.
-            for k in range(len(ids)):
-                edge = xyz[(k + 1) % len(ids)] - xyz[k]
-                sides = np.cross(edge, xyz - xyz[k]) @ normal
-                if np.any(sides < -planarity_tolerance * max(1.0, np.linalg.norm(edge))):
-                    raise InvalidGeometry(f"Face {f}: nonconvex or self-intersecting polygon")
-            triangles.extend((ids[0], ids[i], ids[i + 1]) for i in range(1, len(ids) - 1))
+            triangles.extend(self.triangulate_face(f, planarity_tolerance=planarity_tolerance))
         return TriangleMesh(
             self.vertices, np.asarray(triangles, dtype=np.int64).reshape(-1, 3), self.length_unit
         )
+
+    def triangulate_face(self, face_id: int, *, planarity_tolerance: float = 1e-8) -> tuple[tuple[int, int, int], ...]:
+        """Triangulate one supported face; preserve source vertex IDs and winding."""
+        from .arrays import positive
+
+        positive(planarity_tolerance, "planarity_tolerance", allow_zero=True)
+        ids = self.face_vertices(face_id)
+        xyz = self.vertices[list(ids)]
+        relative = xyz - xyz[0]
+        normal = np.cross(relative[1], relative[2])
+        norm = np.linalg.norm(normal)
+        if norm == 0:
+            raise InvalidGeometry(f"Face {face_id}: degenerate initial triangle")
+        normal /= norm
+        if np.max(np.abs(relative @ normal)) > planarity_tolerance:
+            raise InvalidGeometry(f"Face {face_id}: nonplanar; fan triangulation is unsupported")
+        # Every directed edge must see all remaining points on its inward side.
+        for k in range(len(ids)):
+            edge = xyz[(k + 1) % len(ids)] - xyz[k]
+            sides = np.cross(edge, xyz - xyz[k]) @ normal
+            if np.any(sides < -planarity_tolerance * max(1.0, np.linalg.norm(edge))):
+                raise InvalidGeometry(f"Face {face_id}: nonconvex or self-intersecting polygon")
+        return tuple((ids[0], ids[i], ids[i + 1]) for i in range(1, len(ids) - 1))

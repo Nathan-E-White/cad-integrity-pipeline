@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "vertices": 250000,
+  "triangles": 500000,
+  "projection_encoding_seconds": 1.4610439169919118,
+  "json_bytes": 75126955,
+  "backend_peak_rss_bytes": 548241408,
+  "source": "/private/tmp/polygonal-inspection-capacity.npz",
+  "scope": "synthetic projection; not parent/browser qualification"
+}

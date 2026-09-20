@@ -9,7 +9,7 @@ Existing capabilities awaiting integration are tracked separately in
 
 ## D-001 — Candidate inspection after candidate-file persistence failure
 
-Status: deferred; unanswered.
+Status: resolved on 2026-09-20: permit in-memory inspection without a download.
 
 Scope: polygonal result projection and inspector integration.
 
@@ -19,32 +19,20 @@ Computation produces an in-memory candidate, but writing `candidate.npz` fails.
 The source remains retained. Should the inspector suppress the candidate view,
 or allow inspection of the computed candidate without a downloadable artifact?
 
-### Current behavior
+### Accepted behavior
 
-[`_polygonal_analysis_outcome`](../src/cad_integrity/gradio_app.py) marks completion
-incomplete, clears the candidate figure, and sets brief candidate availability
-to false when candidate publication fails. The release contains no retained
-candidate artifact.
+The user selected in-memory inspection. When `candidate.npz` writing fails,
+completion is incomplete and the retained release has no candidate artifact.
+The immutable computed candidate remains available in the inspection snapshot.
+Download availability and inspection availability are separate facts.
 
-This differs from a later evidence-file failure: a candidate already retained
-before that failure remains available.
+The snapshot lasts as the current displayed result: a newly admitted computation
+clears it, and page reload does not reopen it. It is not a retained snapshot export.
+An already loaded view does not require its candidate download link to remain valid.
+A later evidence-write failure likewise preserves already retained files.
 
-### Options
-
-1. Preserve suppression: show the candidate only when its file was retained.
-2. Permit in-memory inspection: represent inspection availability separately from
-   download availability, including what happens after session loss or expiry.
-
-### Recommendation considered
-
-Preserve current behavior for the initial projection slice, avoiding an additional
-behavior change during renderer integration. This recommendation has not been
-accepted; the question was explicitly deferred.
-
-### Revisit when
-
-Defining candidate visibility and publication-failure behavior for the integrated
-inspector. Resolve before finalizing that behavior and its acceptance tests.
+The legacy Plotly path keeps its existing file-publication display behavior until
+replacement is qualified. This does not restrict the new runtime snapshot.
 
 ## D-002 — Comparison layout when no candidate is available
 

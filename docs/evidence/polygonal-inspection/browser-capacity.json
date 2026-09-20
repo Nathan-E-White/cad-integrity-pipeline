@@ -1,0 +1,8 @@
+{
+  "controllerAndDeliveryMs": 52235,
+  "interactionSequenceMs": 203,
+  "browserResidentDeltaBytes": 432144384,
+  "errors": [],
+  "trianglesPerPane": 500000,
+  "verticesPerPane": 250000
+}

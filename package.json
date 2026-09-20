@@ -11,7 +11,8 @@
       "components/topological_delta_audit/frontend",
       "components/verification_grid/frontend",
       "integration/mesh-diagnostics-seam",
-      "integration/solid-cad-viewer"
+      "integration/solid-cad-viewer",
+      "components/inspection_workspace/frontend"
     ],
     "catalog": {
       "@gradio/atoms": "0.26.2",

@@ -1,0 +1,30 @@
+{
+  "sampledPeakDeltaBytes": 455344128,
+  "memorySampleIntervalMs": 1000,
+  "browser": "153.0.8010.48",
+  "loadsMs": [
+    6181,
+    5563,
+    5437,
+    5253,
+    5021,
+    5889,
+    5356,
+    6517,
+    5677,
+    5197,
+    4979
+  ],
+  "interactionMs": {
+    "vertex": 33.5,
+    "edge": 69.79999995231628,
+    "polygonal_face": 66.80000007152557,
+    "filter": 92.89999997615814,
+    "clipping": 90.60000002384186
+  },
+  "residentDeltaBytes": 352616448,
+  "retainedGrowthBytes": -163692544,
+  "errors": [],
+  "denseMemberships": true,
+  "replacements": 10
+}

@@ -14,7 +14,7 @@ dependencies = ["numpy>=1.26,<3", "scipy>=1.11,<2"]
 algebra = ["sympy"]
 cad = ["cadquery-ocp>=7.9,<8", "cadquery>=2.8,<3"]
 notebook = ["jupyterlab", "plotly", "nbformat"]
-ui = ["gradio>=6.27,<7", "gradio-topologicaldeltaaudit==0.0.1", "gradio-verificationgrid==0.0.1"]
+ui = ["gradio>=6.27,<7", "gradio-topologicaldeltaaudit==0.0.1", "gradio-verificationgrid==0.0.1", "gradio-inspectionworkspace==0.0.1"]
 dev = ["pytest>=8,<10", "pytest-cov>=5,<8", "ruff>=0.11,<1", "mypy>=1.15,<2", "scipy-stubs", "nbclient", "build", "packaging>=24,<27", "PyYAML>=6,<7"]
 
 [project.scripts]
@@ -92,13 +92,15 @@ numba = ">=0.67.0,<0.68"
 cad-integrity-lab = { path = ".", editable = true, extras = ["algebra", "cad", "notebook", "ui", "dev"] }
 gradio-topologicaldeltaaudit = { path = "components/topological_delta_audit", editable = true }
 gradio-verificationgrid = { path = "components/verification_grid", editable = true }
+gradio-inspectionworkspace = { path = "components/inspection_workspace", editable = true }
 
 [tool.pixi.tasks]
 check-dependencies = "python scripts/check_dependencies.py --environment"
 check-cad = "python scripts/check_cad_environment.py"
 build-delta-component = "gradio cc build components/topological_delta_audit --no-generate-docs"
 build-verification-component = "gradio cc build components/verification_grid --no-generate-docs"
-build-components = { depends-on = ["build-delta-component", "build-verification-component"] }
+build-inspection-component = "gradio cc build components/inspection_workspace --no-generate-docs"
+build-components = { depends-on = ["build-delta-component", "build-verification-component", "build-inspection-component"] }
 test-mesh-healing = { cmd = "python -m pytest -q", cwd = "integration/mesh_healing_extension", depends-on = ["check-cad"] }
 test-nurbs = { cmd = "python -m pytest -q", cwd = "integration/nurbs_core_professionalized", depends-on = ["check-cad"] }
 check-artifacts = "python scripts/verify_artifacts.py"
