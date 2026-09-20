@@ -13,7 +13,7 @@ import zipfile
 from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import gradio as gr
 from gradio_inspectionworkspace import InspectionWorkspace
@@ -699,6 +699,11 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
     payload: Any = result.report if source_evidence is None else {
         "schema_version": "1.0", **source_evidence, "policy": policy, "repair": result.report,
     }
+    inspection = None
+    try:
+        inspection = project_polygonal_inspection(result)
+    except (IntegrityError, ValueError) as exc:
+        diagnostics = (*diagnostics, Diagnostic("inspection", str(exc)))
     outcome = _release_outcome(
         draft=draft,
         candidate=candidate_artifact,
@@ -711,10 +716,6 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
         payload=payload,
     )
 
-    try:
-        inspection = project_polygonal_inspection(result)
-    except (IntegrityError, ValueError) as exc:
-        return replace(outcome, diagnostics=(*outcome.diagnostics, Diagnostic("inspection", str(exc))))
     return replace(outcome, inspection=inspection)
 
 
@@ -864,8 +865,12 @@ def _step_ui_projection(outcome: WorkbenchOutcome) -> tuple[str, Any | None, Any
 
 
 def _polygonal_ui_projection(outcome: WorkbenchOutcome, *, source_name: str = "Mesh") -> tuple[Any, ...]:
+    inspection_messages = [d.message for d in outcome.diagnostics if d.stage == "inspection"]
+    context = f"### {source_name} results\nThe files below are for this source."
+    if inspection_messages:
+        context += "\n\n### Inspection unavailable\n" + "\n".join(inspection_messages)
     return (
-        f"### {source_name} results\nThe files below are for this source.",
+        context,
         outcome.decision_brief.dashboard_data or TopologicalDeltaAuditData("Topological & Geometric Delta Audit", ()),
         _verification_grid(outcome.checks),
         outcome.original_figure,
@@ -988,7 +993,7 @@ def build_app(*, inspection_enabled: bool = True) -> Any:
                         step_source, checked_step, step_markdown, step_json]
         all_outputs = [*mesh_outputs, inspector, *step_outputs, *starts]
 
-        def execute(route: str, inputs: tuple[Any, ...], request: gr.Request) -> Iterator[tuple[Any, ...]]:
+        def execute(route: Literal["example", "upload", "step"], inputs: tuple[Any, ...], request: gr.Request) -> Iterator[tuple[Any, ...]]:
             try:
                 with admission.admit(request.session_hash or ""):
                     # Clearing is emitted only after acquiring the session guard.

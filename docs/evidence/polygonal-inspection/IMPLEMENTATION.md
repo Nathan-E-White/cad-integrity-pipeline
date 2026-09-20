@@ -70,7 +70,7 @@ and real-controller evidence. It is not a production route or a new diagnostic.
   no retained growth after ten replacements and comparable garbage collection.
 - Final real maximum upload browser run: 52.24 seconds including computation and
   delivery, 203 ms for the selection sequence, zero page errors.
-- Python regression suite: 308 passed, no skips. Installed browser behavior: 5 passed.
+- Python regression suite before review: 308 passed, no skips. Installed browser behavior: 5 passed.
   Real maximum upload and dense replacement: one passing scenario each.
 - Frontend contracts: 14 tests; original inspector v1: 28 tests. Svelte checks: no
   errors or warnings. Changed Python modules: mypy and Ruff pass.
@@ -78,4 +78,15 @@ and real-controller evidence. It is not a production route or a new diagnostic.
   `_gen_synthetic_mpaths` reference and import/type-style issues. That file is
   unchanged from baseline `e744379`; unrelated native/research work is excluded.
 
+Review found and resolved one low-priority route-typing concern and one unavailable-state
+reporting gap. [The two-axis review](REVIEW.md) records both findings and independent
+rechecks. The added regression verifies visible and retained projection diagnostics
+without losing downloads. Final regression results are recorded below.
+
 No hosted CI result or hardware-independent performance guarantee is claimed.
+
+Final review-fix verification: **309 Python tests passed** (18.51 seconds),
+**5 installed-parent browser tests passed** (14.0 seconds), changed-module mypy and
+Ruff passed, and Svelte reported zero errors/warnings. The committed artifact
+inventory is verified independently of the concurrent native/research additions
+in this shared working tree. Those additions are not part of this implementation.

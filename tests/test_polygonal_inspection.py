@@ -374,3 +374,35 @@ def test_qualified_workspace_is_the_default_polygonal_display():
     config = build_app().get_config_file()
     inspection = next(c for c in config["components"] if c["type"] == "inspectionworkspace")
     assert inspection["props"]["visible"] is True
+
+
+def test_projection_failure_is_visible_and_retained_without_losing_release(monkeypatch, tmp_path):
+    import json
+
+    import gradio as gr
+
+    import cad_integrity.gradio_app as parent
+    from cad_integrity.errors import ResourceLimitExceeded
+    from cad_integrity.workbench_results import ArtifactStore
+
+    def unavailable(*args, **kwargs):
+        raise ResourceLimitExceeded("display allocation limit")
+
+    monkeypatch.setattr(parent, "project_polygonal_inspection", unavailable)
+    outcome = parent.run_polygonal_fixture("00_clean_boss", artifact_store=ArtifactStore(tmp_path))
+    assert outcome.inspection is None
+    evidence = next(a.path for a in outcome.release.derived if a.path.name == "evidence.json")
+    assert any(
+        d["stage"] == "inspection"
+        for d in json.loads(evidence.read_text())["outcome"]["diagnostics"]
+    )
+    app = parent.build_app()
+    route = next(fn.fn for fn in app.fns.values() if fn.api_name == "run_example")
+    stream = route("00_clean_boss", gr.Request(session_hash="projection-failure"))
+    next(stream)
+    delivered = next(stream)
+    assert "Inspection unavailable" in delivered[0]
+    assert "display allocation limit" in delivered[0]
+    assert delivered[6] and delivered[7]
+    assert all(control["interactive"] for control in next(stream)[-3:])
+    stream.close()
