@@ -1,9 +1,32 @@
 # Integration assessment and proposed delivery plan
 
-Status: initial source review and targeted local verification; implementation not started.
-Baseline: working tree at `eee81ff`, inspected September 19–20, 2026. The tree contains
-substantial staged, unstaged, and untracked work. This assessment includes the current
-Gradio changes and local display packages, not just committed HEAD.
+Status: dependency and repository-hygiene foundation completed; application integration
+not started. Updated September 20, 2026.
+
+Current baseline: `main` at `e9178bb`, clean before this documentation update and equal
+to the locally cached `upstream/main`. Remote refs and hosted CI were not refreshed
+for this update. The dependency cleanup is committed in `bc78be0..e9178bb`.
+The initial review used the then-dirty tree at `eee81ff`; its findings below are
+updated where subsequent local qualification changed the evidence.
+
+## Completed foundation
+
+See [Dependency and environment policy](DEPENDENCIES.md) for the authoritative
+versions, commands, environment repair, and validation record. The repository now
+has one root Bun workspace/catalog and lock, shared Python dependency policy and
+portable constraints, aligned component metadata, and a refreshed Pixi lock.
+Independent subprojects retain their own capabilities and unique dependencies.
+Commit root locks with their manifests; generated environments remain untracked.
+
+CadQuery 2.8.0, OCP 7.9.3.1.1, wheel-provided VTK 9.6.2, and PythonOCC 7.9.3
+with its `novtk` build passed a fresh-environment smoke test and both supplied CAD
+suites. Conda must not also provide VTK in this environment. Retain CadQuery for the
+existing tested adapter; installation availability no longer blocks that path.
+
+Dependency-policy checks, CAD smoke checks, component build tasks, manifest regression
+tests, and CI wiring are implemented. This is environment and packaging work, not
+adoption of prototype algorithms into the Gradio app. Prototype fixes remain deferred
+at the user's request. A focused review of the cleanup is the next recommended check.
 
 ## Recommendation
 
@@ -15,8 +38,8 @@ are qualified. Keep native STEP repair, polygonal repair, derived UV/faceted sur
 and approximate STL reconstruction distinct.
 
 Do not bulk-copy these bundles into the app. Do not delete archives merely because
-their names resemble extracted directories. This plan does not authorize or perform
-source deletion, application changes, dependency updates, or commits.
+their names resemble extracted directories. Dependency cleanup was separately authorized and is complete. The remaining slices
+are proposed work; this update performs no source deletion or application integration.
 
 ## Inventory and disposition
 
@@ -25,19 +48,21 @@ source deletion, application changes, dependency updates, or commits.
 | `integration/solid-cad-viewer` | Revision-scoped display documents, assemblies, picking, clipping, source adapters, Three.js renderer | Exclude Solid UI/query/Nitro application integration; retain framework-independent code as optional reference or selective reuse, subject to demonstrated need |
 | `integration/mesh-diagnostics-seam` | Diagnostic payloads, host-report adapters, metric targets, overlays, scalar presentation | Reconcile divergent deliveries; port contracts/tests and diagnostic layers; avoid adopting a second complete viewport |
 | `integration/mesh_healing_extension` | Cotangent assembly, harmonic systems, explicit seam operations, UV validation/interpolation, quad-strip tracing, derived STEP export | Extract coherent surface-workflow modules in stages; retain numerical regression tests; keep broad preprocessing out of existing repair defaults |
-| `integration/nurbs_core_professionalized` | Python NURBS evaluator, bounded STL reader, local features, plane/cylinder extraction, geometry cards | Keep evaluator as a reference/parity candidate for native NURBS; qualify STL reconstruction as a separate approximate workflow; block STEP integration pending local crash diagnosis |
-| `components/topological_delta_audit`, `components/verification_grid` | Existing Gradio display packages already used by the dirty app | Reuse their packaging experience and existing display responsibilities; decide ownership of overlapping metric panels |
+| `integration/nurbs_core_professionalized` | Python NURBS evaluator, bounded STL reader, local features, plane/cylinder extraction, geometry cards | Keep evaluator as a reference/parity candidate for native NURBS; qualify STL reconstruction as a separate approximate workflow; retain tested standalone STEP export, with host coordination and release qualification still required |
+| `components/topological_delta_audit`, `components/verification_grid` | Existing Gradio display packages already used by the host app; frontend/wheel builds now pass | Reuse their packaging experience and existing display responsibilities; decide ownership of overlapping metric panels |
 | `src/cad_integrity/mesh_motorcycle.py` | Unused prototype helper | Exclude from integration; replace with qualified trace-result projection only if needed |
 | `reference/archive-delete`, bundle `originals/`, generated examples | Historical originals and evidence | Preserve provenance; not runtime dependencies or proof of current qualification |
 
 ## Deduplication findings
 
-Archive comparisons read members without extracting or executing them. After stripping
-the archive root directory, every file member matches its extracted counterpart at
-the same relative path for mesh healing (19/19), NURBS (24/24), and the general viewer
-(39/39). Supplied checksum manifests also match: mesh healing 18/18, NURBS 23/23.
-These archives are redundant runtime material but useful provenance snapshots.
-Choose one archival location after recording archive hashes and canonical source paths.
+The initial archive comparison read members without extracting or executing them.
+Before dependency cleanup, all same-relative-path file members matched for mesh
+healing (19/19), NURBS (24/24), and the general viewer (39/39); supplied checksum
+manifests matched 18/18 and 23/23 respectively. These are historical comparison
+results, not current byte-equivalence claims. Live manifests and package declarations
+now intentionally differ from immutable delivery archives. Live bundle checksums
+were updated; originals were preserved. Recompare current content and record archive
+hashes and canonical source paths before any archival relocation or deletion.
 
 The diagnostics archive is a different delivery. Of its 50 file members, only five
 have a same-basename byte match in the loose tree; it contains a `mesh_diagnostics`
@@ -70,20 +95,20 @@ Behavioral overlap requires more care than byte deduplication:
    `{schema_version, meshes, linked_views}`. It is not a working frontend for that
    backend. The supplied verification document describes paths and checks that cannot
    be reproduced from this loose delivery as-is.
-3. **NURBS STEP export crashes locally.** Running the supplied suite from its own
-   directory exits 139 during `test_schema_roundtrip_and_setting_restoration`, with
-   the top Python frame at `NURBSCoreEngine.py:1085`. Earlier Linux validation is
-   provenance, not evidence that this local OCP runtime works. Root cause is unresolved;
-   isolate reproduction before deciding whether code, schema settings, or runtime
-   compatibility is responsible. Do not expose it in the Gradio process yet.
-4. **Mesh-healing STEP path is unqualified here.** CadQuery is absent although OCP is
-   available for the host. Six supplied STEP tests skip. Decide whether to keep the
-   added CadQuery dependency or implement a separately tested OCP adapter.
-5. **Frontend qualification is incomplete.** The viewer's delivery report explicitly
-   excludes full dependency-aware typechecking, build, browser/GPU checks and actual
-   STEP ingestion. Diagnostics has similar exclusions. Supplied frontend projects
-   have no lockfiles. Three.js versions differ (`0.180.0` versus `~0.186.0`), as do
-   framework/build dependencies. Resolve one tested graph in the actual scaffold.
+3. **Earlier NURBS STEP crash no longer reproduces on the corrected stack.** The
+   original local suite exited 139 in the schema/settings round-trip test. After the
+   clean locked environment repair, all 132 supplied tests passed without skips.
+   This establishes a working local baseline; it does not isolate the original crash's
+   root cause or qualify concurrent export inside the host process.
+4. **CadQuery availability is resolved locally.** All 69 mesh-healing tests now pass,
+   including the six STEP tests that previously skipped. Keep the tested CadQuery
+   adapter for now. Any direct-OCP replacement needs its own behavioral justification
+   and parity tests, rather than being a workaround for a missing dependency.
+5. **Frontend dependency and build qualification has advanced.** The four frontends
+   now share a root Bun lock and catalog for common dependencies. Both existing Gradio
+   components build; the general viewer passes 47 core tests and full TypeScript/Vite
+   production build. Diagnostics still fails its build because `/src/main.ts` is
+   absent. No browser/GPU lifecycle or real-app diagnostics acceptance is established.
 6. **Preprocessing changes the policy.** `MeshHealingEngine.preprocess` defaults to
    stitching and bow-tie splitting; it also removes faces and reorients. Its seam
    discovery uses geometric heuristics when no pairs are supplied. These are not
@@ -127,16 +152,17 @@ interfaces.
 
 | Slice | Concrete work | Acceptance gate |
 |---|---|---|
-| 0. Freeze delivery provenance | Capture dirty-tree inputs and hashes; reconcile diagnostics archive/loose files; map originals, canonical files, fixtures, and generated evidence; preserve unrelated work | Every adopted module/test has a known source; no unique content deleted; reproducible package layout |
-| 1. Qualify baselines | Repair packaging in an isolated checkout; establish local dependency graph; reproduce NURBS crash in a bounded subprocess; restore all applicable tests and full frontend build | No unexplained required skips, collection errors, or process crashes; reports distinguish pure tests, kernel tests, and browser evidence |
+| 0. Freeze delivery provenance | Use committed baseline and preserved archive snapshots; reconcile diagnostics archive/loose files; map originals, canonical files, fixtures, and generated evidence; preserve unrelated work | Every adopted module/test has a known source; no unique content deleted; reproducible package layout |
+| 1. Qualify baselines | Dependency graph, CAD suites and existing component/viewer builds complete; review cleanup, repair diagnostics packaging, and qualify its build and tests in an isolated checkout | No unexplained required skips, collection errors, or process crashes; reports distinguish pure tests, kernel tests, and browser evidence |
 | 2. Diagnostic result seam | Project existing reports into revisioned geometry/diagnostic documents; define status mapping, units, source-stage identity, triangle-to-source maps, bounds and payload budgets | Same host outcomes/checks; stale targets rejected; source/candidate IDs cannot cross; empty/unchecked diagnostics never pass by default |
 | 3. Read-only Gradio viewer | Build the reconciled Svelte diagnostics display in the existing Gradio scaffold; selectively reuse framework-independent code only where justified; decide metric-panel ownership; retain Plotly until equivalent behavior is verified | Packaged assets load in real app; picking/clipping/camera behavior, hidden tabs, resize, disposal and context loss tested; source/candidate visibility unchanged |
 | 4. Surface admission and seam discovery | Proposed `run_surface_analysis`; immutable admitted carrier, explicit triangulation and provenance; reuse authoritative checks; report candidate seam pairs without mutation | Source bytes retained; bounded work; invalid/ambiguous inputs fail clearly; no candidate repair or derived export implied |
 | 5. Selected surface operations and UV charts | Explicit source-revision-bound seam plans; selected edits with before/after maps; cotangent/harmonic module, constraints, residuals, flip/collapse/distortion evidence | Stale plans rejected; numerical reference/invariance tests; undefined or folded UV results withheld from export; separate local validity from global injectivity |
 | 6. Derived exports | UV JSON and optional faceted STEP under `release.derived`; explicit UV scale/units; coordinate native translator access; independent persistence accounting | Real kernel round-trip checks; source retained; partial writes yield `incomplete` with honest inventory; derived geometry never appears as native repair candidate |
-| 7. Optional reconstruction and advanced geometry | Separate bounded STL workflow and approximate geometry cards; NURBS native/Python parity; quad traces; later field/IGM contracts | Each capability has its own admission, numerical, provenance, and output gates; STEP crash resolved before fitted export; no blanket healing claim |
+| 7. Optional reconstruction and advanced geometry | Separate bounded STL workflow and approximate geometry cards; NURBS native/Python parity; quad traces; later field/IGM contracts | Each capability has its own admission, numerical, provenance, and output gates; host translator coordination and release behavior qualified before fitted export; no blanket healing claim |
 
-Slices 0–1 establish the baseline. Slices 2–3 form the first user-visible delivery.
+Slices 0–1 establish the baseline. Slice 1 is partly complete; diagnostics reconciliation
+and qualification remain open, and no application-integration slice is complete. Slices 2–3 form the first user-visible delivery.
 Slices 4–6 form a separate surface workflow. Slice 7 should be split by actual use
 case; it need not delay the display integration.
 
@@ -167,25 +193,31 @@ rules while giving each geometry module a small, testable interface.
 
 ## Local evidence and limitations
 
-Commands used the existing `.pixi/envs/default/bin/python`, without installing or
-updating dependencies. Targeted tests do not constitute full repository qualification.
+The completed cleanup used a freshly installed final Pixi environment and an isolated
+frozen Bun installation. These results were recorded September 19–20, 2026; the full
+suites were not repeated for this documentation-only update. Dependency declarations,
+installed shared versions, and artifact checks were reverified at `e9178bb`.
 
-| Check | Current result |
+| Check | Latest local result |
 |---|---|
-| `tests/test_gradio_app.py` + `tests/test_projection_components.py` | 37 passed |
-| Mesh-healing supplied suite | 63 passed, 6 skipped because CadQuery is absent |
-| Diagnostics loose Python collection | Five errors: `cad_mesh_inspector` unavailable; missing layout/modules confirmed separately |
-| NURBS suite from repository root | Seven import errors due to standalone module layout; rerun from bundle directory |
-| NURBS suite from bundle directory | Process crash during STEP schema/settings round-trip; exit 139; no completed suite result |
-| General viewer core tests | 47 passed in a temporary copy using the existing verification-grid component TypeScript compiler; initial global shim was broken. This excludes Three.js renderer/browser qualification. |
-| NURBS numerical/STL subset | 104 passed across `test_nurbs.py`, `test_features.py`, `test_ransac.py`, `test_stl_reader.py`; does not qualify the crashing STEP path |
-| Archive/checksum comparisons | Exact matches for three extracted archives and both manifests; diagnostics is divergent |
+| Root Python suite | 260 passed, no skips; 90% coverage |
+| Mesh-healing supplied suite, including STEP | 69 passed, no skips |
+| NURBS supplied suite from its own directory, including STEP | 132 passed, no skips; earlier crash did not recur |
+| CAD smoke and combined PythonOCC import | Passed in fresh final environment; no duplicate VTK warnings |
+| Dependency policy and installed versions | Passed |
+| Fresh frozen Bun workspace install | Passed; repeat install unchanged |
+| Both existing Gradio component frontend/wheel builds | Passed |
+| General viewer core tests and full TypeScript/Vite build | 47 passed; production build passed with bundle-size warning |
+| Root wheel/sdist and compilation | Passed |
+| Root lint / mypy | Eight existing lint errors; one undefined motorcycle helper type error; not suppressed |
+| Diagnostics loose delivery | Five package-import collection errors in initial review; latest build still fails on missing `/src/main.ts` |
+| Artifact and manifest checks | Root and live bundle manifests pass; immutable fixture provenance retained |
 
-No live browser, GPU lifetime, full frontend build, hosted CI, native NURBS build,
-performance envelope, or arbitrary-model qualification was established here. Existing
-test reports remain attached to their original environments. A complete algorithm
-audit, license/provenance inventory for adopted files, and resource-budget testing
-remain work in the proposed slices.
+No live browser, GPU lifetime, hosted CI for the cleanup, native NURBS build/parity,
+performance envelope, or arbitrary-model qualification was established. Full local
+suite success does not resolve the remaining root lint/type failures. A complete
+algorithm audit, license/provenance inventory for adopted files, and resource-budget
+testing remain work in the proposed slices.
 
 ## Decisions to settle before implementation
 
@@ -193,5 +225,6 @@ The recommended defaults are: use the reconciled Svelte diagnostics display, wit
 current admission path; integrate diagnostic presentation first; treat UV/faceted and
 STL-fitted outputs as separately named derived artifacts; defer IGM/cross-field UI
 until their input contracts exist. Confirm the canonical diagnostics delivery during
-provenance reconciliation. Decide CadQuery versus a direct OCP adapter only after
-measuring the required export behavior and resolving local kernel compatibility.
+provenance reconciliation. Retain the now-qualified CadQuery adapter unless measured host requirements justify
+a separately tested direct-OCP implementation. Settle shared translator ownership
+before exposing either bundle export in the Gradio process.

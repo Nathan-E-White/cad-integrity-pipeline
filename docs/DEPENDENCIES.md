@@ -141,5 +141,5 @@ Local checks on September 19–20, 2026, after a clean install of the final lock
 The diagnostics prototype build still fails on its existing missing `/src/main.ts`
 layout. Root lint still reports eight pre-existing errors and mypy reports the
 undefined motorcycle helper. Those prototype/application issues remain deferred.
-The updated hosted workflow has not been pushed or executed in GitHub Actions; these
-are local results, not a hosted-CI claim. No browser/GPU acceptance was performed.
+The cleanup is committed through `e9178bb`. No hosted run for that revision was
+verified in this task; these are local results, not a hosted-CI claim. No browser/GPU acceptance was performed.
