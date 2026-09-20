@@ -1,3 +1,7 @@
+#ifdef NDEBUG
+#error "Native assertion tests must be built with assertions enabled"
+#endif
+
 #include "cad_mat/voronoi.hpp"
 
 #include <array>

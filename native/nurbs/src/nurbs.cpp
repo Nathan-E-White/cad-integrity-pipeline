@@ -127,7 +127,7 @@ validate_surface(const SurfaceSpec &surface, const EvaluationRequest &request) {
   }
   if (!std::isfinite(request.regularity_tolerance) ||
       request.regularity_tolerance <= 0.0 ||
-      request.regularity_tolerance >= 1.0 || request.tile_side == 0) {
+      request.regularity_tolerance >= 1.0) {
     return std::unexpected(
         SurfaceError{SurfaceErrorCode::invalid_regularity_tolerance});
   }
@@ -375,96 +375,88 @@ evaluate_surface(const SurfaceSpec &surface, const EvaluationRequest &request) {
   };
 
   bool singular = false;
-  for (std::uint32_t u_start = 0; u_start < result.u_count_;
-       u_start += request.tile_side) {
-    const auto u_end = std::min(result.u_count_, u_start + request.tile_side);
-    for (std::uint32_t v_start = 0; v_start < result.v_count_;
-         v_start += request.tile_side) {
-      const auto v_end = std::min(result.v_count_, v_start + request.tile_side);
-      for (std::uint32_t u_sample = u_start; u_sample < u_end; ++u_sample) {
-        for (std::uint32_t v_sample = v_start; v_sample < v_end; ++v_sample) {
-          const auto index =
-              static_cast<std::size_t>(u_sample) * result.v_count_ + v_sample;
-          const auto homogeneous_position =
-              derivative(0, 0, u_sample, v_sample);
-          const auto homogeneous_u = derivative(1, 0, u_sample, v_sample);
-          const auto homogeneous_v = derivative(0, 1, u_sample, v_sample);
-          const auto homogeneous_uu = derivative(2, 0, u_sample, v_sample);
-          const auto homogeneous_vv = derivative(0, 2, u_sample, v_sample);
-          const auto homogeneous_uv = derivative(1, 1, u_sample, v_sample);
-          if (!finite(homogeneous_position) || !finite(homogeneous_u) ||
-              !finite(homogeneous_v) || !finite(homogeneous_uu) ||
-              !finite(homogeneous_vv) || !finite(homogeneous_uv) ||
-              homogeneous_position.w <= std::numeric_limits<double>::min()) {
-            return std::unexpected(
-                SurfaceError{SurfaceErrorCode::rational_denominator_underflow});
-          }
-          const auto point =
-              scale(xyz(homogeneous_position), 1.0 / homogeneous_position.w);
-          const auto u_tangent =
-              scale(subtract(xyz(homogeneous_u), scale(point, homogeneous_u.w)),
-                    1.0 / homogeneous_position.w);
-          const auto v_tangent =
-              scale(subtract(xyz(homogeneous_v), scale(point, homogeneous_v.w)),
-                    1.0 / homogeneous_position.w);
-          const auto uu =
-              scale(subtract(subtract(xyz(homogeneous_uu),
-                                      scale(u_tangent, 2.0 * homogeneous_u.w)),
-                             scale(point, homogeneous_uu.w)),
-                    1.0 / homogeneous_position.w);
-          const auto vv =
-              scale(subtract(subtract(xyz(homogeneous_vv),
-                                      scale(v_tangent, 2.0 * homogeneous_v.w)),
-                             scale(point, homogeneous_vv.w)),
-                    1.0 / homogeneous_position.w);
-          const auto uv = scale(
-              subtract(subtract(subtract(xyz(homogeneous_uv),
-                                         scale(v_tangent, homogeneous_u.w)),
-                                scale(u_tangent, homogeneous_v.w)),
-                       scale(point, homogeneous_uv.w)),
-              1.0 / homogeneous_position.w);
-          if (!finite(point) || !finite(u_tangent) || !finite(v_tangent) ||
-              !finite(uu) || !finite(vv) || !finite(uv)) {
-            return std::unexpected(
-                SurfaceError{SurfaceErrorCode::nonfinite_derivative});
-          }
+  // Traversal is internal policy. Full output and basis tables are retained;
+  // this operation does not promise bounded working memory.
+  for (std::uint32_t u_sample = 0; u_sample < result.u_count_; ++u_sample) {
+    for (std::uint32_t v_sample = 0; v_sample < result.v_count_; ++v_sample) {
+      const auto index =
+          static_cast<std::size_t>(u_sample) * result.v_count_ + v_sample;
+      const auto homogeneous_position = derivative(0, 0, u_sample, v_sample);
+      const auto homogeneous_u = derivative(1, 0, u_sample, v_sample);
+      const auto homogeneous_v = derivative(0, 1, u_sample, v_sample);
+      const auto homogeneous_uu = derivative(2, 0, u_sample, v_sample);
+      const auto homogeneous_vv = derivative(0, 2, u_sample, v_sample);
+      const auto homogeneous_uv = derivative(1, 1, u_sample, v_sample);
+      if (!finite(homogeneous_position) || !finite(homogeneous_u) ||
+          !finite(homogeneous_v) || !finite(homogeneous_uu) ||
+          !finite(homogeneous_vv) || !finite(homogeneous_uv) ||
+          homogeneous_position.w <= std::numeric_limits<double>::min()) {
+        return std::unexpected(
+            SurfaceError{SurfaceErrorCode::rational_denominator_underflow});
+      }
+      const auto point =
+          scale(xyz(homogeneous_position), 1.0 / homogeneous_position.w);
+      const auto u_tangent =
+          scale(subtract(xyz(homogeneous_u), scale(point, homogeneous_u.w)),
+                1.0 / homogeneous_position.w);
+      const auto v_tangent =
+          scale(subtract(xyz(homogeneous_v), scale(point, homogeneous_v.w)),
+                1.0 / homogeneous_position.w);
+      const auto uu =
+          scale(subtract(subtract(xyz(homogeneous_uu),
+                                  scale(u_tangent, 2.0 * homogeneous_u.w)),
+                         scale(point, homogeneous_uu.w)),
+                1.0 / homogeneous_position.w);
+      const auto vv =
+          scale(subtract(subtract(xyz(homogeneous_vv),
+                                  scale(v_tangent, 2.0 * homogeneous_v.w)),
+                         scale(point, homogeneous_vv.w)),
+                1.0 / homogeneous_position.w);
+      const auto uv =
+          scale(subtract(subtract(subtract(xyz(homogeneous_uv),
+                                           scale(v_tangent, homogeneous_u.w)),
+                                  scale(u_tangent, homogeneous_v.w)),
+                         scale(point, homogeneous_uv.w)),
+                1.0 / homogeneous_position.w);
+      if (!finite(point) || !finite(u_tangent) || !finite(v_tangent) ||
+          !finite(uu) || !finite(vv) || !finite(uv)) {
+        return std::unexpected(
+            SurfaceError{SurfaceErrorCode::nonfinite_derivative});
+      }
 
-          const auto u_length = norm(u_tangent);
-          const auto v_length = norm(v_tangent);
-          const auto safe_u = u_length > 0.0 ? u_length : 1.0;
-          const auto safe_v = v_length > 0.0 ? v_length : 1.0;
-          const auto unit_u = scale(u_tangent, 1.0 / safe_u);
-          const auto unit_v = scale(v_tangent, 1.0 / safe_v);
-          const auto raw_normal = cross(unit_u, unit_v);
-          const auto sine = norm(raw_normal);
-          bool valid = u_length > 0.0 && v_length > 0.0 &&
-                       sine > request.regularity_tolerance;
-          auto normal = valid ? scale(raw_normal, 1.0 / sine) : Point3{};
-          const auto cosine = dot(unit_u, unit_v);
-          const auto b11 = dot(uu, normal) / safe_u / safe_u;
-          const auto b12 = dot(uv, normal) / safe_u / safe_v;
-          const auto b22 = dot(vv, normal) / safe_v / safe_v;
-          const auto determinant = valid ? sine * sine : 1.0;
-          const auto gaussian = (b11 * b22 - b12 * b12) / determinant;
-          const auto mean =
-              (b11 + b22 - 2.0 * cosine * b12) / (2.0 * determinant);
-          const auto root = std::sqrt(std::max(0.0, mean * mean - gaussian));
-          valid = valid && std::isfinite(mean) && std::isfinite(gaussian) &&
-                  std::isfinite(root);
-          if (!valid) {
-            normal = {};
-            singular = true;
-          }
-          result.points_[index] = add(point, origin);
-          result.normals_[index] = normal;
-          result.valid_mask_[index] = valid ? 1 : 0;
-          if (valid) {
-            result.principal_max_[index] = mean + root;
-            result.principal_min_[index] = mean - root;
-            result.mean_[index] = mean;
-            result.gaussian_[index] = gaussian;
-          }
-        }
+      const auto u_length = norm(u_tangent);
+      const auto v_length = norm(v_tangent);
+      const auto safe_u = u_length > 0.0 ? u_length : 1.0;
+      const auto safe_v = v_length > 0.0 ? v_length : 1.0;
+      const auto unit_u = scale(u_tangent, 1.0 / safe_u);
+      const auto unit_v = scale(v_tangent, 1.0 / safe_v);
+      const auto raw_normal = cross(unit_u, unit_v);
+      const auto sine = norm(raw_normal);
+      bool valid = u_length > 0.0 && v_length > 0.0 &&
+                   sine > request.regularity_tolerance;
+      auto normal = valid ? scale(raw_normal, 1.0 / sine) : Point3{};
+      const auto cosine = dot(unit_u, unit_v);
+      const auto b11 = dot(uu, normal) / safe_u / safe_u;
+      const auto b12 = dot(uv, normal) / safe_u / safe_v;
+      const auto b22 = dot(vv, normal) / safe_v / safe_v;
+      const auto determinant = valid ? sine * sine : 1.0;
+      const auto gaussian = (b11 * b22 - b12 * b12) / determinant;
+      const auto mean = (b11 + b22 - 2.0 * cosine * b12) / (2.0 * determinant);
+      const auto root = std::sqrt(std::max(0.0, mean * mean - gaussian));
+      valid = valid && std::isfinite(mean) && std::isfinite(gaussian) &&
+              std::isfinite(root);
+      if (!valid) {
+        normal = {};
+        singular = true;
+      }
+      result.points_[index] = add(point, origin);
+      result.normals_[index] = normal;
+      result.valid_mask_[index] = valid ? 1 : 0;
+      if (valid) {
+        result.principal_max_[index] = mean + root;
+        result.principal_min_[index] = mean - root;
+        result.mean_[index] = mean;
+        result.gaussian_[index] = gaussian;
       }
     }
   }

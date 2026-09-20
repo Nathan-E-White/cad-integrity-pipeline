@@ -15,8 +15,10 @@ cad::nurbs::evaluate_surface(const cad::nurbs::SurfaceSpec&,
 `SurfaceSpec` stores homogeneous control points in u-major
 `(x*w, y*w, z*w, w)` order. The module requires positive finite weights and a
 nondecreasing knot vector with a positive active domain. `EvaluationRequest`
-supplies independent u/v vectors, a dimensionless regularity tolerance, a
-singular policy, and a tile-side working-memory bound.
+supplies independent u/v vectors, a dimensionless regularity tolerance, and a
+singular policy. Traversal is internal to the evaluator. Full result arrays and
+u/v basis tables are allocated; no tile-based working-memory bound is promised.
+The prototype `tile_side` request field was removed; callers should omit it.
 
 Results are flattened in u-major order: `u_index * v_count + v_index`. Normal
 orientation is `S_u cross S_v`; principal curvatures are algebraically ordered.
@@ -35,8 +37,7 @@ qualified.
 
 ## Focused local checks
 
-The subtree is independently buildable so it does not alter the currently
-untracked parent native CMake configuration:
+The same module target is used by the parent native build and standalone subtree:
 
 ```sh
 cmake -S native/nurbs -B /private/tmp/cad-nurbs-build -DBUILD_TESTING=ON

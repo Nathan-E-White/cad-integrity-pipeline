@@ -1,0 +1,15 @@
+cmake_minimum_required(VERSION 4.3)
+project(cad_mat_voronoi LANGUAGES CXX)
+
+include(CTest)
+include(../cmake/NativeChecks.cmake)
+add_library(cad_mat_voronoi STATIC src/voronoi.cpp)
+target_compile_features(cad_mat_voronoi PUBLIC cxx_std_26)
+target_include_directories(cad_mat_voronoi PUBLIC include)
+cad_native_strict(cad_mat_voronoi)
+
+if(BUILD_TESTING)
+  add_executable(cad_mat_voronoi_tests tests/voronoi_tests.cpp)
+  target_link_libraries(cad_mat_voronoi_tests PRIVATE cad_mat_voronoi)
+  cad_native_test(cad_mat_voronoi_tests)
+endif()

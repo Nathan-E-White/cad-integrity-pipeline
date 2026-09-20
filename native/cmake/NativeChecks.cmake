@@ -1,0 +1,20 @@
+include_guard(GLOBAL)
+
+function(cad_native_strict target)
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    target_compile_options(${target} PRIVATE -Wall -Wextra -Werror -pedantic)
+  elseif(MSVC)
+    target_compile_options(${target} PRIVATE /W4 /WX)
+  endif()
+endfunction()
+
+function(cad_native_test target)
+  cad_native_strict(${target})
+  # The NURBS and Voronoi test executables use assert; Release must execute them.
+  if(MSVC)
+    target_compile_options(${target} PRIVATE /UNDEBUG)
+  else()
+    target_compile_options(${target} PRIVATE -UNDEBUG)
+  endif()
+  add_test(NAME ${target} COMMAND ${target})
+endfunction()

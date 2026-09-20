@@ -1,8 +1,8 @@
 # Native Voronoi foundation
 
 This subtree owns a C++26 extraction step for the finite dual of a
-bridge-supplied 3D Delaunay triangulation.  It is intentionally not yet a
-build target, Python extension, CGAL bridge, OCP verifier, or accelerator
+bridge-supplied 3D Delaunay triangulation.  It is built as `cad_mat_voronoi` by the parent native build or standalone
+subtree. It has no Python extension, CGAL bridge, OCP verifier, or accelerator
 backend.
 
 ## Public seam
@@ -38,4 +38,12 @@ xcrun clang++ -std=c++2c -Wall -Wextra -Werror -pedantic \
   -I native/voronoi/include \
   native/voronoi/src/voronoi.cpp native/voronoi/tests/voronoi_tests.cpp \
   -o /private/tmp/cad-mat-voronoi-tests && /private/tmp/cad-mat-voronoi-tests
+```
+
+Standalone CMake/CTest (also registered by the parent native build):
+
+```sh
+cmake -S native/voronoi -B /private/tmp/cad-voronoi-build -DBUILD_TESTING=ON
+cmake --build /private/tmp/cad-voronoi-build
+ctest --test-dir /private/tmp/cad-voronoi-build --output-on-failure
 ```

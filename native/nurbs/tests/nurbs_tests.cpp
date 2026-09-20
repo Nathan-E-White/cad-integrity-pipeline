@@ -1,3 +1,7 @@
+#ifdef NDEBUG
+#error "Native assertion tests must be built with assertions enabled"
+#endif
+
 #include "cad_mat/nurbs.hpp"
 
 #include <cassert>
@@ -43,18 +47,17 @@ void evaluates_a_planar_tensor_grid() {
       .control_count_u = 2,
       .control_count_v = 2,
   };
-  const std::vector<double> u{0.0, 0.5, 1.0};
+  std::vector<double> u;
+  for (int i = 0; i <= 66; ++i)
+    u.push_back(i / 66.0);
   const std::vector<double> v{0.0, 0.25, 1.0};
 
-  const auto result =
-      cad::nurbs::evaluate_surface(surface, {.u = u, .v = v, .tile_side = 1});
-  const auto untiled = cad::nurbs::evaluate_surface(surface, {.u = u, .v = v});
+  const auto result = cad::nurbs::evaluate_surface(surface, {.u = u, .v = v});
 
   assert(result.has_value());
-  assert(untiled.has_value());
-  assert(result->u_count() == 3);
+  assert(result->u_count() == 67);
   assert(result->v_count() == 3);
-  assert(result->valid_mask().size() == 9);
+  assert(result->valid_mask().size() == 201);
   for (std::uint32_t u_index = 0; u_index < result->u_count(); ++u_index) {
     for (std::uint32_t v_index = 0; v_index < result->v_count(); ++v_index) {
       const auto index = u_index * result->v_count() + v_index;
@@ -66,8 +69,6 @@ void evaluates_a_planar_tensor_grid() {
       assert(std::abs(result->normals()[index].z - 1.0) < 1e-14);
       assert(std::abs(result->principal_max()[index]) < 1e-14);
       assert(std::abs(result->principal_min()[index]) < 1e-14);
-      assert(std::abs(untiled->points()[index].x - point.x) < 1e-14);
-      assert(std::abs(untiled->points()[index].y - point.y) < 1e-14);
     }
   }
 }

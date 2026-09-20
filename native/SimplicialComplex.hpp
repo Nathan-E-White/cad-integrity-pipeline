@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <expected>
 #include <limits>
+#include <optional>
 #include <span>
 #include <vector>
 
@@ -82,6 +83,10 @@ struct TriangleMesh {
   std::vector<Point3> vertices;
   std::vector<std::array<int, 3>> triangles;
   LengthUnit length_unit = LengthUnit::Millimeter;
+  // Empty means unavailable. Otherwise one local polygonal face ID per display
+  // triangle. IDs address the source polygon model snapshot, not a global
+  // revision.
+  std::vector<std::size_t> polygonal_face_ids = {};
   [[nodiscard]] std::expected<SimplicialComplex, TopologyStatus>
   to_simplicial_complex(std::size_t max_simplices = 50000) const;
 };
@@ -116,7 +121,6 @@ struct PolyhedralBRep {
 struct Ray {
   Point3 origin;
   Point3 direction;
-  Point3 inv_direction;
   // Finite origin and nonzero finite direction required; invalid input throws
   // std::invalid_argument. Queries normalize direction, so t is distance.
   [[nodiscard]] static Ray create(Point3 orig, Point3 dir);
@@ -127,6 +131,7 @@ struct IntersectionResult {
   double u = 0;
   double v = 0;
   std::size_t triangle_index = std::numeric_limits<std::size_t>::max();
+  std::optional<std::size_t> polygonal_face_id = std::nullopt;
 };
 struct AABB {
   Point3 min_pt = {INFINITY_VALUE, INFINITY_VALUE, INFINITY_VALUE};
@@ -151,19 +156,20 @@ struct FlatBVHNode {
 class FlatBVH {
 public:
   // Mesh indices and finite coordinates are checked; malformed meshes throw
-  // std::invalid_argument. The query mesh must be the unchanged build mesh.
+  // std::invalid_argument. The BVH owns a copy of the admitted mesh snapshot.
   [[nodiscard]] static FlatBVH build(const TriangleMesh &mesh);
   // Appends primitive-box overlap candidates, not exact triangle-box
   // intersections.
   void query_box(const AABB &bounds, std::vector<std::size_t> &triangles) const;
-  [[nodiscard]] IntersectionResult intersect_ray(const TriangleMesh &mesh,
-                                                 const Ray &ray) const;
+  [[nodiscard]] IntersectionResult intersect_ray(const Ray &ray) const;
   [[nodiscard]] std::vector<IntersectionResult>
-  parallel_intersect_rays(const TriangleMesh &mesh,
-                          const std::vector<Ray> &rays) const;
+  parallel_intersect_rays(const std::vector<Ray> &rays) const;
   [[nodiscard]] std::size_t node_count() const noexcept { return nodes.size(); }
 
 private:
+  [[nodiscard]] IntersectionResult
+  intersect_normalized_ray(const Ray &ray) const;
+  TriangleMesh mesh_;
   std::size_t build_recursive(const TriangleMesh &mesh, std::size_t start,
                               std::size_t end);
   std::vector<FlatBVHNode> nodes;

@@ -104,9 +104,9 @@ void spatial_queries_retain_box_and_ray_behavior() {
   for (int i = 0; i < 64; ++i)
     rays.push_back(Ray::create({0.25f, 0.25f, 1}, {0, 0, -2}));
   rays.push_back(Ray::create({3, 3, 1}, {0, 0, -1}));
-  auto batch = bvh.parallel_intersect_rays(mesh, rays);
+  auto batch = bvh.parallel_intersect_rays(rays);
   for (std::size_t i = 0; i < rays.size(); ++i) {
-    auto scalar = bvh.intersect_ray(mesh, rays[i]);
+    auto scalar = bvh.intersect_ray(rays[i]);
     CHECK(scalar.hit == batch[i].hit);
     CHECK(scalar.triangle_index == batch[i].triangle_index);
     CHECK(scalar.t == batch[i].t);
@@ -117,7 +117,7 @@ void spatial_queries_retain_box_and_ray_behavior() {
     }
   }
   // Origin lies exactly on a slab plane; no zero-times-infinity arithmetic.
-  auto edge = bvh.intersect_ray(mesh, Ray::create({0, 0.25f, 1}, {0, 0, -1}));
+  auto edge = bvh.intersect_ray(Ray::create({0, 0.25f, 1}, {0, 0, -1}));
   CHECK(edge.hit && edge.t == 1);
   bool rejected = false;
   try {
@@ -141,12 +141,73 @@ void finite_geometry_uses_scale_aware_ray_arithmetic() {
     TriangleMesh mesh{{{0, 0, 0}, {scale, 0, 0}, {0, scale, 0}}, {{0, 1, 2}}};
     auto bvh = FlatBVH::build(mesh);
     auto ray = Ray::create({scale / 4, scale / 4, 1}, {0, 0, -1});
-    auto hit = bvh.intersect_ray(mesh, ray);
+    auto hit = bvh.intersect_ray(ray);
     CHECK(hit.hit && hit.t == 1);
-    auto hits = bvh.parallel_intersect_rays(mesh, std::vector<Ray>(64, ray));
+    auto hits = bvh.parallel_intersect_rays(std::vector<Ray>(64, ray));
     for (const auto &result : hits)
       CHECK(result.hit && result.t == 1);
   }
+}
+
+void spatial_snapshot_owns_geometry_and_face_identity() {
+  auto polygon = PolyhedralBRep::from_polygons({{0, 0, 0},
+                                                {2, 0, 0},
+                                                {2, 2, 0},
+                                                {0, 2, 0},
+                                                {4, 0, 0},
+                                                {5, 0, 0},
+                                                {4, 1, 0}},
+                                               {{0, 1, 2, 3}, {4, 5, 6}});
+  CHECK(polygon);
+  auto mesh = polygon->triangulate_convex_faces();
+  CHECK(mesh &&
+        mesh->polygonal_face_ids == std::vector<std::size_t>({0, 0, 1}));
+  auto bvh = FlatBVH::build(*mesh);
+  mesh->vertices.clear();
+  mesh->triangles.clear();
+  mesh->polygonal_face_ids.clear();
+  const auto hit = bvh.intersect_ray(Ray::create({4.2f, 0.2f, 1}, {0, 0, -1}));
+  CHECK(hit.hit && hit.polygonal_face_id == 1);
+  auto copied = bvh;
+  CHECK(copied.intersect_ray(Ray::create({0.2f, 0.2f, 1}, {0, 0, -1}))
+            .polygonal_face_id == 0);
+  TriangleMesh direct{{{0, 0, 0}, {1, 0, 0}, {0, 1, 0}}, {{0, 1, 2}}};
+  auto direct_hit = FlatBVH::build(direct).intersect_ray(
+      Ray::create({0.2f, 0.2f, 1}, {0, 0, -1}));
+  CHECK(direct_hit.hit && !direct_hit.polygonal_face_id);
+  direct.polygonal_face_ids = {0, 1};
+  bool rejected = false;
+  try {
+    (void)FlatBVH::build(direct);
+  } catch (const std::invalid_argument &) {
+    rejected = true;
+  }
+  CHECK(rejected);
+}
+
+void polygon_admission_is_independent_of_planarity_tolerance() {
+  for (float scale : {1e-4f, 1.0f, 1e20f}) {
+    auto bowtie = PolyhedralBRep::from_polygons(
+        {{0, 0, 0}, {scale, scale, 0}, {0, scale, 0}, {scale, 0, 0}},
+        {{0, 1, 2, 3}});
+    CHECK(bowtie);
+    CHECK(!bowtie->triangulate_convex_faces());
+    auto concave = PolyhedralBRep::from_polygons({{0, 0, 0},
+                                                  {scale, 0, 0},
+                                                  {scale / 2, scale / 4, 0},
+                                                  {scale, scale, 0},
+                                                  {0, scale, 0}},
+                                                 {{0, 1, 2, 3, 4}});
+    CHECK(concave && !concave->triangulate_convex_faces(1000));
+    auto square = PolyhedralBRep::from_polygons(
+        {{0, 0, 0}, {scale, 0, 0}, {scale, scale, 0}, {0, scale, 0}},
+        {{0, 1, 2, 3}});
+    CHECK(square && square->triangulate_convex_faces());
+  }
+  auto collapsed_fan = PolyhedralBRep::from_polygons(
+      {{0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0, 0.5f, 0}},
+      {{0, 1, 2, 3, 4}});
+  CHECK(collapsed_fan && !collapsed_fan->triangulate_convex_faces());
 }
 
 int main() {
@@ -155,5 +216,7 @@ int main() {
   polygon_conversion_rejects_malformed_input();
   spatial_queries_retain_box_and_ray_behavior();
   finite_geometry_uses_scale_aware_ray_arithmetic();
+  spatial_snapshot_owns_geometry_and_face_identity();
+  polygon_admission_is_independent_of_planarity_tolerance();
   std::cout << "simplicial checks passed\n";
 }

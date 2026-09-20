@@ -99,11 +99,7 @@ Ray Ray::create(Point3 orig, Point3 dir) {
     throw std::invalid_argument("ray requires a nonzero direction");
   for (auto &x : dir)
     x = static_cast<float>(x / length);
-  return {orig,
-          dir,
-          {dir[0] == 0 ? std::numeric_limits<float>::infinity() : 1 / dir[0],
-           dir[1] == 0 ? std::numeric_limits<float>::infinity() : 1 / dir[1],
-           dir[2] == 0 ? std::numeric_limits<float>::infinity() : 1 / dir[2]}};
+  return {orig, dir};
 }
 
 void AABB::grow(const Point3 &pt) noexcept {
@@ -168,7 +164,12 @@ FlatBVH FlatBVH::build(const TriangleMesh &mesh) {
   if (mesh.triangles.size() > std::numeric_limits<std::size_t>::max() / 2)
     throw std::length_error("BVH node count is not representable");
 
+  if (!mesh.polygonal_face_ids.empty() &&
+      mesh.polygonal_face_ids.size() != mesh.triangles.size())
+    throw std::invalid_argument(
+        "polygonal face IDs must match the triangle count");
   FlatBVH bvh;
+  bvh.mesh_ = mesh;
   if (mesh.triangles.empty())
     return bvh;
 
@@ -208,8 +209,12 @@ void FlatBVH::query_box(const AABB &query_bounds,
   }
 }
 
-IntersectionResult FlatBVH::intersect_ray(const TriangleMesh &mesh,
-                                          const Ray &ray) const {
+IntersectionResult FlatBVH::intersect_ray(const Ray &ray) const {
+  return intersect_normalized_ray(Ray::create(ray.origin, ray.direction));
+}
+
+IntersectionResult FlatBVH::intersect_normalized_ray(const Ray &ray) const {
+  const auto &mesh = mesh_;
   IntersectionResult closest_hit;
   if (nodes.empty())
     return closest_hit;
@@ -231,6 +236,8 @@ IntersectionResult FlatBVH::intersect_ray(const TriangleMesh &mesh,
                                             mesh.vertices[tri[2]], tri_idx);
           if (hit.hit && hit.t < closest_hit.t) {
             closest_hit = hit;
+            if (!mesh.polygonal_face_ids.empty())
+              closest_hit.polygonal_face_id = mesh.polygonal_face_ids[tri_idx];
           }
         }
         idx++;
@@ -249,8 +256,11 @@ IntersectionResult FlatBVH::intersect_ray(const TriangleMesh &mesh,
 }
 
 std::vector<IntersectionResult>
-FlatBVH::parallel_intersect_rays(const TriangleMesh &mesh,
-                                 const std::vector<Ray> &rays) const {
+FlatBVH::parallel_intersect_rays(const std::vector<Ray> &rays) const {
+  std::vector<Ray> normalized;
+  normalized.reserve(rays.size());
+  for (const auto &ray : rays)
+    normalized.push_back(Ray::create(ray.origin, ray.direction));
   std::vector<IntersectionResult> global_results(rays.size());
   if (rays.empty())
     return global_results;
@@ -268,12 +278,12 @@ FlatBVH::parallel_intersect_rays(const TriangleMesh &mesh,
         (w == num_workers - 1) ? rays.size() : start_idx + chunk_size;
 
     futures.push_back(
-        std::async(std::launch::async,
-                   [this, &mesh, &rays, &global_results, start_idx, end_idx]() {
-                     for (std::size_t i = start_idx; i < end_idx; ++i) {
-                       global_results[i] = this->intersect_ray(mesh, rays[i]);
-                     }
-                   }));
+        std::async(std::launch::async, [this, &normalized, &global_results,
+                                        start_idx, end_idx]() {
+          for (std::size_t i = start_idx; i < end_idx; ++i) {
+            global_results[i] = this->intersect_normalized_ray(normalized[i]);
+          }
+        }));
   }
 
   for (auto &f : futures) {
@@ -492,6 +502,34 @@ PolyhedralBRep::face_vertices(std::size_t face_id) const {
 }
 
 namespace {
+// Project along the dominant normal coordinate. Near-collinear decisions are
+// conservative and independent of the caller's plane-distance tolerance.
+using PlanePoint = std::array<double, 2>;
+int side(const PlanePoint &a, const PlanePoint &b,
+         const PlanePoint &c) noexcept {
+  const auto x = b[0] - a[0], y = b[1] - a[1];
+  const auto u = c[0] - a[0], v = c[1] - a[1];
+  const auto area = x * v - y * u;
+  const auto uncertainty = 32 * std::numeric_limits<double>::epsilon() *
+                           std::hypot(x, y) * std::hypot(u, v);
+  return area > uncertainty ? 1 : (area < -uncertainty ? -1 : 0);
+}
+bool on_segment(const PlanePoint &a, const PlanePoint &b,
+                const PlanePoint &p) noexcept {
+  return p[0] >= std::min(a[0], b[0]) && p[0] <= std::max(a[0], b[0]) &&
+         p[1] >= std::min(a[1], b[1]) && p[1] <= std::max(a[1], b[1]);
+}
+bool segments_meet(const PlanePoint &a, const PlanePoint &b,
+                   const PlanePoint &c, const PlanePoint &d) noexcept {
+  const auto ab_c = side(a, b, c), ab_d = side(a, b, d);
+  const auto cd_a = side(c, d, a), cd_b = side(c, d, b);
+  return (ab_c * ab_d < 0 && cd_a * cd_b < 0) ||
+         (ab_c == 0 && on_segment(a, b, c)) ||
+         (ab_d == 0 && on_segment(a, b, d)) ||
+         (cd_a == 0 && on_segment(c, d, a)) ||
+         (cd_b == 0 && on_segment(c, d, b));
+}
+
 std::expected<std::vector<std::array<int, 3>>, TopologyStatus>
 validated_triangulate_face(const PolyhedralBRep &model, std::size_t face_id,
                            float planarity_tolerance) {
@@ -533,6 +571,25 @@ validated_triangulate_face(const PolyhedralBRep &model, std::size_t face_id,
     }
   }
 
+  std::size_t drop = 0;
+  for (std::size_t axis = 1; axis < 3; ++axis)
+    if (std::abs(normal[axis]) > std::abs(normal[drop]))
+      drop = axis;
+  std::vector<PlanePoint> projected;
+  projected.reserve(xyz.size());
+  for (const auto &p : xyz)
+    projected.push_back({p[(drop + 1) % 3], p[(drop + 2) % 3]});
+  for (std::size_t i = 0; i < ids.size(); ++i) {
+    for (std::size_t j = i + 1; j < ids.size(); ++j) {
+      const auto ni = (i + 1) % ids.size(), nj = (j + 1) % ids.size();
+      if (ni == j || nj == i)
+        continue;
+      if (segments_meet(projected[i], projected[ni], projected[j],
+                        projected[nj]))
+        return std::unexpected(TopologyStatus::NonConvexFace);
+    }
+  }
+
   for (std::size_t k = 0; k < ids.size(); ++k) {
     auto edge = vec_sub(xyz[(k + 1) % ids.size()], xyz[k]);
     double edge_len = vec_norm(edge);
@@ -547,7 +604,9 @@ validated_triangulate_face(const PolyhedralBRep &model, std::size_t face_id,
       double orientation = vec_dot(cross_side, normal);
       if (!std::isfinite(orientation))
         return std::unexpected(TopologyStatus::NonfiniteInput);
-      if (orientation < -planarity_tolerance * std::max(1.0, edge_len)) {
+      const auto uncertainty = 32 * std::numeric_limits<double>::epsilon() *
+                               edge_len * vec_norm(diff);
+      if (orientation < -uncertainty) {
         return std::unexpected(TopologyStatus::NonConvexFace);
       }
     }
@@ -556,6 +615,10 @@ validated_triangulate_face(const PolyhedralBRep &model, std::size_t face_id,
   std::vector<std::array<int, 3>> face_tris;
   face_tris.reserve(ids.size() - 2);
   for (std::size_t i = 1; i < ids.size() - 1; ++i) {
+    const auto a = vec_sub(xyz[i], xyz[0]), b = vec_sub(xyz[i + 1], xyz[0]);
+    if (vec_norm(vec_cross(a, b)) <=
+        32 * std::numeric_limits<double>::epsilon() * vec_norm(a) * vec_norm(b))
+      return std::unexpected(TopologyStatus::DegenerateTriangle);
     face_tris.push_back({ids[0], ids[i], ids[i + 1]});
   }
   return face_tris;
@@ -585,16 +648,19 @@ PolyhedralBRep::triangulate_convex_faces(float planarity_tolerance) const {
     return std::unexpected(admission.error());
 
   std::vector<std::array<int, 3>> global_triangles;
+  std::vector<std::size_t> face_ids;
   for (std::size_t f = 0; f < face_count(); ++f) {
     auto tris_res = validated_triangulate_face(*this, f, planarity_tolerance);
     if (!tris_res)
       return std::unexpected(tris_res.error());
+    face_ids.insert(face_ids.end(), tris_res->size(), f);
     global_triangles.insert(global_triangles.end(), tris_res->begin(),
                             tris_res->end());
   }
   return TriangleMesh{.vertices = this->vertices,
                       .triangles = std::move(global_triangles),
-                      .length_unit = this->length_unit};
+                      .length_unit = this->length_unit,
+                      .polygonal_face_ids = std::move(face_ids)};
 }
 
 int SimplicialComplex::compare_skipped_face(std::span<const int> lower,

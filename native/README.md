@@ -30,16 +30,34 @@ Construction and triangulation return typed `TopologyStatus` errors. Allocation
 failures propagate as exceptions. BVH admission and invalid ray construction throw
 `std::invalid_argument`; async execution failures propagate rather than terminate.
 Polygon methods validate public loop data before indexing it. Planarity tolerance
-must be finite and nonnegative and uses the mesh's coordinate unit; convexity uses
-the retained edge-scaled tolerance. Nonfinite arithmetic is rejected. Float
+must be finite and nonnegative and uses the mesh's coordinate unit. Convexity
+and projected segment intersection are checked independently using scale-aware
+double roundoff bounds; self-intersecting loops and collapsed fan triangles are
+rejected. Near-degenerate geometry may be rejected conservatively. Nonfinite arithmetic is rejected. Float
 geometry is approximate. Polygon and ray arithmetic uses double intermediates;
 ray parallelism uses 32 double epsilons scaled by edge and direction lengths.
 Only strictly positive ray distances are hits; nearly parallel rays may be rejected.
 Ray directions are normalized by `Ray::create`; zero/nonfinite directions fail.
-BVH queries currently require the unchanged mesh used for construction.
+The BVH owns an admitted mesh snapshot, including optional polygonal face IDs.
+Later changes to caller-owned geometry cannot affect it. Both scalar and batch
+queries validate and normalize rays before traversal. Invalid batches fail before
+launching workers.
+
+Convex triangulation emits one polygonal face ID per display triangle. IDs are
+face indices local to the original polygon model snapshot and are retained in ray
+hits; they do not assert cross-revision identity. Direct triangle input may omit
+provenance, represented by an empty ID vector and an empty optional in hit results.
+Malformed nonempty mappings are rejected at BVH construction.
 
 The library does not print results or define `main`. Tests are separate consumers
 of the public header, and their checks remain active under `NDEBUG`.
+
+## Build ownership
+
+The parent composes the authoritative NURBS and Voronoi targets from their
+subtrees; sources are not re-declared. Each subtree remains buildable on its own.
+The parent registers all three native test executables. Assertion-based numerical
+tests remain enabled in Release; direct compilation with `NDEBUG` fails closed.
 
 ## Checks
 

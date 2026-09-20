@@ -55,7 +55,6 @@ struct EvaluationRequest {
   std::span<const double> v;
   double regularity_tolerance = 1e-10;
   SingularPolicy singular_policy = SingularPolicy::mask;
-  std::uint32_t tile_side = 64;
 };
 
 struct SurfaceError {
