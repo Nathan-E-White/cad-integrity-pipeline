@@ -1,12 +1,11 @@
 {
   "name": "gradio_verificationgrid",
-  "version": "0.6.2",
-  "description": "Gradio UI packages",
+  "version": "0.0.1",
+  "description": "CAD Integrity verification grid display",
   "type": "module",
-  "author": "",
-  "license": "ISC",
-  "private": false,
-  "main_changeset": true,
+  "author": "Nathan White",
+  "license": "Apache-2.0",
+  "private": true,
   "exports": {
     ".": {
       "gradio": "./Index.svelte",
@@ -21,21 +20,24 @@
     "./package.json": "./package.json"
   },
   "dependencies": {
-    "@gradio/atoms": "0.26.2",
-    "@gradio/statustracker": "0.15.3",
-    "@gradio/utils": "0.14.1",
-    "@zerodevx/svelte-json-view": "^1.0.11",
-    "svelte": "^5.48.0"
+    "@gradio/atoms": "catalog:",
+    "@gradio/statustracker": "catalog:",
+    "@gradio/utils": "catalog:",
+    "@zerodevx/svelte-json-view": "catalog:",
+    "svelte": "catalog:"
   },
   "devDependencies": {
-    "@gradio/preview": "0.17.0"
+    "@gradio/preview": "catalog:"
   },
   "peerDependencies": {
-    "svelte": "^5.48.0"
+    "svelte": "catalog:"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gradio-app/gradio.git",
-    "directory": "js/fallback"
+    "url": "git+https://github.com/Nathan-E-White/cad-integrity-pipeline.git",
+    "directory": "components/verification_grid/frontend"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }
