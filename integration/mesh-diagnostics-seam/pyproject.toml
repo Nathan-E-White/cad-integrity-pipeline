@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=70"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,11 +7,11 @@ name = "cad-mesh-inspector"
 version = "0.1.0"
 description = "Bounded diagnostic display contracts and Svelte/Three.js integration seams"
 requires-python = ">=3.11"
-dependencies = ["numpy>=1.26", "pydantic>=2.10,<3"]
+dependencies = ["numpy>=1.26,<3", "pydantic>=2.10,<3"]
 
 [project.optional-dependencies]
-gradio = ["gradio>=6,<7"]
-test = ["pytest>=8"]
+gradio = ["gradio>=6.27,<7"]
+test = ["pytest>=8,<10"]
 
 [tool.setuptools.packages.find]
 where = ["python"]

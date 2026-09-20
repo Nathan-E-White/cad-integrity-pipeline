@@ -11,17 +11,20 @@
     "test:svelte": "node tests/compile-svelte.mjs"
   },
   "dependencies": {
-    "three": "0.180.0"
+    "three": "catalog:"
   },
   "peerDependencies": {
-    "svelte": "^4.2.20 || ^5.0.0"
+    "svelte": "catalog:"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "5.1.1",
-    "@types/three": "0.180.0",
-    "svelte": "5.48.0",
+    "@sveltejs/vite-plugin-svelte": "catalog:",
+    "@types/three": "catalog:",
+    "svelte": "catalog:",
     "svelte-check": "4.3.1",
-    "typescript": "5.9.2",
-    "vite": "6.3.5"
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }
