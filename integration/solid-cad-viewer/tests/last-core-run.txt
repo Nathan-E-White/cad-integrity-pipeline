@@ -1,0 +1,292 @@
+TAP version 13
+# Subtest: accepts indexed mesh and topology-aware assembly fixture
+ok 1 - accepts indexed mesh and topology-aware assembly fixture
+  ---
+  duration_ms: 2.245967
+  type: 'test'
+  ...
+# Subtest: rejects out-of-bounds triangle indices
+ok 2 - rejects out-of-bounds triangle indices
+  ---
+  duration_ms: 0.381737
+  type: 'test'
+  ...
+# Subtest: rejects nonfinite positions
+ok 3 - rejects nonfinite positions
+  ---
+  duration_ms: 0.201434
+  type: 'test'
+  ...
+# Subtest: rejects face-map count and range errors
+ok 4 - rejects face-map count and range errors
+  ---
+  duration_ms: 0.170618
+  type: 'test'
+  ...
+# Subtest: rejects duplicate IDs
+ok 5 - rejects duplicate IDs
+  ---
+  duration_ms: 0.311151
+  type: 'test'
+  ...
+# Subtest: rejects cycles and missing parents
+ok 6 - rejects cycles and missing parents
+  ---
+  duration_ms: 0.215236
+  type: 'test'
+  ...
+# Subtest: validates instance rendering budgets, not only unique asset size
+ok 7 - validates instance rendering budgets, not only unique asset size
+  ---
+  duration_ms: 0.189587
+  type: 'test'
+  ...
+# Subtest: permits defective/degenerate triangles for inspection, without repairing
+ok 8 - permits defective/degenerate triangles for inspection, without repairing
+  ---
+  duration_ms: 0.556151
+  type: 'test'
+  ...
+# Subtest: rejects projective and singular transforms
+ok 9 - rejects projective and singular transforms
+  ---
+  duration_ms: 0.385934
+  type: 'test'
+  ...
+# Subtest: composes column-major matrices and preserves source units
+ok 10 - composes column-major matrices and preserves source units
+  ---
+  duration_ms: 0.387536
+  type: 'test'
+  ...
+# Subtest: resolves child-before-parent assemblies without recursion
+ok 11 - resolves child-before-parent assemblies without recursion
+  ---
+  duration_ms: 0.308156
+  type: 'test'
+  ...
+# Subtest: handles a deeply nested hierarchy
+ok 12 - handles a deeply nested hierarchy
+  ---
+  duration_ms: 26.834581
+  type: 'test'
+  ...
+# Subtest: world bounds retain billion-unit offsets in double precision
+ok 13 - world bounds retain billion-unit offsets in double precision
+  ---
+  duration_ms: 0.770065
+  type: 'test'
+  ...
+# Subtest: camera fit accounts for a narrow viewport
+ok 14 - camera fit accounts for a narrow viewport
+  ---
+  duration_ms: 0.197298
+  type: 'test'
+  ...
+# Subtest: face picking returns semantic IDs rather than triangle IDs
+ok 15 - face picking returns semantic IDs rather than triangle IDs
+  ---
+  duration_ms: 0.179311
+  type: 'test'
+  ...
+# Subtest: unmapped faces fall back explicitly to triangle selection
+ok 16 - unmapped faces fall back explicitly to triangle selection
+  ---
+  duration_ms: 0.078578
+  type: 'test'
+  ...
+# Subtest: selection identity includes instance and document revision
+ok 17 - selection identity includes instance and document revision
+  ---
+  duration_ms: 0.146712
+  type: 'test'
+  ...
+# Subtest: JSON round trip preserves typed data, UVs, IDs and assembly transforms
+ok 18 - JSON round trip preserves typed data, UVs, IDs and assembly transforms
+  ---
+  duration_ms: 1.775895
+  type: 'test'
+  ...
+# Subtest: JSON decoding rejects fractional/negative indices before typed-array coercion
+ok 19 - JSON decoding rejects fractional/negative indices before typed-array coercion
+  ---
+  duration_ms: 0.210047
+  type: 'test'
+  ...
+# Subtest: reads NPY version 1
+ok 20 - reads NPY version 1
+  ---
+  duration_ms: 0.657505
+  type: 'test'
+  ...
+# Subtest: reads NPY version 2
+ok 21 - reads NPY version 2
+  ---
+  duration_ms: 0.177569
+  type: 'test'
+  ...
+# Subtest: reads NPY version 3
+ok 22 - reads NPY version 3
+  ---
+  duration_ms: 0.093762
+  type: 'test'
+  ...
+# Subtest: reads big-endian float32 and signed int64
+ok 23 - reads big-endian float32 and signed int64
+  ---
+  duration_ms: 0.308456
+  type: 'test'
+  ...
+# Subtest: converts Fortran-contiguous data to C-order without transposing logical coordinates
+ok 24 - converts Fortran-contiguous data to C-order without transposing logical coordinates
+  ---
+  duration_ms: 0.293694
+  type: 'test'
+  ...
+# Subtest: converts rank-three Fortran storage
+ok 25 - converts rank-three Fortran storage
+  ---
+  duration_ms: 0.145269
+  type: 'test'
+  ...
+# Subtest: rejects unsafe 64-bit integer precision loss
+ok 26 - rejects unsafe 64-bit integer precision loss
+  ---
+  duration_ms: 0.159171
+  type: 'test'
+  ...
+# Subtest: rejects object/pickle dtypes
+ok 27 - rejects object/pickle dtypes
+  ---
+  duration_ms: 0.232401
+  type: 'test'
+  ...
+# Subtest: rejects truncated NPY
+ok 28 - rejects truncated NPY
+  ---
+  duration_ms: 0.143077
+  type: 'test'
+  ...
+# Subtest: reads stored NPZ with unnormalized UVs
+ok 29 - reads stored NPZ with unnormalized UVs
+  ---
+  duration_ms: 17.273071
+  type: 'test'
+  ...
+# Subtest: reads deflated NPZ with unnormalized UVs
+ok 30 - reads deflated NPZ with unnormalized UVs
+  ---
+  duration_ms: 15.780304
+  type: 'test'
+  ...
+# Subtest: reads a real numpy.savez_compressed artifact (local ZIP64 headers)
+ok 31 - reads a real numpy.savez_compressed artifact (local ZIP64 headers)
+  ---
+  duration_ms: 14.830017
+  type: 'test'
+  ...
+# Subtest: supports remapped NPZ keys
+ok 32 - supports remapped NPZ keys
+  ---
+  duration_ms: 4.750714
+  type: 'test'
+  ...
+# Subtest: rejects duplicate NPZ members
+ok 33 - rejects duplicate NPZ members
+  ---
+  duration_ms: 0.456751
+  type: 'test'
+  ...
+# Subtest: rejects corrupt CRC
+ok 34 - rejects corrupt CRC
+  ---
+  duration_ms: 0.203808
+  type: 'test'
+  ...
+# Subtest: enforces input and expanded ZIP budgets before decode
+ok 35 - enforces input and expanded ZIP budgets before decode
+  ---
+  duration_ms: 0.562381
+  type: 'test'
+  ...
+# Subtest: rejects an already cancelled NPZ load
+ok 36 - rejects an already cancelled NPZ load
+  ---
+  duration_ms: 0.36351
+  type: 'test'
+  ...
+# Subtest: cancels in-progress decompression
+ok 37 - cancels in-progress decompression
+  ---
+  duration_ms: 1.024349
+  type: 'test'
+  ...
+# Subtest: checks CRC32 against known vector
+ok 38 - checks CRC32 against known vector
+  ---
+  duration_ms: 0.067983
+  type: 'test'
+  ...
+# Subtest: HTTP source propagates AbortSignal and validates normalized data
+ok 39 - HTTP source propagates AbortSignal and validates normalized data
+  ---
+  duration_ms: 13.273443
+  type: 'test'
+  ...
+# Subtest: limits response bytes even without Content-Length
+ok 40 - limits response bytes even without Content-Length
+  ---
+  duration_ms: 0.311501
+  type: 'test'
+  ...
+# Subtest: HTTP failures remain explicit
+ok 41 - HTTP failures remain explicit
+  ---
+  duration_ms: 0.275427
+  type: 'test'
+  ...
+# Subtest: Blob NPZ source is functional without a backend
+ok 42 - Blob NPZ source is functional without a backend
+  ---
+  duration_ms: 10.899042
+  type: 'test'
+  ...
+# Subtest: STEP adapter validates output units and deflection, without pretending to parse STEP
+ok 43 - STEP adapter validates output units and deflection, without pretending to parse STEP
+  ---
+  duration_ms: 0.327996
+  type: 'test'
+  ...
+# Subtest: model endpoint returns a validated exact revision
+ok 44 - model endpoint returns a validated exact revision
+  ---
+  duration_ms: 1.610866
+  type: 'test'
+  ...
+# Subtest: model endpoint authorizes before repository access
+ok 45 - model endpoint authorizes before repository access
+  ---
+  duration_ms: 0.352833
+  type: 'test'
+  ...
+# Subtest: model endpoint rejects wrong revisions without leaking diagnostics
+ok 46 - model endpoint rejects wrong revisions without leaking diagnostics
+  ---
+  duration_ms: 0.634179
+  type: 'test'
+  ...
+# Subtest: model endpoint requires a revision and only handles GET
+ok 47 - model endpoint requires a revision and only handles GET
+  ---
+  duration_ms: 0.561179
+  type: 'test'
+  ...
+1..47
+# tests 47
+# suites 0
+# pass 47
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 175.972505

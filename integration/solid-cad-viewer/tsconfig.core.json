@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "strict": true,
+    "skipLibCheck": true,
+    "rootDir": ".",
+    "outDir": ".core-build",
+    "types": []
+  },
+  "include": [
+    "src/model.ts",
+    "src/math.ts",
+    "src/selection.ts",
+    "src/data/npz.ts",
+    "src/data/wire.ts",
+    "src/data/sources.ts",
+    "src/demo/fixture.ts",
+    "src/server/model-handler.ts"
+  ]
+}

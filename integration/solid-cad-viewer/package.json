@@ -1,0 +1,30 @@
+{
+  "name": "solid-cad-viewer-base",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "check": "biome check .",
+    "format": "biome check --write .",
+    "test": "node scripts/test-core.mjs",
+    "syntax": "node scripts/check-syntax.mjs"
+  },
+  "dependencies": {
+    "@tanstack/solid-query": "^5.103.1",
+    "solid-js": "^1.9.15",
+    "three": "~0.186.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.0.0",
+    "@types/three": "~0.186.0",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.0",
+    "vite-plugin-solid": "^2.11.6"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
