@@ -17,3 +17,6 @@ outputs/
 
 # MacOS finder breadcrumbs
 .DS_Store
+
+# Installed JavaScript dependencies
+node_modules/

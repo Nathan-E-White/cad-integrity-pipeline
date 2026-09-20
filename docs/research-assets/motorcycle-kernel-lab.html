@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Motorcycle kernel lab — synthetic demonstrator</title>
+<style>
+:root{--foreground:#20303b;--border:#ced6dc;--viz-series-1:#1264a3;--viz-series-2:#c74d21;--viz-series-3:#238052}
+body{max-width:900px;margin:32px auto;padding:0 20px;font:16px/1.5 system-ui,sans-serif;background:#fafbfc;color:var(--foreground)}
+.viz-controls{display:flex;gap:24px;flex-wrap:wrap}.form-label{display:block;margin:12px 0}.form-select{display:block;padding:8px;font:inherit}.form-range{display:block;width:100%}table{border-collapse:collapse;width:100%}th,td{text-align:left;border-bottom:1px solid var(--border);padding:8px}.text-small{font-size:14px}.text-muted{color:#52616c}.tabular-nums{font-variant-numeric:tabular-nums}
+</style></head><body>
+<p>Supplement to <a href="../MOTORCYCLE_KERNEL_RESEARCH.md">the kernel research report</a>. Supplied synthetic JavaScript demonstration, wrapped for standalone viewing. Its both-stop tie rule is experimental; it is not the canonical quad algorithm or a native surface kernel.</p>
+<div id="motorcycle-kernel-lab">
+  <h3>Motorcycle kernel lab</h3>
+  <div class="viz-controls">
+    <label class="form-label">Experiment<select class="form-select" id="mk-mode"><option value="collision">Collisions · deposited tracks</option><option value="cycle">Cycles · periodic surface</option><option value="field">Cross-field · sampling audit</option></select></label>
+    <label class="form-label" id="mk-option-label"><span id="mk-option-title">B launch time</span><select class="form-select" id="mk-option"></select></label>
+  </div>
+  <label class="form-label"><span id="mk-range-label"></span><input class="form-range" id="mk-range" type="range" min="0" max="14" step="0.25" value="10"></label>
+  <div id="mk-canvas"></div>
+  <div id="mk-detail" class="text-small tabular-nums" aria-live="polite"></div>
+  <table class="table table-sm"><thead id="mk-head"></thead><tbody id="mk-body"></tbody></table>
+  <div class="text-small text-muted">Computed synthetic fixtures · no native mesh kernel connected</div>
+</div>
+<style>
+#motorcycle-kernel-lab{color:var(--foreground)}
+#motorcycle-kernel-lab #mk-canvas{margin:12px 0 8px}
+#motorcycle-kernel-lab .mk-scene{display:block;width:100%;overflow:visible}
+#motorcycle-kernel-lab .mk-scene text{fill:var(--foreground);font-size:12px;font-weight:400}
+#motorcycle-kernel-lab td{overflow-wrap:anywhere}
+#motorcycle-kernel-lab #mk-detail{min-height:2em;margin-bottom:8px}
+</style>
+<script>
+(()=>{
+'use strict';
+const root=document.getElementById('motorcycle-kernel-lab');
+const q=s=>root.querySelector(s), mode=q('#mk-mode'), option=q('#mk-option'), range=q('#mk-range');
+const TAU=2*Math.PI, eps=1e-9;
+function simulate(delay,reverse=false){
+  const rays=[{id:'A',p:[1,4],v:[1,0],launch:0,limit:9},{id:'B',p:[5,1],v:[0,1],launch:delay,limit:7},{id:'C',p:[8,1],v:[0,1],launch:6,limit:7}];
+  if(reverse)rays.reverse();
+  rays.forEach(r=>{r.stop=r.launch+r.limit;r.reason='boundary';});
+  const events=[], cross=(a,b)=>a[0]*b[1]-a[1]*b[0];
+  for(let i=0;i<rays.length;i++)for(let j=i+1;j<rays.length;j++){
+    const a=rays[i],b=rays[j],det=cross(a.v,b.v);if(!det)continue;
+    const d=[b.p[0]-a.p[0],b.p[1]-a.p[1]],u=cross(d,b.v)/det,v=cross(d,a.v)/det;
+    if(u<0||v<0||u>a.limit||v>b.limit)continue;
+    const ta=a.launch+u,tb=b.launch+v;events.push({a,b,ta,tb,t:Math.max(ta,tb),p:[a.p[0]+u*a.v[0],a.p[1]+u*a.v[1]]});
+  }
+  events.sort((a,b)=>a.t-b.t);
+  for(let i=0;i<events.length;){
+    let j=i+1;while(j<events.length&&Math.abs(events[j].t-events[i].t)<eps)j++;
+    const stops=[];
+    for(let k=i;k<j;k++){
+      const e=events[k];e.accepted=e.ta<=e.a.stop+eps&&e.tb<=e.b.stop+eps;
+      if(!e.accepted){e.result='discarded · track never deposited';continue;}
+      if(Math.abs(e.ta-e.tb)<eps){stops.push([e.a,e.t,'simultaneous'],[e.b,e.t,'simultaneous']);e.result='both stop · demo tie policy';}
+      else{const late=e.ta>e.tb?e.a:e.b,early=late===e.a?e.b:e.a;stops.push([late,e.t,'track '+early.id]);e.result=late.id+' stops on '+early.id;}
+    }
+    stops.forEach(([r,t,reason])=>{if(t<=r.stop){r.stop=t;r.reason=reason;}});i=j;
+  }
+  return {rays:rays.sort((a,b)=>a.id.localeCompare(b.id)),events};
+}
+function cycle(dx,dy,budget){
+ const seen=new Map(),states=[];let x=0,y=0;
+ for(let k=0;k<=budget;k++){
+  const key=[x,y,dx,dy].join(':');states.push({x,y,k});
+  if(seen.has(key))return {states,period:k-seen.get(key),status:'exact state recurrence'};
+  seen.set(key,k);x=(x+dx)%24;y=(y+dy)%16;
+ }
+ return {states,period:null,status:'budget reached · no cycle witness'};
+}
+function audit(index,n){
+ const phase=Array.from({length:n},(_,i)=>4*index*TAU*i/n);
+ const wrap=x=>Math.atan2(Math.sin(x),Math.cos(x));
+ let sum=0,maxStep=0;
+ for(let i=0;i<n;i++){const d=wrap(phase[(i+1)%n]-phase[i]);sum+=d;maxStep=Math.max(maxStep,Math.abs(d));}
+ return {measured:sum/(4*TAU),maxStep,alias:4*Math.abs(index)*TAU/n>=Math.PI-eps};
+}
+// Self-checks target event ownership, invalidated future tracks, recurrence and aliasing.
+const assert=(v,m)=>{if(!v)throw Error(m);};
+assert(simulate(0).rays[0].stop===4,'A must stop on B');
+assert(simulate(0).rays[2].reason==='boundary','C must ignore unrealized A track');
+assert(simulate(2).rays[1].stop===5&&simulate(2).rays[2].stop===9,'later arrivals must stop');
+assert(simulate(1).rays[0].reason==='simultaneous'&&simulate(1).rays[1].reason==='simultaneous','tie policy');
+assert(JSON.stringify(simulate(2).rays)===JSON.stringify(simulate(2,true).rays),'seed order invariant');
+assert(cycle(1,0,48).period===24,'horizontal period');
+assert(cycle(1,1,24).period===null&&cycle(1,1,48).period===48,'full state required');
+assert(Math.abs(audit(1,4).measured)<eps&&audit(1,4).alias,'coarse alias');
+assert(Math.abs(audit(1,16).measured-1)<eps&&!audit(1,16).alias,'resolved index');
+root.dataset.selfTests='9 passed';
+let w=640,h=320,parts=[];
+const col=i=>'var(--viz-series-'+i+')';
+function line(x1,y1,x2,y2,c='var(--border)',sw=1,extra=''){parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${c}" stroke-width="${sw}" ${extra}/>`);}
+function text(x,y,s,anchor='start'){parts.push(`<text x="${x}" y="${y}" text-anchor="${anchor}">${s}</text>`);}
+function dot(x,y,c,r=4,extra=''){parts.push(`<circle cx="${x}" cy="${y}" r="${r}" fill="${c}" ${extra}/>`);}
+function table(headers,rows){q('#mk-head').innerHTML='<tr>'+headers.map(x=>'<th scope="col">'+x+'</th>').join('')+'</tr>';q('#mk-body').innerHTML=rows.map(r=>'<tr>'+r.map(x=>'<td>'+x+'</td>').join('')+'</tr>').join('');}
+function draw(){
+ w=Math.max(280,q('#mk-canvas').clientWidth);h=320;parts=[];
+ let title='';
+ if(mode.value==='collision'){
+  title='Three rays in a planar domain with constant horizontal and vertical cross-field';
+  const t=+range.value,run=simulate(+option.value),X=x=>24+x*(w-48)/10,Y=y=>284-y*30;
+  q('#mk-range-label').textContent='Elapsed time · '+t.toFixed(2)+' units';
+  for(let x=0;x<=10;x++)line(X(x),Y(0),X(x),Y(8));for(let y=0;y<=8;y++)line(X(0),Y(y),X(10),Y(y));
+  for(let x=1;x<10;x+=2)for(let y=2;y<8;y+=2){line(X(x)-5,Y(y),X(x)+5,Y(y));line(X(x),Y(y)-5,X(x),Y(y)+5);}
+  run.rays.forEach((r,i)=>{
+    const d=Math.max(0,Math.min(t,r.stop)-r.launch),end=[r.p[0]+r.v[0]*d,r.p[1]+r.v[1]*d];
+    line(X(r.p[0]),Y(r.p[1]),X(r.p[0]+r.v[0]*r.limit),Y(r.p[1]+r.v[1]*r.limit),col(i+1),1,'stroke-dasharray="3 5" opacity="0.45"');
+    line(X(r.p[0]),Y(r.p[1]),X(end[0]),Y(end[1]),col(i+1),3);
+    dot(X(r.p[0]),Y(r.p[1]),col(i+1),3);
+    if(t>=r.launch){if(t>=r.stop)parts.push(`<rect x="${X(end[0])-5}" y="${Y(end[1])-5}" width="10" height="10" fill="${col(i+1)}"/>`);else dot(X(end[0]),Y(end[1]),col(i+1),5);}
+    text(X(r.p[0])+8,Y(r.p[1])+18,r.id);
+  });
+  run.events.forEach(e=>{if(t>=e.t&&e.accepted)parts.push(`<circle cx="${X(e.p[0])}" cy="${Y(e.p[1])}" r="11" fill="none" stroke="var(--foreground)" stroke-width="1.5"/>`);});
+  text(24,22,'Unit speed · persistent tracks');text(24,311,'Solid: track · Dots: plan · Square: stop');
+  const due=run.events.filter(e=>e.t<=t),last=due.at(-1);
+  q('#mk-detail').textContent=last?'t = '+last.t+' · '+last.result:'No collision processed yet.';
+  table(['Trace','State now','Final stop'],run.rays.map(r=>[r.id,t<r.launch?'waiting':t<r.stop?'moving':'stopped',r.reason+' · t = '+r.stop]));
+ }else if(mode.value==='cycle'){
+  title='A directed lattice path on a flat torus with identified opposite boundaries';
+  const dy=+option.value,n=+range.value,run=cycle(1,dy,n),X=x=>24+x*(w-48)/24,Y=y=>282-y*14;
+  q('#mk-range-label').textContent='Transition budget · '+n;
+  for(let x=0;x<=24;x+=2)line(X(x),Y(0),X(x),Y(16));for(let y=0;y<=16;y+=2)line(X(0),Y(y),X(24),Y(y));
+  // Split seam crossings in the fundamental domain; no false across-domain chord.
+  for(let i=1;i<run.states.length;i++){
+    const a=run.states[i-1];let x=a.x,y=a.y,remaining=1;
+    while(remaining>eps){const tx=24-x,ty=dy?(16-y)/dy:Infinity,d=Math.min(remaining,tx,ty);
+      line(X(x),Y(y),X(x+d),Y(y+dy*d),col(1),2.5);x+=d;y+=dy*d;remaining-=d;if(x>=24-eps)x=0;if(y>=16-eps)y=0;}
+  }
+  const end=run.states.at(-1);dot(X(0),Y(0),col(2),6);dot(X(end.x),Y(end.y),col(1),5);
+  text(24,23,'Flat torus · paired boundaries');text(24,310,'Return state = position + direction');
+  q('#mk-detail').textContent=run.period?'Cycle witnessed · period '+run.period+' transitions.':run.status+'.';
+  table(['Witness','Value'],[['Current state','('+end.x+', '+end.y+'; direction 1, '+dy+')'],['First return',run.period?'step '+run.period:'not reached'],['Seam crossing alone','not a cycle']]);
+ }else{
+  title='Cross-field sampled around a loop, compared with its known synthetic singularity index';
+  const index=+option.value,n=+range.value,a=audit(index,n),cx=w/2,cy=157,R=Math.min(112,(w-70)/2);
+  q('#mk-range-label').textContent='Samples around loop · '+n;
+  parts.push(`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="var(--border)"/>`);
+  for(let j=0;j<n;j++){
+    const phi=TAU*j/n,theta=index*phi,x=cx+R*Math.cos(phi),y=cy-R*Math.sin(phi),r=Math.min(10,Math.PI*R/n*.7);
+    for(let k=0;k<2;k++){const ang=theta+k*Math.PI/2;line(x-r*Math.cos(ang),y+r*Math.sin(ang),x+r*Math.cos(ang),y-r*Math.sin(ang),col(1),2);}
+    dot(x,y,col(1),1.7);
+  }
+  dot(cx,cy,col(2),5);text(cx,cy-18,'Prescribed index '+index,'middle');
+  text(24,22,'Planar transport · fourth-power phase');
+  text(cx,301,'Measured loop index: '+(Math.abs(a.measured)<eps?'0':a.measured.toFixed(2)),'middle');
+  q('#mk-detail').textContent=a.alias?'Undersampled for this known field · the measured index is not trustworthy.':'Known phase increment is below π · this synthetic loop resolves correctly.';
+  table(['Audit','Computed result'],[['Prescribed / measured',index+' / '+(Math.abs(a.measured)<eps?0:a.measured.toFixed(2))],['Largest sampled phase step',(a.maxStep*180/Math.PI).toFixed(1)+'°'],['Sampling knowledge',a.alias?'known analytic field reveals aliasing':'resolved for this analytic field']]);
+ }
+ q('#mk-canvas').innerHTML=`<svg class="mk-scene" role="img" aria-label="${title}" viewBox="0 0 ${w} ${h}" height="${h}"><title>${title}</title>${parts.join('')}</svg>`;
+}
+function configure(){
+ const cfg={collision:{label:'B launch time',options:[[0,'0 · B arrives first'],[1,'1 · simultaneous arrival'],[2,'2 · A arrives first']],min:0,max:14,step:.25,value:10},cycle:{label:'Direction',options:[[1,'Diagonal · period 48'],[0,'Horizontal · period 24']],min:0,max:48,step:1,value:24},field:{label:'Synthetic singularity',options:[[1,'+1 · aliasing example'],[.25,'+¼ · simple singularity'],[-.25,'−¼ · simple singularity'],[0,'0 · uniform field']],min:4,max:32,step:1,value:4}}[mode.value];
+ q('#mk-option-title').textContent=cfg.label;option.innerHTML=cfg.options.map(([v,s])=>`<option value="${v}">${s}</option>`).join('');Object.assign(range,{min:cfg.min,max:cfg.max,step:cfg.step,value:cfg.value});draw();
+}
+mode.addEventListener('change',configure);option.addEventListener('change',draw);range.addEventListener('input',draw);configure();new ResizeObserver(draw).observe(q('#mk-canvas'));
+})();
+</script>
+
+</body></html>
