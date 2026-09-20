@@ -16,7 +16,13 @@ or qualify the incomplete diagnostics delivery for use in Gradio.
   hash-locked Linux dependency graph. Build backends keep their own requirements.
 - `scripts/check_dependencies.py` checks shared declarations, duplicate ranges,
   requirements-file mirrors, component versions, local Pixi paths, JavaScript catalog
-  use, and lockfile ownership. `--environment` also checks installed shared versions.
+  use, and lockfile ownership. It also parses `pixi.lock` with PyYAML (a declared
+  dev dependency) and rejects resolved conda `vtk`/`vtk-*` providers in the selected
+  environment, including transitive packages. `--pixi-environment NAME` selects the
+  lock environment explicitly (default: `default`); all its platform resolutions
+  are checked. Other environments and unselected inventory entries are excluded.
+  The checker supports lock format 7 and fails on unreadable or missing selections.
+  `--environment` separately checks installed shared versions.
 - The root `ui` extra declares both Gradio components at their local package versions.
   Pixi resolves those names from `components/`; pip callers must supply those local
   packages explicitly rather than look for these unpublished packages on PyPI.

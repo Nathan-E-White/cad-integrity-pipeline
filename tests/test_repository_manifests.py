@@ -43,7 +43,7 @@ def test_artifact_inventory_respects_ignore_rules_without_hiding_tracked_files(t
 
 
 def manifest_copy(tmp_path):
-    paths = ['pyproject.toml', 'dependency-policy.toml', 'package.json', 'bun.lock',
+    paths = ['pyproject.toml', 'dependency-policy.toml', 'package.json', 'bun.lock', 'pixi.lock',
              'requirements/constraints.txt']
     for pattern in ['components/*/pyproject.toml', 'components/*/frontend/package.json',
                     'components/*/demo/requirements.txt', 'integration/*/pyproject.toml',
@@ -99,3 +99,49 @@ def test_environment_check_reports_installed_version_drift(tmp_path, monkeypatch
     assert any('installed cadquery==0.0.0' in error
                for error in script.check(tmp_path, environment=True))
 
+
+
+def test_dependency_check_rejects_transitive_conda_vtk(tmp_path):
+    import yaml
+
+    manifest_copy(tmp_path)
+    script = load_script('check_dependencies')
+    assert script.check(tmp_path) == []  # The current novtk/PyPI lock is allowed.
+    path = tmp_path / 'pixi.lock'
+    lock = yaml.safe_load(path.read_text())
+    provider = 'https://conda.anaconda.org/conda-forge/osx-arm64/vtk-base-9.6.0-py313_0.conda'
+    lock['environments']['default']['packages']['osx-arm64'].append({'conda': provider})
+    lock['packages'].append({'conda': provider})
+    path.write_text(yaml.safe_dump(lock))
+    assert any('resolved conda VTK provider vtk-base' in error for error in script.check(tmp_path))
+
+
+@pytest.mark.parametrize('provider_name,suffix', [
+    ('vtk', '.conda'), ('vtk-base', '.tar.bz2'), ('vtk-io-ffmpeg', '.conda'),
+])
+def test_dependency_check_scopes_vtk_to_selected_environment(tmp_path, provider_name, suffix):
+    import copy
+    import yaml
+
+    manifest_copy(tmp_path)
+    script = load_script('check_dependencies')
+    path = tmp_path / 'pixi.lock'
+    lock = yaml.safe_load(path.read_text())
+    other = copy.deepcopy(lock['environments']['default'])
+    provider = f'https://conda.anaconda.org/conda-forge/linux-64/{provider_name}-9.6.0-build_0{suffix}'
+    other['packages']['linux-64'] = [{'conda': provider}]
+    lock['environments']['other'] = other
+    lock['packages'].append({'conda': provider})
+    path.write_text(yaml.safe_dump(lock))
+    assert script.check(tmp_path, pixi_environment='default') == []
+    assert any(f'other/linux-64: resolved conda VTK provider {provider_name}' in error
+               for error in script.check(tmp_path, pixi_environment='other'))
+    assert any("cannot inspect environment 'missing'" in error
+               for error in script.check(tmp_path, pixi_environment='missing'))
+
+
+@pytest.mark.parametrize('content', ['version: [', 'version: 99', 'version: 7\nenvironments: {}'])
+def test_dependency_check_rejects_unreadable_lock(tmp_path, content):
+    manifest_copy(tmp_path)
+    (tmp_path / 'pixi.lock').write_text(content)
+    assert any('pixi.lock:' in error for error in load_script('check_dependencies').check(tmp_path))

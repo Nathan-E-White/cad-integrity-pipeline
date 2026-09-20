@@ -15,7 +15,7 @@ algebra = ["sympy"]
 cad = ["cadquery-ocp>=7.9,<8", "cadquery>=2.8,<3"]
 notebook = ["jupyterlab", "plotly", "nbformat"]
 ui = ["gradio>=6.27,<7", "gradio-topologicaldeltaaudit==0.0.1", "gradio-verificationgrid==0.0.1"]
-dev = ["pytest>=8,<10", "pytest-cov>=5,<8", "ruff>=0.11,<1", "mypy>=1.15,<2", "scipy-stubs", "nbclient", "build", "packaging>=24,<27"]
+dev = ["pytest>=8,<10", "pytest-cov>=5,<8", "ruff>=0.11,<1", "mypy>=1.15,<2", "scipy-stubs", "nbclient", "build", "packaging>=24,<27", "PyYAML>=6,<7"]
 
 [project.scripts]
 cad-integrity = "cad_integrity.cli:main"

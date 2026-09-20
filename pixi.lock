@@ -1629,6 +1629,7 @@ packages:
   - nbclient ; extra == 'dev'
   - build ; extra == 'dev'
   - packaging>=24,<27 ; extra == 'dev'
+  - pyyaml>=6,<7 ; extra == 'dev'
   requires_python: '>=3.13'
 - pypi: ./components/topological_delta_audit
   name: gradio-topologicaldeltaaudit

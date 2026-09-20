@@ -1,21 +1,58 @@
 """Check shared declarations and local package relationships without installing."""
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 import tomllib
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as installed_version
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
+import yaml
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def check(root: Path, *, environment: bool = False) -> list[str]:
-    errors: list[str] = []
+def resolved_vtk_errors(root: Path, pixi_environment: str) -> list[str]:
+    """Inspect the selected environment, not the lock's shared package inventory."""
+    try:
+        lock = yaml.safe_load((root / "pixi.lock").read_text())
+        if lock["version"] != 7:
+            return ["pixi.lock: expected supported lock version 7"]
+        platforms = lock["environments"][pixi_environment]["packages"]
+        if not isinstance(platforms, dict) or not platforms:
+            raise ValueError("selected environment has no platform resolutions")
+        errors = []
+        for platform, packages in platforms.items():
+            if not isinstance(packages, list) or not packages:
+                raise ValueError(f"{platform}: missing package resolution")
+            for package in packages:
+                if "conda" not in package:
+                    continue
+                filename = unquote(urlsplit(package["conda"]).path.rsplit("/", 1)[-1])
+                if filename.endswith(".conda"):
+                    stem = filename.removesuffix(".conda")
+                elif filename.endswith(".tar.bz2"):
+                    stem = filename.removesuffix(".tar.bz2")
+                else:
+                    raise ValueError(f"unsupported conda artifact: {filename}")
+                name, _, _ = stem.rsplit("-", 2)
+                if name == "vtk" or name.startswith("vtk-"):
+                    errors.append(
+                        f"pixi.lock {pixi_environment}/{platform}: resolved conda VTK provider "
+                        f"{name}; CAD environment requires PyPI-owned VTK"
+                    )
+        return errors
+    except (OSError, yaml.YAMLError, KeyError, TypeError, ValueError) as exc:
+        return [f"pixi.lock: cannot inspect environment {pixi_environment!r}: {exc}"]
+
+
+def check(root: Path, *, environment: bool = False, pixi_environment: str = "default") -> list[str]:
+    errors: list[str] = resolved_vtk_errors(root, pixi_environment)
     policy = tomllib.loads((root / "dependency-policy.toml").read_text())["python"]
     constraints = [Requirement(line) for line in (root / "requirements/constraints.txt").read_text().splitlines()
                    if line.strip() and not line.startswith("#")]
@@ -121,13 +158,15 @@ def check(root: Path, *, environment: bool = False) -> list[str]:
 
 
 def main() -> int:
-    if sys.argv[1:] not in ([], ["--environment"]):
-        raise SystemExit("usage: check_dependencies.py [--environment]")
-    errors = check(ROOT, environment=sys.argv[1:] == ["--environment"])
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--environment", action="store_true", help="check installed shared versions")
+    parser.add_argument("--pixi-environment", default="default", help="resolved lock environment (default: default)")
+    args = parser.parse_args()
+    errors = check(ROOT, environment=args.environment, pixi_environment=args.pixi_environment)
     if errors:
         print("\n".join(errors))
         return 1
-    print("Dependency declarations and parent/child relationships verified.")
+    print("Dependency declarations, resolved VTK ownership and parent/child relationships verified.")
     return 0
 
 
