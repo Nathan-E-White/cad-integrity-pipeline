@@ -1,0 +1,293 @@
+{
+  "schema_version": "mesh-diagnostics/1",
+  "mesh_id": "Synthetic inspection fixture",
+  "geometry_revision": "0a0df9d856fc17b9200278d9fb31b6d17892acff7adb423fb0db1c3705a9e355",
+  "diagnostic_revision": "d6b7e7bb1e2478017db922f4be94048aea43ba59ef365bbec52a8d661c28ee65",
+  "stage": "synthetic-original",
+  "units": "arbitrary",
+  "positions": [
+    -1.0,
+    -1.0,
+    -1.0,
+    1.0,
+    -1.0,
+    -1.0,
+    1.0,
+    1.0,
+    -1.0,
+    -1.0,
+    1.0,
+    -1.0,
+    -1.0,
+    -1.0,
+    1.0,
+    1.0,
+    -1.0,
+    1.0,
+    1.0,
+    1.0,
+    1.0,
+    -1.0,
+    1.0,
+    1.0,
+    0.0,
+    -0.7,
+    0.2,
+    1.6,
+    -0.8,
+    0.0,
+    2.8,
+    -0.8,
+    0.0,
+    2.2,
+    -0.799,
+    0.0,
+    0.0,
+    0.0,
+    1.6
+  ],
+  "triangles": [
+    0,
+    2,
+    1,
+    0,
+    3,
+    2,
+    0,
+    1,
+    5,
+    0,
+    5,
+    4,
+    1,
+    2,
+    6,
+    1,
+    6,
+    5,
+    2,
+    3,
+    7,
+    2,
+    7,
+    6,
+    3,
+    4,
+    0,
+    3,
+    7,
+    4,
+    0,
+    1,
+    8,
+    9,
+    10,
+    11,
+    12,
+    12,
+    12
+  ],
+  "triangle_parent_faces": null,
+  "targets": [
+    {
+      "id": "boundary_edges",
+      "geometry_revision": "0a0df9d856fc17b9200278d9fb31b6d17892acff7adb423fb0db1c3705a9e355",
+      "kind": "edges",
+      "indices": [
+        0,
+        8,
+        1,
+        8,
+        4,
+        5,
+        4,
+        7,
+        5,
+        6,
+        6,
+        7,
+        9,
+        10,
+        9,
+        11,
+        10,
+        11
+      ]
+    },
+    {
+      "id": "nonmanifold_edges",
+      "geometry_revision": "0a0df9d856fc17b9200278d9fb31b6d17892acff7adb423fb0db1c3705a9e355",
+      "kind": "edges",
+      "indices": [
+        0,
+        1
+      ]
+    },
+    {
+      "id": "winding_conflicts",
+      "geometry_revision": "0a0df9d856fc17b9200278d9fb31b6d17892acff7adb423fb0db1c3705a9e355",
+      "kind": "edges",
+      "indices": [
+        0,
+        3,
+        0,
+        4,
+        3,
+        7
+      ]
+    },
+    {
+      "id": "repeated_vertices",
+      "geometry_revision": "0a0df9d856fc17b9200278d9fb31b6d17892acff7adb423fb0db1c3705a9e355",
+      "kind": "faces",
+      "ids": [
+        12
+      ]
+    },
+    {
+      "id": "degenerate_faces",
+      "geometry_revision": "0a0df9d856fc17b9200278d9fb31b6d17892acff7adb423fb0db1c3705a9e355",
+      "kind": "faces",
+      "ids": [
+        12
+      ]
+    },
+    {
+      "id": "low_shape_quality",
+      "geometry_revision": "0a0df9d856fc17b9200278d9fb31b6d17892acff7adb423fb0db1c3705a9e355",
+      "kind": "faces",
+      "ids": [
+        11,
+        12
+      ]
+    },
+    {
+      "id": "poor_radius_aspect",
+      "geometry_revision": "0a0df9d856fc17b9200278d9fb31b6d17892acff7adb423fb0db1c3705a9e355",
+      "kind": "faces",
+      "ids": [
+        11,
+        12
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "id": "vertex_count",
+      "label": "Vertices",
+      "value": 13,
+      "status": "info",
+      "description": "",
+      "target_id": null
+    },
+    {
+      "id": "triangle_count",
+      "label": "Triangles",
+      "value": 13,
+      "status": "info",
+      "description": "",
+      "target_id": null
+    },
+    {
+      "id": "boundary_edges",
+      "label": "Boundary edges",
+      "value": 9,
+      "status": "fail",
+      "description": "Edge incidence only; repeated-index triangles are excluded. No implicit vertex welding. Closed surface required by this audit policy.",
+      "target_id": "boundary_edges"
+    },
+    {
+      "id": "nonmanifold_edges",
+      "label": "Edges with >2 incident faces",
+      "value": 1,
+      "status": "fail",
+      "description": "Edge incidence only; repeated-index triangles are excluded. No implicit vertex welding.",
+      "target_id": "nonmanifold_edges"
+    },
+    {
+      "id": "winding_conflicts",
+      "label": "Two-face winding conflicts",
+      "value": 3,
+      "status": "fail",
+      "description": "Two incident faces traverse the shared edge in the same direction. This is local consistency, not outward orientation.",
+      "target_id": "winding_conflicts"
+    },
+    {
+      "id": "repeated_vertices",
+      "label": "Repeated-index triangles",
+      "value": 1,
+      "status": "fail",
+      "description": "A triangle references the same vertex more than once.",
+      "target_id": "repeated_vertices"
+    },
+    {
+      "id": "duplicate_faces",
+      "label": "Triangles in duplicate groups",
+      "value": 0,
+      "status": "pass",
+      "description": "Counts ALL members, ignoring triangle winding; not just excess copies.",
+      "target_id": null
+    },
+    {
+      "id": "degenerate_faces",
+      "label": "Degenerate / nearly collapsed triangles",
+      "value": 1,
+      "status": "fail",
+      "description": "Relative cross-product tolerance: 1e-12.",
+      "target_id": "degenerate_faces"
+    },
+    {
+      "id": "low_shape_quality",
+      "label": "Low mean-ratio quality triangles",
+      "value": 2,
+      "status": "fail",
+      "description": "q < 0.15 OR degenerate. q = 4\u221a3 A/(a\u00b2+b\u00b2+c\u00b2).",
+      "target_id": "low_shape_quality"
+    },
+    {
+      "id": "minimum_mean_ratio",
+      "label": "Minimum mean-ratio quality",
+      "value": 0.0,
+      "status": "fail",
+      "description": "Unsigned, dimensionless; equilateral = 1. Not a signed Jacobian.",
+      "target_id": "low_shape_quality"
+    },
+    {
+      "id": "maximum_radius_aspect",
+      "label": "Maximum radius aspect R/(2r)",
+      "value": null,
+      "status": "fail",
+      "description": "Equilateral = 1; limit 3. Undefined/unbounded when any triangle is degenerate.",
+      "target_id": "poor_radius_aspect"
+    },
+    {
+      "id": "mean_finite_radius_aspect",
+      "label": "Mean radius aspect (finite triangles)",
+      "value": 15001.147251469922,
+      "status": "info",
+      "description": "Excludes degenerate triangles; not an overall mesh acceptance criterion.",
+      "target_id": null
+    },
+    {
+      "id": "reference_orientation",
+      "label": "Orientation against reference normals",
+      "value": null,
+      "status": "not_checked",
+      "description": "No per-triangle reference normals were supplied. Unsigned quality cannot detect flipped faces.",
+      "target_id": null
+    },
+    {
+      "id": "full_validation",
+      "label": "Full surface / FEM validity",
+      "value": null,
+      "status": "not_checked",
+      "description": "Vertex-link manifoldness, self-intersections, global outwardness, boundary-loop counts, Betti numbers and FEM Jacobians are not computed by this audit.",
+      "target_id": null
+    }
+  ],
+  "notes": [
+    "Diagnostics are for this exact triangle mesh and geometry revision, not automatically for a native B-Rep or volume mesh.",
+    "Policy: require_closed_surface=True; min_mean_ratio=0.15; max_radius_aspect=3; relative_area_tolerance=1e-12.",
+    "Boundary segments are not connected-loop counts. Edge incidence alone does not certify a 2-manifold."
+  ]
+}

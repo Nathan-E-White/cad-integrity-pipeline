@@ -1,0 +1,120 @@
+TAP version 13
+# (node:761) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: Python-generated fixture obeys the TypeScript contract
+ok 1 - Python-generated fixture obeys the TypeScript contract
+  ---
+  duration_ms: 2.421585
+  type: 'test'
+  ...
+# Subtest: null is a valid clear, malformed data is not a silent empty success
+ok 2 - null is a valid clear, malformed data is not a silent empty success
+  ---
+  duration_ms: 1.327072
+  type: 'test'
+  ...
+# Subtest: reject bad index -1 before unsigned conversion
+ok 3 - reject bad index -1 before unsigned conversion
+  ---
+  duration_ms: 0.358849
+  type: 'test'
+  ...
+# Subtest: reject bad index 0.5 before unsigned conversion
+ok 4 - reject bad index 0.5 before unsigned conversion
+  ---
+  duration_ms: 0.148693
+  type: 'test'
+  ...
+# Subtest: reject bad index Infinity before unsigned conversion
+ok 5 - reject bad index Infinity before unsigned conversion
+  ---
+  duration_ms: 0.195373
+  type: 'test'
+  ...
+# Subtest: reject bad index NaN before unsigned conversion
+ok 6 - reject bad index NaN before unsigned conversion
+  ---
+  duration_ms: 0.118758
+  type: 'test'
+  ...
+# Subtest: reject bad index true before unsigned conversion
+ok 7 - reject bad index true before unsigned conversion
+  ---
+  duration_ms: 0.173481
+  type: 'test'
+  ...
+# Subtest: reject bad index 0 before unsigned conversion
+ok 8 - reject bad index 0 before unsigned conversion
+  ---
+  duration_ms: 0.156225
+  type: 'test'
+  ...
+# Subtest: reject bad index 100000000000000000000 before unsigned conversion
+ok 9 - reject bad index 100000000000000000000 before unsigned conversion
+  ---
+  duration_ms: 0.364327
+  type: 'test'
+  ...
+# Subtest: reject stale targets
+ok 10 - reject stale targets
+  ---
+  duration_ms: 0.863246
+  type: 'test'
+  ...
+# Subtest: reject unknown metric targets and duplicate metric IDs
+ok 11 - reject unknown metric targets and duplicate metric IDs
+  ---
+  duration_ms: 0.689755
+  type: 'test'
+  ...
+# Subtest: large world origin is subtracted BEFORE float32 conversion
+ok 12 - large world origin is subtracted BEFORE float32 conversion
+  ---
+  duration_ms: 0.135413
+  type: 'test'
+  ...
+# Subtest: extreme finite coordinates normalize without NaNs
+ok 13 - extreme finite coordinates normalize without NaNs
+  ---
+  duration_ms: 0.081493
+  type: 'test'
+  ...
+# Subtest: empty or coincident geometry has a usable frame
+ok 14 - empty or coincident geometry has a usable frame
+  ---
+  duration_ms: 0.076676
+  type: 'test'
+  ...
+# Subtest: face extraction preserves source triangle IDs
+ok 15 - face extraction preserves source triangle IDs
+  ---
+  duration_ms: 0.291257
+  type: 'test'
+  ...
+# Subtest: edge extraction uses source vertex indices
+ok 16 - edge extraction uses source vertex indices
+  ---
+  duration_ms: 0.296976
+  type: 'test'
+  ...
+# Subtest: uint32 is selected when the vertex table exceeds uint16 address space
+ok 17 - uint32 is selected when the vertex table exceeds uint16 address space
+  ---
+  duration_ms: 15.565915
+  type: 'test'
+  ...
+# Subtest: resource ownership is idempotent and deduplicated
+ok 18 - resource ownership is idempotent and deduplicated
+  ---
+  duration_ms: 0.376576
+  type: 'test'
+  ...
+1..18
+# tests 18
+# suites 0
+# pass 18
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 149.777212

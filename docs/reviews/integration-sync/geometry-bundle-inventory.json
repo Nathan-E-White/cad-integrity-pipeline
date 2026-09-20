@@ -1,0 +1,3559 @@
+{
+  "mesh_healing_extension": {
+    "archive_file_count": 19,
+    "archive_sha256": "692aeb5c998cb3137a135136037d695e4021ffc98dc1f3e4086ea49dd8da014f",
+    "counts": {
+      "changed": 3,
+      "equal": 16,
+      "missing": 0
+    },
+    "files": {
+      "README.md": {
+        "archive_sha256": "583be3be73273a734b6b1d5b5803edb17e850b8eb8a35697cafde3d0db7ccb0e",
+        "live_sha256": "583be3be73273a734b6b1d5b5803edb17e850b8eb8a35697cafde3d0db7ccb0e",
+        "state": "equal"
+      },
+      "SHA256SUMS": {
+        "archive_sha256": "3d98165a397742bf43a4f1eddd883a6ce257e17b8a4e19f866f7d0fb0443a3be",
+        "live_sha256": "47ff5f4a4d9f33f8640aa7fe987e2b9f11a93da9d43514aa94f93a5a2341a2fe",
+        "state": "changed"
+      },
+      "example_pipeline.py": {
+        "archive_sha256": "e6ec7e3cbbd415ede594990bd7b5db5a1a4a3bf27c70956b2a5a53ca73fce5bf",
+        "archive_symbols": [
+          {
+            "end_line": 32,
+            "line": 23,
+            "name": "original_example"
+          },
+          {
+            "end_line": 39,
+            "line": 35,
+            "name": "seam_example"
+          },
+          {
+            "end_line": 152,
+            "line": 42,
+            "name": "run"
+          },
+          {
+            "end_line": 160,
+            "line": 155,
+            "name": "main"
+          }
+        ],
+        "live_sha256": "e6ec7e3cbbd415ede594990bd7b5db5a1a4a3bf27c70956b2a5a53ca73fce5bf",
+        "live_symbols": [
+          {
+            "end_line": 32,
+            "line": 23,
+            "name": "original_example"
+          },
+          {
+            "end_line": 39,
+            "line": 35,
+            "name": "seam_example"
+          },
+          {
+            "end_line": 152,
+            "line": 42,
+            "name": "run"
+          },
+          {
+            "end_line": 160,
+            "line": 155,
+            "name": "main"
+          }
+        ],
+        "state": "equal"
+      },
+      "generated/patch.mesh.json": {
+        "archive_sha256": "1902b1045f6cf6ec0ad526050e661d675615ee60ce25cfc609266db161843add",
+        "live_sha256": "1902b1045f6cf6ec0ad526050e661d675615ee60ce25cfc609266db161843add",
+        "state": "equal"
+      },
+      "generated/patch_uv.step": {
+        "archive_sha256": "a133ae90fecc1223efb311ddf70e854d7951e3f3a46bbd4fbb8cbfc6518afc59",
+        "live_sha256": "a133ae90fecc1223efb311ddf70e854d7951e3f3a46bbd4fbb8cbfc6518afc59",
+        "state": "equal"
+      },
+      "generated/patch_xyz.step": {
+        "archive_sha256": "a503c0c69e412f153f638ade19393b503ed61ed9fe1da9c2361a7525d1f9498c",
+        "live_sha256": "a503c0c69e412f153f638ade19393b503ed61ed9fe1da9c2361a7525d1f9498c",
+        "state": "equal"
+      },
+      "generated/raw_mesh.npz": {
+        "archive_sha256": "f9442bb78e02a6732daef11c2acd63a5be02820f4f53d7eec553508ecc3f6f85",
+        "live_sha256": "f9442bb78e02a6732daef11c2acd63a5be02820f4f53d7eec553508ecc3f6f85",
+        "state": "equal"
+      },
+      "generated/run_summary.json": {
+        "archive_sha256": "cb7ba4c7c304a94f7e0bdda6216928f2ae2c32c30f2a52f6d9b79ca047ffef5a",
+        "live_sha256": "cb7ba4c7c304a94f7e0bdda6216928f2ae2c32c30f2a52f6d9b79ca047ffef5a",
+        "state": "equal"
+      },
+      "generated/test_environment.json": {
+        "archive_sha256": "7ef746cdd71180a6b45daf5753cca00b5c40f122a4a0c98883409173fea41270",
+        "live_sha256": "7ef746cdd71180a6b45daf5753cca00b5c40f122a4a0c98883409173fea41270",
+        "state": "equal"
+      },
+      "generated/test_output.txt": {
+        "archive_sha256": "3be60e2e80097bc8a9b40c89d565d4e5cf3ece592c46158c4eadf1156cbeec71",
+        "live_sha256": "3be60e2e80097bc8a9b40c89d565d4e5cf3ece592c46158c4eadf1156cbeec71",
+        "state": "equal"
+      },
+      "generated/test_results.xml": {
+        "archive_sha256": "ed654b094050fac9b86e10441c9758ae407018a67297301091158339b61ee57b",
+        "live_sha256": "ed654b094050fac9b86e10441c9758ae407018a67297301091158339b61ee57b",
+        "state": "equal"
+      },
+      "mesh_export.py": {
+        "archive_sha256": "34844ba3fce05816c2af4297ec333fef7e649e7586105fb21c3fd372b5edc1e3",
+        "archive_symbols": [
+          {
+            "end_line": 28,
+            "line": 25,
+            "name": "_destination"
+          },
+          {
+            "end_line": 41,
+            "line": 31,
+            "name": "_atomic_json"
+          },
+          {
+            "end_line": 85,
+            "line": 44,
+            "name": "export_frontend_json"
+          },
+          {
+            "end_line": 99,
+            "line": 89,
+            "name": "StepExportResult"
+          },
+          {
+            "end_line": 212,
+            "line": 102,
+            "name": "export_step"
+          },
+          {
+            "end_line": 288,
+            "line": 215,
+            "name": "UVSurfaceMap"
+          },
+          {
+            "end_line": 239,
+            "line": 224,
+            "name": "UVSurfaceMap.__init__"
+          },
+          {
+            "end_line": 244,
+            "line": 241,
+            "name": "UVSurfaceMap._fresh"
+          },
+          {
+            "end_line": 262,
+            "line": 246,
+            "name": "UVSurfaceMap.evaluate"
+          },
+          {
+            "end_line": 285,
+            "line": 264,
+            "name": "UVSurfaceMap.locate"
+          },
+          {
+            "end_line": 288,
+            "line": 287,
+            "name": "UVSurfaceMap.sample"
+          }
+        ],
+        "live_sha256": "34844ba3fce05816c2af4297ec333fef7e649e7586105fb21c3fd372b5edc1e3",
+        "live_symbols": [
+          {
+            "end_line": 28,
+            "line": 25,
+            "name": "_destination"
+          },
+          {
+            "end_line": 41,
+            "line": 31,
+            "name": "_atomic_json"
+          },
+          {
+            "end_line": 85,
+            "line": 44,
+            "name": "export_frontend_json"
+          },
+          {
+            "end_line": 99,
+            "line": 89,
+            "name": "StepExportResult"
+          },
+          {
+            "end_line": 212,
+            "line": 102,
+            "name": "export_step"
+          },
+          {
+            "end_line": 288,
+            "line": 215,
+            "name": "UVSurfaceMap"
+          },
+          {
+            "end_line": 239,
+            "line": 224,
+            "name": "UVSurfaceMap.__init__"
+          },
+          {
+            "end_line": 244,
+            "line": 241,
+            "name": "UVSurfaceMap._fresh"
+          },
+          {
+            "end_line": 262,
+            "line": 246,
+            "name": "UVSurfaceMap.evaluate"
+          },
+          {
+            "end_line": 285,
+            "line": 264,
+            "name": "UVSurfaceMap.locate"
+          },
+          {
+            "end_line": 288,
+            "line": 287,
+            "name": "UVSurfaceMap.sample"
+          }
+        ],
+        "state": "equal"
+      },
+      "mesh_healing_engine.py": {
+        "archive_sha256": "ff4ab295fb33014b0f13b760f105a66016651bfad8c0a549368c750cf3e388a8",
+        "archive_symbols": [
+          {
+            "end_line": 35,
+            "line": 34,
+            "name": "MeshError"
+          },
+          {
+            "end_line": 39,
+            "line": 38,
+            "name": "TopologyError"
+          },
+          {
+            "end_line": 43,
+            "line": 42,
+            "name": "ParameterizationError"
+          },
+          {
+            "end_line": 47,
+            "line": 46,
+            "name": "StaleSystemError"
+          },
+          {
+            "end_line": 51,
+            "line": 50,
+            "name": "_edge"
+          },
+          {
+            "end_line": 60,
+            "line": 54,
+            "name": "_index"
+          },
+          {
+            "end_line": 67,
+            "line": 63,
+            "name": "_finite_array"
+          },
+          {
+            "end_line": 71,
+            "line": 70,
+            "name": "_cross2"
+          },
+          {
+            "end_line": 79,
+            "line": 74,
+            "name": "_canonical_face"
+          },
+          {
+            "end_line": 90,
+            "line": 82,
+            "name": "_incidence"
+          },
+          {
+            "end_line": 116,
+            "line": 93,
+            "name": "_face_fans"
+          },
+          {
+            "end_line": 135,
+            "line": 120,
+            "name": "TopologyReport"
+          },
+          {
+            "end_line": 131,
+            "line": 129,
+            "name": "TopologyReport.is_manifold"
+          },
+          {
+            "end_line": 135,
+            "line": 134,
+            "name": "TopologyReport.is_oriented_manifold"
+          },
+          {
+            "end_line": 143,
+            "line": 139,
+            "name": "StitchReport"
+          },
+          {
+            "end_line": 172,
+            "line": 147,
+            "name": "PreprocessReport"
+          },
+          {
+            "end_line": 172,
+            "line": 156,
+            "name": "PreprocessReport.remap_constraints"
+          },
+          {
+            "end_line": 185,
+            "line": 176,
+            "name": "UVQuality"
+          },
+          {
+            "end_line": 185,
+            "line": 184,
+            "name": "UVQuality.locally_valid"
+          },
+          {
+            "end_line": 267,
+            "line": 188,
+            "name": "_triangulate_face"
+          },
+          {
+            "end_line": 216,
+            "line": 213,
+            "name": "_triangulate_face.on_segment"
+          },
+          {
+            "end_line": 224,
+            "line": 218,
+            "name": "_triangulate_face.intersects"
+          },
+          {
+            "end_line": 731,
+            "line": 270,
+            "name": "MeshHealingEngine"
+          },
+          {
+            "end_line": 287,
+            "line": 271,
+            "name": "MeshHealingEngine.__init__"
+          },
+          {
+            "end_line": 296,
+            "line": 289,
+            "name": "MeshHealingEngine._build_topology"
+          },
+          {
+            "end_line": 303,
+            "line": 298,
+            "name": "MeshHealingEngine._fingerprint"
+          },
+          {
+            "end_line": 351,
+            "line": 305,
+            "name": "MeshHealingEngine.topology_report"
+          },
+          {
+            "end_line": 367,
+            "line": 353,
+            "name": "MeshHealingEngine.triangulated_faces"
+          },
+          {
+            "end_line": 396,
+            "line": 369,
+            "name": "MeshHealingEngine._orient_faces"
+          },
+          {
+            "end_line": 523,
+            "line": 398,
+            "name": "MeshHealingEngine.non_manifold_stitching"
+          },
+          {
+            "end_line": 422,
+            "line": 419,
+            "name": "MeshHealingEngine.non_manifold_stitching.root"
+          },
+          {
+            "end_line": 430,
+            "line": 424,
+            "name": "MeshHealingEngine.non_manifold_stitching.endpoints"
+          },
+          {
+            "end_line": 614,
+            "line": 525,
+            "name": "MeshHealingEngine.preprocess"
+          },
+          {
+            "end_line": 653,
+            "line": 616,
+            "name": "MeshHealingEngine.compute_cotangent_weights"
+          },
+          {
+            "end_line": 657,
+            "line": 655,
+            "name": "MeshHealingEngine.compute_cotangent_laplacian"
+          },
+          {
+            "end_line": 661,
+            "line": 659,
+            "name": "MeshHealingEngine.prepare_harmonic_system"
+          },
+          {
+            "end_line": 670,
+            "line": 663,
+            "name": "MeshHealingEngine.compute_harmonic_map"
+          },
+          {
+            "end_line": 687,
+            "line": 672,
+            "name": "MeshHealingEngine.repair_contaminated_coordinates"
+          },
+          {
+            "end_line": 721,
+            "line": 689,
+            "name": "MeshHealingEngine.validate_uv"
+          },
+          {
+            "end_line": 725,
+            "line": 723,
+            "name": "MeshHealingEngine.export_step"
+          },
+          {
+            "end_line": 731,
+            "line": 727,
+            "name": "MeshHealingEngine.export_mock_step_structure"
+          },
+          {
+            "end_line": 744,
+            "line": 735,
+            "name": "SoftConstraint"
+          },
+          {
+            "end_line": 744,
+            "line": 739,
+            "name": "SoftConstraint.__post_init__"
+          },
+          {
+            "end_line": 931,
+            "line": 747,
+            "name": "HarmonicSystem"
+          },
+          {
+            "end_line": 825,
+            "line": 760,
+            "name": "HarmonicSystem.__init__"
+          },
+          {
+            "end_line": 829,
+            "line": 827,
+            "name": "HarmonicSystem._check_fresh"
+          },
+          {
+            "end_line": 837,
+            "line": 831,
+            "name": "HarmonicSystem.with_face_confidence"
+          },
+          {
+            "end_line": 931,
+            "line": 839,
+            "name": "HarmonicSystem.solve"
+          },
+          {
+            "end_line": 911,
+            "line": 906,
+            "name": "HarmonicSystem.solve.residual"
+          },
+          {
+            "end_line": 939,
+            "line": 935,
+            "name": "Vertex"
+          },
+          {
+            "end_line": 948,
+            "line": 943,
+            "name": "HalfEdge"
+          },
+          {
+            "end_line": 954,
+            "line": 952,
+            "name": "Face"
+          },
+          {
+            "end_line": 1068,
+            "line": 957,
+            "name": "MotorcycleGraphTracer"
+          },
+          {
+            "end_line": 973,
+            "line": 965,
+            "name": "MotorcycleGraphTracer.__init__"
+          },
+          {
+            "end_line": 1001,
+            "line": 976,
+            "name": "MotorcycleGraphTracer.from_mesh"
+          },
+          {
+            "end_line": 1006,
+            "line": 1003,
+            "name": "MotorcycleGraphTracer._check_fresh"
+          },
+          {
+            "end_line": 1010,
+            "line": 1008,
+            "name": "MotorcycleGraphTracer.get_undirected_edge_id"
+          },
+          {
+            "end_line": 1015,
+            "line": 1012,
+            "name": "MotorcycleGraphTracer.edge_vertex_map"
+          },
+          {
+            "end_line": 1027,
+            "line": 1017,
+            "name": "MotorcycleGraphTracer.find_straight_ahead_opposite"
+          },
+          {
+            "end_line": 1055,
+            "line": 1029,
+            "name": "MotorcycleGraphTracer.trace_single_motorcycle"
+          },
+          {
+            "end_line": 1068,
+            "line": 1057,
+            "name": "MotorcycleGraphTracer.compute_graph"
+          },
+          {
+            "end_line": 1142,
+            "line": 1071,
+            "name": "solve_igm_quantization"
+          },
+          {
+            "end_line": 1152,
+            "line": 1146,
+            "name": "PruneReport"
+          },
+          {
+            "end_line": 1240,
+            "line": 1155,
+            "name": "prune_motorcycle_graph"
+          },
+          {
+            "end_line": 1303,
+            "line": 1243,
+            "name": "parameterize_macro_patch"
+          },
+          {
+            "end_line": 1446,
+            "line": 1306,
+            "name": "CrossFieldOptimizer"
+          },
+          {
+            "end_line": 1334,
+            "line": 1314,
+            "name": "CrossFieldOptimizer.__init__"
+          },
+          {
+            "end_line": 1338,
+            "line": 1336,
+            "name": "CrossFieldOptimizer.compute_dihedral_angles"
+          },
+          {
+            "end_line": 1346,
+            "line": 1340,
+            "name": "CrossFieldOptimizer.compute_local_basis"
+          },
+          {
+            "end_line": 1359,
+            "line": 1348,
+            "name": "CrossFieldOptimizer.estimate_feature_tangent"
+          },
+          {
+            "end_line": 1373,
+            "line": 1361,
+            "name": "CrossFieldOptimizer._transport"
+          },
+          {
+            "end_line": 1446,
+            "line": 1375,
+            "name": "CrossFieldOptimizer.optimize_field"
+          },
+          {
+            "end_line": 1414,
+            "line": 1408,
+            "name": "CrossFieldOptimizer.optimize_field.encode"
+          }
+        ],
+        "live_sha256": "ff4ab295fb33014b0f13b760f105a66016651bfad8c0a549368c750cf3e388a8",
+        "live_symbols": [
+          {
+            "end_line": 35,
+            "line": 34,
+            "name": "MeshError"
+          },
+          {
+            "end_line": 39,
+            "line": 38,
+            "name": "TopologyError"
+          },
+          {
+            "end_line": 43,
+            "line": 42,
+            "name": "ParameterizationError"
+          },
+          {
+            "end_line": 47,
+            "line": 46,
+            "name": "StaleSystemError"
+          },
+          {
+            "end_line": 51,
+            "line": 50,
+            "name": "_edge"
+          },
+          {
+            "end_line": 60,
+            "line": 54,
+            "name": "_index"
+          },
+          {
+            "end_line": 67,
+            "line": 63,
+            "name": "_finite_array"
+          },
+          {
+            "end_line": 71,
+            "line": 70,
+            "name": "_cross2"
+          },
+          {
+            "end_line": 79,
+            "line": 74,
+            "name": "_canonical_face"
+          },
+          {
+            "end_line": 90,
+            "line": 82,
+            "name": "_incidence"
+          },
+          {
+            "end_line": 116,
+            "line": 93,
+            "name": "_face_fans"
+          },
+          {
+            "end_line": 135,
+            "line": 120,
+            "name": "TopologyReport"
+          },
+          {
+            "end_line": 131,
+            "line": 129,
+            "name": "TopologyReport.is_manifold"
+          },
+          {
+            "end_line": 135,
+            "line": 134,
+            "name": "TopologyReport.is_oriented_manifold"
+          },
+          {
+            "end_line": 143,
+            "line": 139,
+            "name": "StitchReport"
+          },
+          {
+            "end_line": 172,
+            "line": 147,
+            "name": "PreprocessReport"
+          },
+          {
+            "end_line": 172,
+            "line": 156,
+            "name": "PreprocessReport.remap_constraints"
+          },
+          {
+            "end_line": 185,
+            "line": 176,
+            "name": "UVQuality"
+          },
+          {
+            "end_line": 185,
+            "line": 184,
+            "name": "UVQuality.locally_valid"
+          },
+          {
+            "end_line": 267,
+            "line": 188,
+            "name": "_triangulate_face"
+          },
+          {
+            "end_line": 216,
+            "line": 213,
+            "name": "_triangulate_face.on_segment"
+          },
+          {
+            "end_line": 224,
+            "line": 218,
+            "name": "_triangulate_face.intersects"
+          },
+          {
+            "end_line": 731,
+            "line": 270,
+            "name": "MeshHealingEngine"
+          },
+          {
+            "end_line": 287,
+            "line": 271,
+            "name": "MeshHealingEngine.__init__"
+          },
+          {
+            "end_line": 296,
+            "line": 289,
+            "name": "MeshHealingEngine._build_topology"
+          },
+          {
+            "end_line": 303,
+            "line": 298,
+            "name": "MeshHealingEngine._fingerprint"
+          },
+          {
+            "end_line": 351,
+            "line": 305,
+            "name": "MeshHealingEngine.topology_report"
+          },
+          {
+            "end_line": 367,
+            "line": 353,
+            "name": "MeshHealingEngine.triangulated_faces"
+          },
+          {
+            "end_line": 396,
+            "line": 369,
+            "name": "MeshHealingEngine._orient_faces"
+          },
+          {
+            "end_line": 523,
+            "line": 398,
+            "name": "MeshHealingEngine.non_manifold_stitching"
+          },
+          {
+            "end_line": 422,
+            "line": 419,
+            "name": "MeshHealingEngine.non_manifold_stitching.root"
+          },
+          {
+            "end_line": 430,
+            "line": 424,
+            "name": "MeshHealingEngine.non_manifold_stitching.endpoints"
+          },
+          {
+            "end_line": 614,
+            "line": 525,
+            "name": "MeshHealingEngine.preprocess"
+          },
+          {
+            "end_line": 653,
+            "line": 616,
+            "name": "MeshHealingEngine.compute_cotangent_weights"
+          },
+          {
+            "end_line": 657,
+            "line": 655,
+            "name": "MeshHealingEngine.compute_cotangent_laplacian"
+          },
+          {
+            "end_line": 661,
+            "line": 659,
+            "name": "MeshHealingEngine.prepare_harmonic_system"
+          },
+          {
+            "end_line": 670,
+            "line": 663,
+            "name": "MeshHealingEngine.compute_harmonic_map"
+          },
+          {
+            "end_line": 687,
+            "line": 672,
+            "name": "MeshHealingEngine.repair_contaminated_coordinates"
+          },
+          {
+            "end_line": 721,
+            "line": 689,
+            "name": "MeshHealingEngine.validate_uv"
+          },
+          {
+            "end_line": 725,
+            "line": 723,
+            "name": "MeshHealingEngine.export_step"
+          },
+          {
+            "end_line": 731,
+            "line": 727,
+            "name": "MeshHealingEngine.export_mock_step_structure"
+          },
+          {
+            "end_line": 744,
+            "line": 735,
+            "name": "SoftConstraint"
+          },
+          {
+            "end_line": 744,
+            "line": 739,
+            "name": "SoftConstraint.__post_init__"
+          },
+          {
+            "end_line": 931,
+            "line": 747,
+            "name": "HarmonicSystem"
+          },
+          {
+            "end_line": 825,
+            "line": 760,
+            "name": "HarmonicSystem.__init__"
+          },
+          {
+            "end_line": 829,
+            "line": 827,
+            "name": "HarmonicSystem._check_fresh"
+          },
+          {
+            "end_line": 837,
+            "line": 831,
+            "name": "HarmonicSystem.with_face_confidence"
+          },
+          {
+            "end_line": 931,
+            "line": 839,
+            "name": "HarmonicSystem.solve"
+          },
+          {
+            "end_line": 911,
+            "line": 906,
+            "name": "HarmonicSystem.solve.residual"
+          },
+          {
+            "end_line": 939,
+            "line": 935,
+            "name": "Vertex"
+          },
+          {
+            "end_line": 948,
+            "line": 943,
+            "name": "HalfEdge"
+          },
+          {
+            "end_line": 954,
+            "line": 952,
+            "name": "Face"
+          },
+          {
+            "end_line": 1068,
+            "line": 957,
+            "name": "MotorcycleGraphTracer"
+          },
+          {
+            "end_line": 973,
+            "line": 965,
+            "name": "MotorcycleGraphTracer.__init__"
+          },
+          {
+            "end_line": 1001,
+            "line": 976,
+            "name": "MotorcycleGraphTracer.from_mesh"
+          },
+          {
+            "end_line": 1006,
+            "line": 1003,
+            "name": "MotorcycleGraphTracer._check_fresh"
+          },
+          {
+            "end_line": 1010,
+            "line": 1008,
+            "name": "MotorcycleGraphTracer.get_undirected_edge_id"
+          },
+          {
+            "end_line": 1015,
+            "line": 1012,
+            "name": "MotorcycleGraphTracer.edge_vertex_map"
+          },
+          {
+            "end_line": 1027,
+            "line": 1017,
+            "name": "MotorcycleGraphTracer.find_straight_ahead_opposite"
+          },
+          {
+            "end_line": 1055,
+            "line": 1029,
+            "name": "MotorcycleGraphTracer.trace_single_motorcycle"
+          },
+          {
+            "end_line": 1068,
+            "line": 1057,
+            "name": "MotorcycleGraphTracer.compute_graph"
+          },
+          {
+            "end_line": 1142,
+            "line": 1071,
+            "name": "solve_igm_quantization"
+          },
+          {
+            "end_line": 1152,
+            "line": 1146,
+            "name": "PruneReport"
+          },
+          {
+            "end_line": 1240,
+            "line": 1155,
+            "name": "prune_motorcycle_graph"
+          },
+          {
+            "end_line": 1303,
+            "line": 1243,
+            "name": "parameterize_macro_patch"
+          },
+          {
+            "end_line": 1446,
+            "line": 1306,
+            "name": "CrossFieldOptimizer"
+          },
+          {
+            "end_line": 1334,
+            "line": 1314,
+            "name": "CrossFieldOptimizer.__init__"
+          },
+          {
+            "end_line": 1338,
+            "line": 1336,
+            "name": "CrossFieldOptimizer.compute_dihedral_angles"
+          },
+          {
+            "end_line": 1346,
+            "line": 1340,
+            "name": "CrossFieldOptimizer.compute_local_basis"
+          },
+          {
+            "end_line": 1359,
+            "line": 1348,
+            "name": "CrossFieldOptimizer.estimate_feature_tangent"
+          },
+          {
+            "end_line": 1373,
+            "line": 1361,
+            "name": "CrossFieldOptimizer._transport"
+          },
+          {
+            "end_line": 1446,
+            "line": 1375,
+            "name": "CrossFieldOptimizer.optimize_field"
+          },
+          {
+            "end_line": 1414,
+            "line": 1408,
+            "name": "CrossFieldOptimizer.optimize_field.encode"
+          }
+        ],
+        "state": "equal"
+      },
+      "pyproject.toml": {
+        "archive_sha256": "66250736816c9497b1ae19b275312382ec3e841b4c853f1977a3a21adfd140e8",
+        "live_sha256": "bdb6c9c32912e3765f38689321a7c078b8fd21bb23160ade7309131e02a7b4b6",
+        "state": "changed"
+      },
+      "pytest.ini": {
+        "archive_sha256": "b52e186e0337b5d8d3c4bef61c93a4c84d86e94e2ba07c973d5be6e8ce158c0e",
+        "live_sha256": "b52e186e0337b5d8d3c4bef61c93a4c84d86e94e2ba07c973d5be6e8ce158c0e",
+        "state": "equal"
+      },
+      "requirements-dev.txt": {
+        "archive_sha256": "e0a7967ce0442293a5af21771aabb4cad5e5a7997de5ee12586fa6f33c4091d4",
+        "live_sha256": "e0a7967ce0442293a5af21771aabb4cad5e5a7997de5ee12586fa6f33c4091d4",
+        "state": "equal"
+      },
+      "requirements-step.txt": {
+        "archive_sha256": "c5b598fc268a54e71fcd5ba4a7d2d43c6b82f3bdd6f8d4e6f4b8a46478ed9522",
+        "live_sha256": "c5b598fc268a54e71fcd5ba4a7d2d43c6b82f3bdd6f8d4e6f4b8a46478ed9522",
+        "state": "equal"
+      },
+      "requirements.txt": {
+        "archive_sha256": "ec1f6163ee71dee7565823ac292a3b78a13b9056aebf10d650625cb8e4a98005",
+        "live_sha256": "bbe7e0d48fd759d782cbcda080791a5af33842b74f2c08ad9730a700a9646fcd",
+        "state": "changed"
+      },
+      "tests/test_mesh_healing.py": {
+        "archive_sha256": "8399c86537be3bd8ffc1cdc00344f2d73620632c20ed69e3a86334829db3deed",
+        "archive_symbols": [
+          {
+            "end_line": 23,
+            "line": 21,
+            "name": "grid"
+          },
+          {
+            "end_line": 38,
+            "line": 26,
+            "name": "planar_grid"
+          },
+          {
+            "end_line": 48,
+            "line": 41,
+            "name": "test_cotangent_matrix_return_symmetry_constant_kernel_and_psd"
+          },
+          {
+            "end_line": 54,
+            "line": 51,
+            "name": "test_single_right_triangle_weights"
+          },
+          {
+            "end_line": 61,
+            "line": 57,
+            "name": "test_negative_cotangent_not_clamped"
+          },
+          {
+            "end_line": 67,
+            "line": 64,
+            "name": "test_quad_diagonal_is_in_matrix_but_not_polygon_adjacency"
+          },
+          {
+            "end_line": 75,
+            "line": 71,
+            "name": "test_cotangents_are_scale_invariant"
+          },
+          {
+            "end_line": 85,
+            "line": 78,
+            "name": "test_planar_affine_precision_on_irregular_grid"
+          },
+          {
+            "end_line": 93,
+            "line": 88,
+            "name": "test_original_example_values"
+          },
+          {
+            "end_line": 105,
+            "line": 96,
+            "name": "test_boundary_update_reuses_factorization"
+          },
+          {
+            "end_line": 129,
+            "line": 108,
+            "name": "test_woodbury_matches_full_refactor_and_target_changes_reuse"
+          },
+          {
+            "end_line": 137,
+            "line": 132,
+            "name": "test_high_rank_soft_constraints_refactor"
+          },
+          {
+            "end_line": 145,
+            "line": 140,
+            "name": "test_zero_weight_soft_anchor_has_no_effect"
+          },
+          {
+            "end_line": 152,
+            "line": 148,
+            "name": "test_soft_anchor_on_boundary_rejected"
+          },
+          {
+            "end_line": 163,
+            "line": 155,
+            "name": "test_face_confidence_preserves_psd_and_rebuilds"
+          },
+          {
+            "end_line": 169,
+            "line": 166,
+            "name": "test_zero_confidence_disconnection_is_not_silently_pinned"
+          },
+          {
+            "end_line": 179,
+            "line": 172,
+            "name": "test_masked_contamination_repair_keeps_trusted_values"
+          },
+          {
+            "end_line": 187,
+            "line": 182,
+            "name": "test_stale_factorization_detects_in_place_geometry_edit"
+          },
+          {
+            "end_line": 195,
+            "line": 190,
+            "name": "test_stale_factorization_detects_preprocess"
+          },
+          {
+            "end_line": 203,
+            "line": 198,
+            "name": "test_partial_patch_requires_explicit_faces"
+          },
+          {
+            "end_line": 210,
+            "line": 206,
+            "name": "test_missing_boundary_rejected"
+          },
+          {
+            "end_line": 218,
+            "line": 213,
+            "name": "test_unanchored_closed_component_rejected"
+          },
+          {
+            "end_line": 228,
+            "line": 221,
+            "name": "test_boundary_only_and_orientation_failures"
+          },
+          {
+            "end_line": 235,
+            "line": 231,
+            "name": "test_disconnected_two_patches_each_anchored"
+          },
+          {
+            "end_line": 249,
+            "line": 238,
+            "name": "test_stitch_preserves_representative_coordinates_and_resets_adjacency"
+          },
+          {
+            "end_line": 258,
+            "line": 252,
+            "name": "test_real_distance_across_spatial_hash_bucket_boundary"
+          },
+          {
+            "end_line": 264,
+            "line": 261,
+            "name": "test_actual_distance_outside_tolerance_is_not_welded"
+          },
+          {
+            "end_line": 271,
+            "line": 267,
+            "name": "test_vertex_only_touch_not_welded"
+          },
+          {
+            "end_line": 278,
+            "line": 274,
+            "name": "test_overlapping_duplicate_sheets_not_auto_welded"
+          },
+          {
+            "end_line": 287,
+            "line": 281,
+            "name": "test_explicit_duplicate_face_weld_rejected"
+          },
+          {
+            "end_line": 299,
+            "line": 290,
+            "name": "test_bowtie_split_and_one_to_many_provenance"
+          },
+          {
+            "end_line": 308,
+            "line": 302,
+            "name": "test_two_bowtie_vertices_split_without_stale_incidence"
+          },
+          {
+            "end_line": 317,
+            "line": 311,
+            "name": "test_multi_sheet_edge_rejected_transactionally"
+          },
+          {
+            "end_line": 328,
+            "line": 320,
+            "name": "test_degenerate_duplicate_and_unused_pruning"
+          },
+          {
+            "end_line": 338,
+            "line": 331,
+            "name": "test_inconsistent_winding_repaired"
+          },
+          {
+            "end_line": 347,
+            "line": 341,
+            "name": "test_constraints_conflicting_at_weld_fail"
+          },
+          {
+            "end_line": 355,
+            "line": 350,
+            "name": "test_preprocess_preserves_real_open_boundary"
+          },
+          {
+            "end_line": 364,
+            "line": 358,
+            "name": "test_concave_quad_uses_valid_alternate_diagonal"
+          },
+          {
+            "end_line": 372,
+            "line": 367,
+            "name": "test_simple_ngon_ear_clipping"
+          },
+          {
+            "end_line": 379,
+            "line": 375,
+            "name": "test_self_intersecting_quad_rejected"
+          },
+          {
+            "end_line": 385,
+            "line": 383,
+            "name": "test_bad_stitch_tolerance"
+          },
+          {
+            "end_line": 398,
+            "line": 388,
+            "name": "test_pruner_integrates_stitching_and_edge_id_remapping"
+          },
+          {
+            "end_line": 406,
+            "line": 401,
+            "name": "test_pruner_refuses_missing_endpoint_map_before_mutating"
+          },
+          {
+            "end_line": 413,
+            "line": 409,
+            "name": "test_pruner_missing_lengths_and_protected_tracks"
+          },
+          {
+            "end_line": 421,
+            "line": 416,
+            "name": "test_pruner_late_error_rolls_back"
+          },
+          {
+            "end_line": 432,
+            "line": 424,
+            "name": "test_legacy_uniform_helper_and_geometry_route"
+          },
+          {
+            "end_line": 442,
+            "line": 435,
+            "name": "test_halfedge_tracer_records_exit_boundary_and_repeatable_graph"
+          },
+          {
+            "end_line": 448,
+            "line": 445,
+            "name": "test_halfedge_builder_rejects_triangle"
+          },
+          {
+            "end_line": 457,
+            "line": 451,
+            "name": "test_igm_original_constraints_and_integrality"
+          },
+          {
+            "end_line": 464,
+            "line": 460,
+            "name": "test_igm_repeated_segment_coefficients_accumulate"
+          },
+          {
+            "end_line": 473,
+            "line": 467,
+            "name": "test_igm_infeasible_and_bad_segment_id"
+          },
+          {
+            "end_line": 478,
+            "line": 476,
+            "name": "test_igm_without_structural_constraints"
+          },
+          {
+            "end_line": 488,
+            "line": 481,
+            "name": "test_cross_field_returns_finite_unit_values_and_anchors_components"
+          },
+          {
+            "end_line": 497,
+            "line": 491,
+            "name": "test_cross_field_transport_is_reciprocal"
+          },
+          {
+            "end_line": 505,
+            "line": 500,
+            "name": "test_cross_field_feature_tangent_is_plane_intersection"
+          },
+          {
+            "end_line": 515,
+            "line": 508,
+            "name": "test_cross_field_zero_confidence_and_normal_validation"
+          },
+          {
+            "end_line": 528,
+            "line": 518,
+            "name": "test_frontend_json_contains_both_coordinate_sets"
+          },
+          {
+            "end_line": 545,
+            "line": 531,
+            "name": "test_uv_evaluator_reproduces_vertices_centroids_and_outside_rejection"
+          },
+          {
+            "end_line": 554,
+            "line": 548,
+            "name": "test_uv_evaluator_detects_overlapping_charts"
+          },
+          {
+            "end_line": 570,
+            "line": 559,
+            "name": "test_real_step_roundtrip"
+          },
+          {
+            "end_line": 581,
+            "line": 575,
+            "name": "test_step_units_and_uv_scale"
+          },
+          {
+            "end_line": 591,
+            "line": 585,
+            "name": "test_compatibility_step_name_now_real"
+          },
+          {
+            "end_line": 601,
+            "line": 594,
+            "name": "test_end_to_end_original_and_seam_examples"
+          }
+        ],
+        "live_sha256": "8399c86537be3bd8ffc1cdc00344f2d73620632c20ed69e3a86334829db3deed",
+        "live_symbols": [
+          {
+            "end_line": 23,
+            "line": 21,
+            "name": "grid"
+          },
+          {
+            "end_line": 38,
+            "line": 26,
+            "name": "planar_grid"
+          },
+          {
+            "end_line": 48,
+            "line": 41,
+            "name": "test_cotangent_matrix_return_symmetry_constant_kernel_and_psd"
+          },
+          {
+            "end_line": 54,
+            "line": 51,
+            "name": "test_single_right_triangle_weights"
+          },
+          {
+            "end_line": 61,
+            "line": 57,
+            "name": "test_negative_cotangent_not_clamped"
+          },
+          {
+            "end_line": 67,
+            "line": 64,
+            "name": "test_quad_diagonal_is_in_matrix_but_not_polygon_adjacency"
+          },
+          {
+            "end_line": 75,
+            "line": 71,
+            "name": "test_cotangents_are_scale_invariant"
+          },
+          {
+            "end_line": 85,
+            "line": 78,
+            "name": "test_planar_affine_precision_on_irregular_grid"
+          },
+          {
+            "end_line": 93,
+            "line": 88,
+            "name": "test_original_example_values"
+          },
+          {
+            "end_line": 105,
+            "line": 96,
+            "name": "test_boundary_update_reuses_factorization"
+          },
+          {
+            "end_line": 129,
+            "line": 108,
+            "name": "test_woodbury_matches_full_refactor_and_target_changes_reuse"
+          },
+          {
+            "end_line": 137,
+            "line": 132,
+            "name": "test_high_rank_soft_constraints_refactor"
+          },
+          {
+            "end_line": 145,
+            "line": 140,
+            "name": "test_zero_weight_soft_anchor_has_no_effect"
+          },
+          {
+            "end_line": 152,
+            "line": 148,
+            "name": "test_soft_anchor_on_boundary_rejected"
+          },
+          {
+            "end_line": 163,
+            "line": 155,
+            "name": "test_face_confidence_preserves_psd_and_rebuilds"
+          },
+          {
+            "end_line": 169,
+            "line": 166,
+            "name": "test_zero_confidence_disconnection_is_not_silently_pinned"
+          },
+          {
+            "end_line": 179,
+            "line": 172,
+            "name": "test_masked_contamination_repair_keeps_trusted_values"
+          },
+          {
+            "end_line": 187,
+            "line": 182,
+            "name": "test_stale_factorization_detects_in_place_geometry_edit"
+          },
+          {
+            "end_line": 195,
+            "line": 190,
+            "name": "test_stale_factorization_detects_preprocess"
+          },
+          {
+            "end_line": 203,
+            "line": 198,
+            "name": "test_partial_patch_requires_explicit_faces"
+          },
+          {
+            "end_line": 210,
+            "line": 206,
+            "name": "test_missing_boundary_rejected"
+          },
+          {
+            "end_line": 218,
+            "line": 213,
+            "name": "test_unanchored_closed_component_rejected"
+          },
+          {
+            "end_line": 228,
+            "line": 221,
+            "name": "test_boundary_only_and_orientation_failures"
+          },
+          {
+            "end_line": 235,
+            "line": 231,
+            "name": "test_disconnected_two_patches_each_anchored"
+          },
+          {
+            "end_line": 249,
+            "line": 238,
+            "name": "test_stitch_preserves_representative_coordinates_and_resets_adjacency"
+          },
+          {
+            "end_line": 258,
+            "line": 252,
+            "name": "test_real_distance_across_spatial_hash_bucket_boundary"
+          },
+          {
+            "end_line": 264,
+            "line": 261,
+            "name": "test_actual_distance_outside_tolerance_is_not_welded"
+          },
+          {
+            "end_line": 271,
+            "line": 267,
+            "name": "test_vertex_only_touch_not_welded"
+          },
+          {
+            "end_line": 278,
+            "line": 274,
+            "name": "test_overlapping_duplicate_sheets_not_auto_welded"
+          },
+          {
+            "end_line": 287,
+            "line": 281,
+            "name": "test_explicit_duplicate_face_weld_rejected"
+          },
+          {
+            "end_line": 299,
+            "line": 290,
+            "name": "test_bowtie_split_and_one_to_many_provenance"
+          },
+          {
+            "end_line": 308,
+            "line": 302,
+            "name": "test_two_bowtie_vertices_split_without_stale_incidence"
+          },
+          {
+            "end_line": 317,
+            "line": 311,
+            "name": "test_multi_sheet_edge_rejected_transactionally"
+          },
+          {
+            "end_line": 328,
+            "line": 320,
+            "name": "test_degenerate_duplicate_and_unused_pruning"
+          },
+          {
+            "end_line": 338,
+            "line": 331,
+            "name": "test_inconsistent_winding_repaired"
+          },
+          {
+            "end_line": 347,
+            "line": 341,
+            "name": "test_constraints_conflicting_at_weld_fail"
+          },
+          {
+            "end_line": 355,
+            "line": 350,
+            "name": "test_preprocess_preserves_real_open_boundary"
+          },
+          {
+            "end_line": 364,
+            "line": 358,
+            "name": "test_concave_quad_uses_valid_alternate_diagonal"
+          },
+          {
+            "end_line": 372,
+            "line": 367,
+            "name": "test_simple_ngon_ear_clipping"
+          },
+          {
+            "end_line": 379,
+            "line": 375,
+            "name": "test_self_intersecting_quad_rejected"
+          },
+          {
+            "end_line": 385,
+            "line": 383,
+            "name": "test_bad_stitch_tolerance"
+          },
+          {
+            "end_line": 398,
+            "line": 388,
+            "name": "test_pruner_integrates_stitching_and_edge_id_remapping"
+          },
+          {
+            "end_line": 406,
+            "line": 401,
+            "name": "test_pruner_refuses_missing_endpoint_map_before_mutating"
+          },
+          {
+            "end_line": 413,
+            "line": 409,
+            "name": "test_pruner_missing_lengths_and_protected_tracks"
+          },
+          {
+            "end_line": 421,
+            "line": 416,
+            "name": "test_pruner_late_error_rolls_back"
+          },
+          {
+            "end_line": 432,
+            "line": 424,
+            "name": "test_legacy_uniform_helper_and_geometry_route"
+          },
+          {
+            "end_line": 442,
+            "line": 435,
+            "name": "test_halfedge_tracer_records_exit_boundary_and_repeatable_graph"
+          },
+          {
+            "end_line": 448,
+            "line": 445,
+            "name": "test_halfedge_builder_rejects_triangle"
+          },
+          {
+            "end_line": 457,
+            "line": 451,
+            "name": "test_igm_original_constraints_and_integrality"
+          },
+          {
+            "end_line": 464,
+            "line": 460,
+            "name": "test_igm_repeated_segment_coefficients_accumulate"
+          },
+          {
+            "end_line": 473,
+            "line": 467,
+            "name": "test_igm_infeasible_and_bad_segment_id"
+          },
+          {
+            "end_line": 478,
+            "line": 476,
+            "name": "test_igm_without_structural_constraints"
+          },
+          {
+            "end_line": 488,
+            "line": 481,
+            "name": "test_cross_field_returns_finite_unit_values_and_anchors_components"
+          },
+          {
+            "end_line": 497,
+            "line": 491,
+            "name": "test_cross_field_transport_is_reciprocal"
+          },
+          {
+            "end_line": 505,
+            "line": 500,
+            "name": "test_cross_field_feature_tangent_is_plane_intersection"
+          },
+          {
+            "end_line": 515,
+            "line": 508,
+            "name": "test_cross_field_zero_confidence_and_normal_validation"
+          },
+          {
+            "end_line": 528,
+            "line": 518,
+            "name": "test_frontend_json_contains_both_coordinate_sets"
+          },
+          {
+            "end_line": 545,
+            "line": 531,
+            "name": "test_uv_evaluator_reproduces_vertices_centroids_and_outside_rejection"
+          },
+          {
+            "end_line": 554,
+            "line": 548,
+            "name": "test_uv_evaluator_detects_overlapping_charts"
+          },
+          {
+            "end_line": 570,
+            "line": 559,
+            "name": "test_real_step_roundtrip"
+          },
+          {
+            "end_line": 581,
+            "line": 575,
+            "name": "test_step_units_and_uv_scale"
+          },
+          {
+            "end_line": 591,
+            "line": 585,
+            "name": "test_compatibility_step_name_now_real"
+          },
+          {
+            "end_line": 601,
+            "line": 594,
+            "name": "test_end_to_end_original_and_seam_examples"
+          }
+        ],
+        "state": "equal"
+      }
+    }
+  },
+  "nurbs_core_professionalized": {
+    "archive_file_count": 24,
+    "archive_sha256": "b03e97e787bdd8d778c77cb8007ba60fe85d4f05038f27a3c1dba587dac2abef",
+    "counts": {
+      "changed": 0,
+      "equal": 24,
+      "missing": 0
+    },
+    "files": {
+      ".github/workflows/tests.yml": {
+        "archive_sha256": "d28b0cc548f44e01b267fde1bc71e78540d263b4263286706b71f154cd2c7d56",
+        "live_sha256": "d28b0cc548f44e01b267fde1bc71e78540d263b4263286706b71f154cd2c7d56",
+        "state": "equal"
+      },
+      ".gitignore": {
+        "archive_sha256": "78fbd2c02c2f59caebe1b074f8fc7d3bdcfffa3fe67e54806f7f93a542c89365",
+        "live_sha256": "78fbd2c02c2f59caebe1b074f8fc7d3bdcfffa3fe67e54806f7f93a542c89365",
+        "state": "equal"
+      },
+      "LICENSE": {
+        "archive_sha256": "4e53d42a2d58bf6e249d23fc63c76bd252ca39fec31c56598db9fb69240e0a8f",
+        "live_sha256": "4e53d42a2d58bf6e249d23fc63c76bd252ca39fec31c56598db9fb69240e0a8f",
+        "state": "equal"
+      },
+      "MIGRATION.md": {
+        "archive_sha256": "b0e5265e5f69aa8d85582fb3778b94c76da2000682f44d794aa0ad364b91978b",
+        "live_sha256": "b0e5265e5f69aa8d85582fb3778b94c76da2000682f44d794aa0ad364b91978b",
+        "state": "equal"
+      },
+      "NURBSCoreEngine.py": {
+        "archive_sha256": "bbeafe0a3089ee97c6a561dc4f94bd78eb81514af0b89eac33a46cb3de07fb2f",
+        "archive_symbols": [
+          {
+            "end_line": 51,
+            "line": 50,
+            "name": "GeometryValidationError"
+          },
+          {
+            "end_line": 55,
+            "line": 54,
+            "name": "SurfaceEvaluationError"
+          },
+          {
+            "end_line": 59,
+            "line": 58,
+            "name": "STEPExportError"
+          },
+          {
+            "end_line": 63,
+            "line": 62,
+            "name": "OptionalDependencyError"
+          },
+          {
+            "end_line": 71,
+            "line": 66,
+            "name": "_integer"
+          },
+          {
+            "end_line": 77,
+            "line": 74,
+            "name": "_positive"
+          },
+          {
+            "end_line": 89,
+            "line": 80,
+            "name": "_array"
+          },
+          {
+            "end_line": 96,
+            "line": 92,
+            "name": "_vectors"
+          },
+          {
+            "end_line": 103,
+            "line": 99,
+            "name": "_vector"
+          },
+          {
+            "end_line": 111,
+            "line": 106,
+            "name": "_unit"
+          },
+          {
+            "end_line": 115,
+            "line": 114,
+            "name": "_canonical"
+          },
+          {
+            "end_line": 122,
+            "line": 118,
+            "name": "_frame"
+          },
+          {
+            "end_line": 129,
+            "line": 125,
+            "name": "_divide"
+          },
+          {
+            "end_line": 156,
+            "line": 132,
+            "name": "write_text_atomic"
+          },
+          {
+            "end_line": 185,
+            "line": 160,
+            "name": "SurfaceGeometry"
+          },
+          {
+            "end_line": 182,
+            "line": 178,
+            "name": "SurfaceGeometry.curvatures"
+          },
+          {
+            "end_line": 185,
+            "line": 184,
+            "name": "SurfaceGeometry.as_tuple"
+          },
+          {
+            "end_line": 410,
+            "line": 188,
+            "name": "NURBSCoreEngine"
+          },
+          {
+            "end_line": 212,
+            "line": 199,
+            "name": "NURBSCoreEngine._validate_knots"
+          },
+          {
+            "end_line": 228,
+            "line": 215,
+            "name": "NURBSCoreEngine.find_span_vectorized"
+          },
+          {
+            "end_line": 290,
+            "line": 231,
+            "name": "NURBSCoreEngine.basis_derivatives_vectorized"
+          },
+          {
+            "end_line": 300,
+            "line": 293,
+            "name": "NURBSCoreEngine.to_homogeneous"
+          },
+          {
+            "end_line": 314,
+            "line": 303,
+            "name": "NURBSCoreEngine.evaluate_surface_geometry"
+          },
+          {
+            "end_line": 410,
+            "line": 317,
+            "name": "NURBSCoreEngine.evaluate_surface"
+          },
+          {
+            "end_line": 423,
+            "line": 414,
+            "name": "SegmentationResult"
+          },
+          {
+            "end_line": 431,
+            "line": 427,
+            "name": "_Fit"
+          },
+          {
+            "end_line": 436,
+            "line": 434,
+            "name": "_score"
+          },
+          {
+            "end_line": 773,
+            "line": 439,
+            "name": "RANSACPrimitiveClassifier"
+          },
+          {
+            "end_line": 475,
+            "line": 448,
+            "name": "RANSACPrimitiveClassifier.__init__"
+          },
+          {
+            "end_line": 509,
+            "line": 477,
+            "name": "RANSACPrimitiveClassifier.classify_local_topology"
+          },
+          {
+            "end_line": 519,
+            "line": 512,
+            "name": "RANSACPrimitiveClassifier._prepare"
+          },
+          {
+            "end_line": 568,
+            "line": 521,
+            "name": "RANSACPrimitiveClassifier._plane_fit"
+          },
+          {
+            "end_line": 575,
+            "line": 570,
+            "name": "RANSACPrimitiveClassifier.fit_plane_ransac"
+          },
+          {
+            "end_line": 589,
+            "line": 577,
+            "name": "RANSACPrimitiveClassifier._cylinder_membership"
+          },
+          {
+            "end_line": 628,
+            "line": 591,
+            "name": "RANSACPrimitiveClassifier._refine_cylinder"
+          },
+          {
+            "end_line": 607,
+            "line": 603,
+            "name": "RANSACPrimitiveClassifier._refine_cylinder.unpack"
+          },
+          {
+            "end_line": 618,
+            "line": 611,
+            "name": "RANSACPrimitiveClassifier._refine_cylinder.residuals"
+          },
+          {
+            "end_line": 702,
+            "line": 630,
+            "name": "RANSACPrimitiveClassifier._cylinder_fit"
+          },
+          {
+            "end_line": 715,
+            "line": 704,
+            "name": "RANSACPrimitiveClassifier.fit_cylinder_ransac"
+          },
+          {
+            "end_line": 720,
+            "line": 717,
+            "name": "RANSACPrimitiveClassifier.segment_primitives"
+          },
+          {
+            "end_line": 773,
+            "line": 722,
+            "name": "RANSACPrimitiveClassifier.segment"
+          },
+          {
+            "end_line": 929,
+            "line": 776,
+            "name": "CADGeometryCardEngine"
+          },
+          {
+            "end_line": 794,
+            "line": 786,
+            "name": "CADGeometryCardEngine.__init__"
+          },
+          {
+            "end_line": 907,
+            "line": 796,
+            "name": "CADGeometryCardEngine.compute_cards"
+          },
+          {
+            "end_line": 916,
+            "line": 909,
+            "name": "CADGeometryCardEngine._rounded"
+          },
+          {
+            "end_line": 923,
+            "line": 919,
+            "name": "CADGeometryCardEngine.to_json"
+          },
+          {
+            "end_line": 929,
+            "line": 925,
+            "name": "CADGeometryCardEngine.write_json"
+          },
+          {
+            "end_line": 1106,
+            "line": 932,
+            "name": "STEPGeometryExportEngine"
+          },
+          {
+            "end_line": 959,
+            "line": 943,
+            "name": "STEPGeometryExportEngine.__init__"
+          },
+          {
+            "end_line": 1100,
+            "line": 961,
+            "name": "STEPGeometryExportEngine.export"
+          },
+          {
+            "end_line": 1106,
+            "line": 1102,
+            "name": "STEPGeometryExportEngine.write"
+          },
+          {
+            "end_line": 1120,
+            "line": 1109,
+            "name": "main"
+          }
+        ],
+        "live_sha256": "bbeafe0a3089ee97c6a561dc4f94bd78eb81514af0b89eac33a46cb3de07fb2f",
+        "live_symbols": [
+          {
+            "end_line": 51,
+            "line": 50,
+            "name": "GeometryValidationError"
+          },
+          {
+            "end_line": 55,
+            "line": 54,
+            "name": "SurfaceEvaluationError"
+          },
+          {
+            "end_line": 59,
+            "line": 58,
+            "name": "STEPExportError"
+          },
+          {
+            "end_line": 63,
+            "line": 62,
+            "name": "OptionalDependencyError"
+          },
+          {
+            "end_line": 71,
+            "line": 66,
+            "name": "_integer"
+          },
+          {
+            "end_line": 77,
+            "line": 74,
+            "name": "_positive"
+          },
+          {
+            "end_line": 89,
+            "line": 80,
+            "name": "_array"
+          },
+          {
+            "end_line": 96,
+            "line": 92,
+            "name": "_vectors"
+          },
+          {
+            "end_line": 103,
+            "line": 99,
+            "name": "_vector"
+          },
+          {
+            "end_line": 111,
+            "line": 106,
+            "name": "_unit"
+          },
+          {
+            "end_line": 115,
+            "line": 114,
+            "name": "_canonical"
+          },
+          {
+            "end_line": 122,
+            "line": 118,
+            "name": "_frame"
+          },
+          {
+            "end_line": 129,
+            "line": 125,
+            "name": "_divide"
+          },
+          {
+            "end_line": 156,
+            "line": 132,
+            "name": "write_text_atomic"
+          },
+          {
+            "end_line": 185,
+            "line": 160,
+            "name": "SurfaceGeometry"
+          },
+          {
+            "end_line": 182,
+            "line": 178,
+            "name": "SurfaceGeometry.curvatures"
+          },
+          {
+            "end_line": 185,
+            "line": 184,
+            "name": "SurfaceGeometry.as_tuple"
+          },
+          {
+            "end_line": 410,
+            "line": 188,
+            "name": "NURBSCoreEngine"
+          },
+          {
+            "end_line": 212,
+            "line": 199,
+            "name": "NURBSCoreEngine._validate_knots"
+          },
+          {
+            "end_line": 228,
+            "line": 215,
+            "name": "NURBSCoreEngine.find_span_vectorized"
+          },
+          {
+            "end_line": 290,
+            "line": 231,
+            "name": "NURBSCoreEngine.basis_derivatives_vectorized"
+          },
+          {
+            "end_line": 300,
+            "line": 293,
+            "name": "NURBSCoreEngine.to_homogeneous"
+          },
+          {
+            "end_line": 314,
+            "line": 303,
+            "name": "NURBSCoreEngine.evaluate_surface_geometry"
+          },
+          {
+            "end_line": 410,
+            "line": 317,
+            "name": "NURBSCoreEngine.evaluate_surface"
+          },
+          {
+            "end_line": 423,
+            "line": 414,
+            "name": "SegmentationResult"
+          },
+          {
+            "end_line": 431,
+            "line": 427,
+            "name": "_Fit"
+          },
+          {
+            "end_line": 436,
+            "line": 434,
+            "name": "_score"
+          },
+          {
+            "end_line": 773,
+            "line": 439,
+            "name": "RANSACPrimitiveClassifier"
+          },
+          {
+            "end_line": 475,
+            "line": 448,
+            "name": "RANSACPrimitiveClassifier.__init__"
+          },
+          {
+            "end_line": 509,
+            "line": 477,
+            "name": "RANSACPrimitiveClassifier.classify_local_topology"
+          },
+          {
+            "end_line": 519,
+            "line": 512,
+            "name": "RANSACPrimitiveClassifier._prepare"
+          },
+          {
+            "end_line": 568,
+            "line": 521,
+            "name": "RANSACPrimitiveClassifier._plane_fit"
+          },
+          {
+            "end_line": 575,
+            "line": 570,
+            "name": "RANSACPrimitiveClassifier.fit_plane_ransac"
+          },
+          {
+            "end_line": 589,
+            "line": 577,
+            "name": "RANSACPrimitiveClassifier._cylinder_membership"
+          },
+          {
+            "end_line": 628,
+            "line": 591,
+            "name": "RANSACPrimitiveClassifier._refine_cylinder"
+          },
+          {
+            "end_line": 607,
+            "line": 603,
+            "name": "RANSACPrimitiveClassifier._refine_cylinder.unpack"
+          },
+          {
+            "end_line": 618,
+            "line": 611,
+            "name": "RANSACPrimitiveClassifier._refine_cylinder.residuals"
+          },
+          {
+            "end_line": 702,
+            "line": 630,
+            "name": "RANSACPrimitiveClassifier._cylinder_fit"
+          },
+          {
+            "end_line": 715,
+            "line": 704,
+            "name": "RANSACPrimitiveClassifier.fit_cylinder_ransac"
+          },
+          {
+            "end_line": 720,
+            "line": 717,
+            "name": "RANSACPrimitiveClassifier.segment_primitives"
+          },
+          {
+            "end_line": 773,
+            "line": 722,
+            "name": "RANSACPrimitiveClassifier.segment"
+          },
+          {
+            "end_line": 929,
+            "line": 776,
+            "name": "CADGeometryCardEngine"
+          },
+          {
+            "end_line": 794,
+            "line": 786,
+            "name": "CADGeometryCardEngine.__init__"
+          },
+          {
+            "end_line": 907,
+            "line": 796,
+            "name": "CADGeometryCardEngine.compute_cards"
+          },
+          {
+            "end_line": 916,
+            "line": 909,
+            "name": "CADGeometryCardEngine._rounded"
+          },
+          {
+            "end_line": 923,
+            "line": 919,
+            "name": "CADGeometryCardEngine.to_json"
+          },
+          {
+            "end_line": 929,
+            "line": 925,
+            "name": "CADGeometryCardEngine.write_json"
+          },
+          {
+            "end_line": 1106,
+            "line": 932,
+            "name": "STEPGeometryExportEngine"
+          },
+          {
+            "end_line": 959,
+            "line": 943,
+            "name": "STEPGeometryExportEngine.__init__"
+          },
+          {
+            "end_line": 1100,
+            "line": 961,
+            "name": "STEPGeometryExportEngine.export"
+          },
+          {
+            "end_line": 1106,
+            "line": 1102,
+            "name": "STEPGeometryExportEngine.write"
+          },
+          {
+            "end_line": 1120,
+            "line": 1109,
+            "name": "main"
+          }
+        ],
+        "state": "equal"
+      },
+      "README.md": {
+        "archive_sha256": "d79a6ffef8cf9e3c9748babf849d374dafe44f21e1708b084c34c269aec58240",
+        "live_sha256": "d79a6ffef8cf9e3c9748babf849d374dafe44f21e1708b084c34c269aec58240",
+        "state": "equal"
+      },
+      "SHA256SUMS": {
+        "archive_sha256": "ebfcf2d95f725043e954e34c0e8f85b7d03ba7637b4d7f3421e8b8398adf395e",
+        "live_sha256": "ebfcf2d95f725043e954e34c0e8f85b7d03ba7637b4d7f3421e8b8398adf395e",
+        "state": "equal"
+      },
+      "STLReader.py": {
+        "archive_sha256": "6d17d2e1b695776b3ebaff2e4c944aca4abac6584ccf36b587a1e792e3012c7c",
+        "archive_symbols": [
+          {
+            "end_line": 49,
+            "line": 48,
+            "name": "STLParseError"
+          },
+          {
+            "end_line": 57,
+            "line": 52,
+            "name": "_integer"
+          },
+          {
+            "end_line": 68,
+            "line": 60,
+            "name": "_points"
+          },
+          {
+            "end_line": 80,
+            "line": 72,
+            "name": "STLReadReport"
+          },
+          {
+            "end_line": 113,
+            "line": 84,
+            "name": "MeshData"
+          },
+          {
+            "end_line": 98,
+            "line": 97,
+            "name": "MeshData.as_tuple"
+          },
+          {
+            "end_line": 113,
+            "line": 100,
+            "name": "MeshData.vertex_normals"
+          },
+          {
+            "end_line": 298,
+            "line": 116,
+            "name": "STLReader"
+          },
+          {
+            "end_line": 139,
+            "line": 120,
+            "name": "STLReader.load_stl"
+          },
+          {
+            "end_line": 212,
+            "line": 142,
+            "name": "STLReader.read"
+          },
+          {
+            "end_line": 228,
+            "line": 215,
+            "name": "STLReader._read_binary"
+          },
+          {
+            "end_line": 288,
+            "line": 231,
+            "name": "STLReader._read_ascii"
+          },
+          {
+            "end_line": 293,
+            "line": 291,
+            "name": "STLReader._parse_binary"
+          },
+          {
+            "end_line": 298,
+            "line": 296,
+            "name": "STLReader._parse_ascii"
+          },
+          {
+            "end_line": 326,
+            "line": 302,
+            "name": "FeatureEstimationResult"
+          },
+          {
+            "end_line": 323,
+            "line": 318,
+            "name": "FeatureEstimationResult.curvatures"
+          },
+          {
+            "end_line": 326,
+            "line": 325,
+            "name": "FeatureEstimationResult.as_tuple"
+          },
+          {
+            "end_line": 500,
+            "line": 329,
+            "name": "PointCloudGeometryEstimator"
+          },
+          {
+            "end_line": 366,
+            "line": 340,
+            "name": "PointCloudGeometryEstimator.__init__"
+          },
+          {
+            "end_line": 378,
+            "line": 368,
+            "name": "PointCloudGeometryEstimator.estimate_features"
+          },
+          {
+            "end_line": 500,
+            "line": 380,
+            "name": "PointCloudGeometryEstimator.estimate"
+          }
+        ],
+        "live_sha256": "6d17d2e1b695776b3ebaff2e4c944aca4abac6584ccf36b587a1e792e3012c7c",
+        "live_symbols": [
+          {
+            "end_line": 49,
+            "line": 48,
+            "name": "STLParseError"
+          },
+          {
+            "end_line": 57,
+            "line": 52,
+            "name": "_integer"
+          },
+          {
+            "end_line": 68,
+            "line": 60,
+            "name": "_points"
+          },
+          {
+            "end_line": 80,
+            "line": 72,
+            "name": "STLReadReport"
+          },
+          {
+            "end_line": 113,
+            "line": 84,
+            "name": "MeshData"
+          },
+          {
+            "end_line": 98,
+            "line": 97,
+            "name": "MeshData.as_tuple"
+          },
+          {
+            "end_line": 113,
+            "line": 100,
+            "name": "MeshData.vertex_normals"
+          },
+          {
+            "end_line": 298,
+            "line": 116,
+            "name": "STLReader"
+          },
+          {
+            "end_line": 139,
+            "line": 120,
+            "name": "STLReader.load_stl"
+          },
+          {
+            "end_line": 212,
+            "line": 142,
+            "name": "STLReader.read"
+          },
+          {
+            "end_line": 228,
+            "line": 215,
+            "name": "STLReader._read_binary"
+          },
+          {
+            "end_line": 288,
+            "line": 231,
+            "name": "STLReader._read_ascii"
+          },
+          {
+            "end_line": 293,
+            "line": 291,
+            "name": "STLReader._parse_binary"
+          },
+          {
+            "end_line": 298,
+            "line": 296,
+            "name": "STLReader._parse_ascii"
+          },
+          {
+            "end_line": 326,
+            "line": 302,
+            "name": "FeatureEstimationResult"
+          },
+          {
+            "end_line": 323,
+            "line": 318,
+            "name": "FeatureEstimationResult.curvatures"
+          },
+          {
+            "end_line": 326,
+            "line": 325,
+            "name": "FeatureEstimationResult.as_tuple"
+          },
+          {
+            "end_line": 500,
+            "line": 329,
+            "name": "PointCloudGeometryEstimator"
+          },
+          {
+            "end_line": 366,
+            "line": 340,
+            "name": "PointCloudGeometryEstimator.__init__"
+          },
+          {
+            "end_line": 378,
+            "line": 368,
+            "name": "PointCloudGeometryEstimator.estimate_features"
+          },
+          {
+            "end_line": 500,
+            "line": 380,
+            "name": "PointCloudGeometryEstimator.estimate"
+          }
+        ],
+        "state": "equal"
+      },
+      "VALIDATION.md": {
+        "archive_sha256": "dc5660b78d5ca8fa7c04663d383081e9a02ecef09a54d0585b60149ffa5996d9",
+        "live_sha256": "dc5660b78d5ca8fa7c04663d383081e9a02ecef09a54d0585b60149ffa5996d9",
+        "state": "equal"
+      },
+      "examples/plane.stl": {
+        "archive_sha256": "f6ce796aecc2283fa1dacbeb39393a333694f056120358c0780ed009ed8af619",
+        "live_sha256": "f6ce796aecc2283fa1dacbeb39393a333694f056120358c0780ed009ed8af619",
+        "state": "equal"
+      },
+      "main.py": {
+        "archive_sha256": "84fbc208ff6eea0aee69a2a7a7cdc92634a791425513e2ef0ccd581c2072acb4",
+        "archive_symbols": [
+          {
+            "end_line": 53,
+            "line": 37,
+            "name": "PipelineConfig"
+          },
+          {
+            "end_line": 65,
+            "line": 57,
+            "name": "PipelineResult"
+          },
+          {
+            "end_line": 143,
+            "line": 68,
+            "name": "run_pipeline"
+          },
+          {
+            "end_line": 192,
+            "line": 146,
+            "name": "build_parser"
+          },
+          {
+            "end_line": 223,
+            "line": 195,
+            "name": "main"
+          }
+        ],
+        "live_sha256": "84fbc208ff6eea0aee69a2a7a7cdc92634a791425513e2ef0ccd581c2072acb4",
+        "live_symbols": [
+          {
+            "end_line": 53,
+            "line": 37,
+            "name": "PipelineConfig"
+          },
+          {
+            "end_line": 65,
+            "line": 57,
+            "name": "PipelineResult"
+          },
+          {
+            "end_line": 143,
+            "line": 68,
+            "name": "run_pipeline"
+          },
+          {
+            "end_line": 192,
+            "line": 146,
+            "name": "build_parser"
+          },
+          {
+            "end_line": 223,
+            "line": 195,
+            "name": "main"
+          }
+        ],
+        "state": "equal"
+      },
+      "originals/NURBSCoreEngine.py": {
+        "archive_sha256": "5729b0c203911d3aa1e9501e9d6f01a8d5112167e70c7d1beece46dd5a7ac167",
+        "archive_symbols": [
+          {
+            "end_line": 163,
+            "line": 22,
+            "name": "NURBSCoreEngine"
+          },
+          {
+            "end_line": 31,
+            "line": 26,
+            "name": "NURBSCoreEngine.find_span_vectorized"
+          },
+          {
+            "end_line": 92,
+            "line": 34,
+            "name": "NURBSCoreEngine.basis_derivatives_vectorized"
+          },
+          {
+            "end_line": 163,
+            "line": 95,
+            "name": "NURBSCoreEngine.evaluate_surface_geometry"
+          },
+          {
+            "end_line": 324,
+            "line": 171,
+            "name": "RANSACPrimitiveClassifier"
+          },
+          {
+            "end_line": 176,
+            "line": 174,
+            "name": "RANSACPrimitiveClassifier.__init__"
+          },
+          {
+            "end_line": 191,
+            "line": 178,
+            "name": "RANSACPrimitiveClassifier.classify_local_topology"
+          },
+          {
+            "end_line": 227,
+            "line": 193,
+            "name": "RANSACPrimitiveClassifier.fit_plane_ransac"
+          },
+          {
+            "end_line": 277,
+            "line": 229,
+            "name": "RANSACPrimitiveClassifier.fit_cylinder_ransac"
+          },
+          {
+            "end_line": 324,
+            "line": 279,
+            "name": "RANSACPrimitiveClassifier.segment_primitives"
+          },
+          {
+            "end_line": 386,
+            "line": 332,
+            "name": "CADGeometryCardEngine"
+          },
+          {
+            "end_line": 336,
+            "line": 335,
+            "name": "CADGeometryCardEngine.__init__"
+          },
+          {
+            "end_line": 386,
+            "line": 338,
+            "name": "CADGeometryCardEngine.compute_cards"
+          },
+          {
+            "end_line": 467,
+            "line": 394,
+            "name": "STEPGeometryExportEngine"
+          },
+          {
+            "end_line": 399,
+            "line": 397,
+            "name": "STEPGeometryExportEngine.__init__"
+          },
+          {
+            "end_line": 405,
+            "line": 401,
+            "name": "STEPGeometryExportEngine._emit"
+          },
+          {
+            "end_line": 467,
+            "line": 407,
+            "name": "STEPGeometryExportEngine.export"
+          },
+          {
+            "end_line": 540,
+            "line": 475,
+            "name": "main"
+          }
+        ],
+        "live_sha256": "5729b0c203911d3aa1e9501e9d6f01a8d5112167e70c7d1beece46dd5a7ac167",
+        "live_symbols": [
+          {
+            "end_line": 163,
+            "line": 22,
+            "name": "NURBSCoreEngine"
+          },
+          {
+            "end_line": 31,
+            "line": 26,
+            "name": "NURBSCoreEngine.find_span_vectorized"
+          },
+          {
+            "end_line": 92,
+            "line": 34,
+            "name": "NURBSCoreEngine.basis_derivatives_vectorized"
+          },
+          {
+            "end_line": 163,
+            "line": 95,
+            "name": "NURBSCoreEngine.evaluate_surface_geometry"
+          },
+          {
+            "end_line": 324,
+            "line": 171,
+            "name": "RANSACPrimitiveClassifier"
+          },
+          {
+            "end_line": 176,
+            "line": 174,
+            "name": "RANSACPrimitiveClassifier.__init__"
+          },
+          {
+            "end_line": 191,
+            "line": 178,
+            "name": "RANSACPrimitiveClassifier.classify_local_topology"
+          },
+          {
+            "end_line": 227,
+            "line": 193,
+            "name": "RANSACPrimitiveClassifier.fit_plane_ransac"
+          },
+          {
+            "end_line": 277,
+            "line": 229,
+            "name": "RANSACPrimitiveClassifier.fit_cylinder_ransac"
+          },
+          {
+            "end_line": 324,
+            "line": 279,
+            "name": "RANSACPrimitiveClassifier.segment_primitives"
+          },
+          {
+            "end_line": 386,
+            "line": 332,
+            "name": "CADGeometryCardEngine"
+          },
+          {
+            "end_line": 336,
+            "line": 335,
+            "name": "CADGeometryCardEngine.__init__"
+          },
+          {
+            "end_line": 386,
+            "line": 338,
+            "name": "CADGeometryCardEngine.compute_cards"
+          },
+          {
+            "end_line": 467,
+            "line": 394,
+            "name": "STEPGeometryExportEngine"
+          },
+          {
+            "end_line": 399,
+            "line": 397,
+            "name": "STEPGeometryExportEngine.__init__"
+          },
+          {
+            "end_line": 405,
+            "line": 401,
+            "name": "STEPGeometryExportEngine._emit"
+          },
+          {
+            "end_line": 467,
+            "line": 407,
+            "name": "STEPGeometryExportEngine.export"
+          },
+          {
+            "end_line": 540,
+            "line": 475,
+            "name": "main"
+          }
+        ],
+        "state": "equal"
+      },
+      "originals/STLReader.py": {
+        "archive_sha256": "7cb83ea51a01790d796b858f4044053b4074cbf2423e96497527a29eec39a6bd",
+        "archive_symbols": [
+          {
+            "end_line": 90,
+            "line": 17,
+            "name": "STLReader"
+          },
+          {
+            "end_line": 39,
+            "line": 21,
+            "name": "STLReader.load_stl"
+          },
+          {
+            "end_line": 59,
+            "line": 42,
+            "name": "STLReader._parse_binary"
+          },
+          {
+            "end_line": 90,
+            "line": 62,
+            "name": "STLReader._parse_ascii"
+          },
+          {
+            "end_line": 193,
+            "line": 93,
+            "name": "PointCloudGeometryEstimator"
+          },
+          {
+            "end_line": 97,
+            "line": 96,
+            "name": "PointCloudGeometryEstimator.__init__"
+          },
+          {
+            "end_line": 106,
+            "line": 99,
+            "name": "PointCloudGeometryEstimator._build_naive_knn"
+          },
+          {
+            "end_line": 193,
+            "line": 108,
+            "name": "PointCloudGeometryEstimator.estimate_features"
+          }
+        ],
+        "live_sha256": "7cb83ea51a01790d796b858f4044053b4074cbf2423e96497527a29eec39a6bd",
+        "live_symbols": [
+          {
+            "end_line": 90,
+            "line": 17,
+            "name": "STLReader"
+          },
+          {
+            "end_line": 39,
+            "line": 21,
+            "name": "STLReader.load_stl"
+          },
+          {
+            "end_line": 59,
+            "line": 42,
+            "name": "STLReader._parse_binary"
+          },
+          {
+            "end_line": 90,
+            "line": 62,
+            "name": "STLReader._parse_ascii"
+          },
+          {
+            "end_line": 193,
+            "line": 93,
+            "name": "PointCloudGeometryEstimator"
+          },
+          {
+            "end_line": 97,
+            "line": 96,
+            "name": "PointCloudGeometryEstimator.__init__"
+          },
+          {
+            "end_line": 106,
+            "line": 99,
+            "name": "PointCloudGeometryEstimator._build_naive_knn"
+          },
+          {
+            "end_line": 193,
+            "line": 108,
+            "name": "PointCloudGeometryEstimator.estimate_features"
+          }
+        ],
+        "state": "equal"
+      },
+      "originals/main.py": {
+        "archive_sha256": "6e8ed5add3004544eeb880e35392e6a7c3b2018d300b3743fed4574a985054b4",
+        "archive_symbols": [],
+        "live_sha256": "6e8ed5add3004544eeb880e35392e6a7c3b2018d300b3743fed4574a985054b4",
+        "live_symbols": [],
+        "state": "equal"
+      },
+      "professionalization.patch": {
+        "archive_sha256": "d8bcac8003facb3c3e1458c0089062c01ac5ea811bcd69e22fbd1bed8007bb83",
+        "live_sha256": "d8bcac8003facb3c3e1458c0089062c01ac5ea811bcd69e22fbd1bed8007bb83",
+        "state": "equal"
+      },
+      "pyproject.toml": {
+        "archive_sha256": "26e8af0aeee3e714c089f02e3835fe8d25bb3ea3aecb68661b28bdf0e0e8bfa8",
+        "live_sha256": "26e8af0aeee3e714c089f02e3835fe8d25bb3ea3aecb68661b28bdf0e0e8bfa8",
+        "state": "equal"
+      },
+      "tests/conftest.py": {
+        "archive_sha256": "ca1f34ff388507704d8c38e6ce5e34fbe2caa01b06192bcd3e5fc3a62e6f8581",
+        "archive_symbols": [
+          {
+            "end_line": 19,
+            "line": 10,
+            "name": "write_binary"
+          },
+          {
+            "end_line": 29,
+            "line": 22,
+            "name": "ascii_text"
+          },
+          {
+            "end_line": 34,
+            "line": 32,
+            "name": "plane_grid"
+          },
+          {
+            "end_line": 44,
+            "line": 37,
+            "name": "plane_triangles"
+          },
+          {
+            "end_line": 57,
+            "line": 47,
+            "name": "cylinder_cloud"
+          },
+          {
+            "end_line": 62,
+            "line": 61,
+            "name": "plane_stl"
+          },
+          {
+            "end_line": 70,
+            "line": 66,
+            "name": "plane_card"
+          }
+        ],
+        "live_sha256": "ca1f34ff388507704d8c38e6ce5e34fbe2caa01b06192bcd3e5fc3a62e6f8581",
+        "live_symbols": [
+          {
+            "end_line": 19,
+            "line": 10,
+            "name": "write_binary"
+          },
+          {
+            "end_line": 29,
+            "line": 22,
+            "name": "ascii_text"
+          },
+          {
+            "end_line": 34,
+            "line": 32,
+            "name": "plane_grid"
+          },
+          {
+            "end_line": 44,
+            "line": 37,
+            "name": "plane_triangles"
+          },
+          {
+            "end_line": 57,
+            "line": 47,
+            "name": "cylinder_cloud"
+          },
+          {
+            "end_line": 62,
+            "line": 61,
+            "name": "plane_stl"
+          },
+          {
+            "end_line": 70,
+            "line": 66,
+            "name": "plane_card"
+          }
+        ],
+        "state": "equal"
+      },
+      "tests/test_cards_export.py": {
+        "archive_sha256": "ef76549ab1ba29d99f60c4bf1cab42356351ec89eae7115363144ad8d74b7cd9",
+        "archive_symbols": [
+          {
+            "end_line": 30,
+            "line": 19,
+            "name": "test_cards_preserve_precision_and_small_radius"
+          },
+          {
+            "end_line": 39,
+            "line": 33,
+            "name": "test_cylinder_angular_seam_not_full_circle"
+          },
+          {
+            "end_line": 47,
+            "line": 42,
+            "name": "test_plane_bounds_projected_to_fitted_plane"
+          },
+          {
+            "end_line": 54,
+            "line": 51,
+            "name": "test_bad_point_indices"
+          },
+          {
+            "end_line": 64,
+            "line": 57,
+            "name": "test_collinear_plane_and_unsupported_primitive_rejected"
+          },
+          {
+            "end_line": 69,
+            "line": 67,
+            "name": "test_no_nan_json"
+          },
+          {
+            "end_line": 83,
+            "line": 72,
+            "name": "test_step_units_empty_cards_and_conflicts"
+          },
+          {
+            "end_line": 94,
+            "line": 86,
+            "name": "test_optional_backend_error_is_explicit"
+          },
+          {
+            "end_line": 91,
+            "line": 88,
+            "name": "test_optional_backend_error_is_explicit.block"
+          },
+          {
+            "end_line": 105,
+            "line": 97,
+            "name": "test_atomic_output_no_clobber_and_cleanup"
+          },
+          {
+            "end_line": 121,
+            "line": 108,
+            "name": "test_concurrent_publication_has_one_winner"
+          },
+          {
+            "end_line": 116,
+            "line": 111,
+            "name": "test_concurrent_publication_has_one_winner.publish"
+          }
+        ],
+        "live_sha256": "ef76549ab1ba29d99f60c4bf1cab42356351ec89eae7115363144ad8d74b7cd9",
+        "live_symbols": [
+          {
+            "end_line": 30,
+            "line": 19,
+            "name": "test_cards_preserve_precision_and_small_radius"
+          },
+          {
+            "end_line": 39,
+            "line": 33,
+            "name": "test_cylinder_angular_seam_not_full_circle"
+          },
+          {
+            "end_line": 47,
+            "line": 42,
+            "name": "test_plane_bounds_projected_to_fitted_plane"
+          },
+          {
+            "end_line": 54,
+            "line": 51,
+            "name": "test_bad_point_indices"
+          },
+          {
+            "end_line": 64,
+            "line": 57,
+            "name": "test_collinear_plane_and_unsupported_primitive_rejected"
+          },
+          {
+            "end_line": 69,
+            "line": 67,
+            "name": "test_no_nan_json"
+          },
+          {
+            "end_line": 83,
+            "line": 72,
+            "name": "test_step_units_empty_cards_and_conflicts"
+          },
+          {
+            "end_line": 94,
+            "line": 86,
+            "name": "test_optional_backend_error_is_explicit"
+          },
+          {
+            "end_line": 91,
+            "line": 88,
+            "name": "test_optional_backend_error_is_explicit.block"
+          },
+          {
+            "end_line": 105,
+            "line": 97,
+            "name": "test_atomic_output_no_clobber_and_cleanup"
+          },
+          {
+            "end_line": 121,
+            "line": 108,
+            "name": "test_concurrent_publication_has_one_winner"
+          },
+          {
+            "end_line": 116,
+            "line": 111,
+            "name": "test_concurrent_publication_has_one_winner.publish"
+          }
+        ],
+        "state": "equal"
+      },
+      "tests/test_features.py": {
+        "archive_sha256": "1ce75d2f1f881baf92b08afbfc25b63dc588b36149fc48c90a231d4cabfa223b",
+        "archive_symbols": [
+          {
+            "end_line": 17,
+            "line": 10,
+            "name": "test_plane_curvature_and_normal"
+          },
+          {
+            "end_line": 30,
+            "line": 20,
+            "name": "test_normal_reversal_also_reverses_curvature_order"
+          },
+          {
+            "end_line": 45,
+            "line": 33,
+            "name": "test_sphere_and_scale_invariance"
+          },
+          {
+            "end_line": 53,
+            "line": 49,
+            "name": "test_degenerate_clouds_not_reported_as_planes"
+          },
+          {
+            "end_line": 63,
+            "line": 56,
+            "name": "test_radius_limit_and_fit_error_gate"
+          },
+          {
+            "end_line": 78,
+            "line": 66,
+            "name": "test_query_batches_are_bounded"
+          },
+          {
+            "end_line": 74,
+            "line": 69,
+            "name": "test_query_batches_are_bounded.TreeSpy"
+          },
+          {
+            "end_line": 71,
+            "line": 70,
+            "name": "test_query_batches_are_bounded.TreeSpy.__init__"
+          },
+          {
+            "end_line": 74,
+            "line": 72,
+            "name": "test_query_batches_are_bounded.TreeSpy.query"
+          },
+          {
+            "end_line": 88,
+            "line": 81,
+            "name": "test_viewpoint_and_conflicting_orientation_inputs"
+          },
+          {
+            "end_line": 94,
+            "line": 92,
+            "name": "test_estimator_config_errors"
+          },
+          {
+            "end_line": 100,
+            "line": 98,
+            "name": "test_invalid_point_arrays"
+          }
+        ],
+        "live_sha256": "1ce75d2f1f881baf92b08afbfc25b63dc588b36149fc48c90a231d4cabfa223b",
+        "live_symbols": [
+          {
+            "end_line": 17,
+            "line": 10,
+            "name": "test_plane_curvature_and_normal"
+          },
+          {
+            "end_line": 30,
+            "line": 20,
+            "name": "test_normal_reversal_also_reverses_curvature_order"
+          },
+          {
+            "end_line": 45,
+            "line": 33,
+            "name": "test_sphere_and_scale_invariance"
+          },
+          {
+            "end_line": 53,
+            "line": 49,
+            "name": "test_degenerate_clouds_not_reported_as_planes"
+          },
+          {
+            "end_line": 63,
+            "line": 56,
+            "name": "test_radius_limit_and_fit_error_gate"
+          },
+          {
+            "end_line": 78,
+            "line": 66,
+            "name": "test_query_batches_are_bounded"
+          },
+          {
+            "end_line": 74,
+            "line": 69,
+            "name": "test_query_batches_are_bounded.TreeSpy"
+          },
+          {
+            "end_line": 71,
+            "line": 70,
+            "name": "test_query_batches_are_bounded.TreeSpy.__init__"
+          },
+          {
+            "end_line": 74,
+            "line": 72,
+            "name": "test_query_batches_are_bounded.TreeSpy.query"
+          },
+          {
+            "end_line": 88,
+            "line": 81,
+            "name": "test_viewpoint_and_conflicting_orientation_inputs"
+          },
+          {
+            "end_line": 94,
+            "line": 92,
+            "name": "test_estimator_config_errors"
+          },
+          {
+            "end_line": 100,
+            "line": 98,
+            "name": "test_invalid_point_arrays"
+          }
+        ],
+        "state": "equal"
+      },
+      "tests/test_nurbs.py": {
+        "archive_sha256": "d689a49a858dfe63766cdb39ea4db312765907c43cfc72b441782d0d4c334a99",
+        "archive_symbols": [
+          {
+            "end_line": 24,
+            "line": 10,
+            "name": "test_basis_matches_scipy"
+          },
+          {
+            "end_line": 39,
+            "line": 37,
+            "name": "test_invalid_spline_inputs"
+          },
+          {
+            "end_line": 54,
+            "line": 43,
+            "name": "test_plane_tensor_grid_scale_and_tiles"
+          },
+          {
+            "end_line": 70,
+            "line": 58,
+            "name": "test_exact_rational_quarter_cylinder"
+          },
+          {
+            "end_line": 83,
+            "line": 73,
+            "name": "test_singular_surface_and_bad_weight"
+          },
+          {
+            "end_line": 91,
+            "line": 86,
+            "name": "test_empty_parameters_and_invalid_control_net"
+          },
+          {
+            "end_line": 120,
+            "line": 95,
+            "name": "test_exact_polynomial_patch_fundamental_forms"
+          },
+          {
+            "end_line": 132,
+            "line": 123,
+            "name": "test_translated_plane_does_not_acquire_spurious_curvature"
+          }
+        ],
+        "live_sha256": "d689a49a858dfe63766cdb39ea4db312765907c43cfc72b441782d0d4c334a99",
+        "live_symbols": [
+          {
+            "end_line": 24,
+            "line": 10,
+            "name": "test_basis_matches_scipy"
+          },
+          {
+            "end_line": 39,
+            "line": 37,
+            "name": "test_invalid_spline_inputs"
+          },
+          {
+            "end_line": 54,
+            "line": 43,
+            "name": "test_plane_tensor_grid_scale_and_tiles"
+          },
+          {
+            "end_line": 70,
+            "line": 58,
+            "name": "test_exact_rational_quarter_cylinder"
+          },
+          {
+            "end_line": 83,
+            "line": 73,
+            "name": "test_singular_surface_and_bad_weight"
+          },
+          {
+            "end_line": 91,
+            "line": 86,
+            "name": "test_empty_parameters_and_invalid_control_net"
+          },
+          {
+            "end_line": 120,
+            "line": 95,
+            "name": "test_exact_polynomial_patch_fundamental_forms"
+          },
+          {
+            "end_line": 132,
+            "line": 123,
+            "name": "test_translated_plane_does_not_acquire_spurious_curvature"
+          }
+        ],
+        "state": "equal"
+      },
+      "tests/test_pipeline.py": {
+        "archive_sha256": "f1612f5f089bdf41b1595471f2ab7fc8f3ff3408903e26b609379fa89083de7c",
+        "archive_symbols": [
+          {
+            "end_line": 28,
+            "line": 13,
+            "name": "test_json_pipeline_and_output_safety"
+          },
+          {
+            "end_line": 35,
+            "line": 31,
+            "name": "test_cli_exit_codes_and_missing_units"
+          },
+          {
+            "end_line": 43,
+            "line": 39,
+            "name": "test_full_pipeline_step"
+          },
+          {
+            "end_line": 64,
+            "line": 46,
+            "name": "test_imports_have_no_file_side_effects_and_do_not_need_ocp"
+          }
+        ],
+        "live_sha256": "f1612f5f089bdf41b1595471f2ab7fc8f3ff3408903e26b609379fa89083de7c",
+        "live_symbols": [
+          {
+            "end_line": 28,
+            "line": 13,
+            "name": "test_json_pipeline_and_output_safety"
+          },
+          {
+            "end_line": 35,
+            "line": 31,
+            "name": "test_cli_exit_codes_and_missing_units"
+          },
+          {
+            "end_line": 43,
+            "line": 39,
+            "name": "test_full_pipeline_step"
+          },
+          {
+            "end_line": 64,
+            "line": 46,
+            "name": "test_imports_have_no_file_side_effects_and_do_not_need_ocp"
+          }
+        ],
+        "state": "equal"
+      },
+      "tests/test_ransac.py": {
+        "archive_sha256": "34b0488fba4cf377bcdf9e1f2f1ba9e7d0fae89693f73d9c2cf2837c3dfdeb15",
+        "archive_symbols": [
+          {
+            "end_line": 11,
+            "line": 8,
+            "name": "test_sign_invariant_topology_and_invalids"
+          },
+          {
+            "end_line": 19,
+            "line": 15,
+            "name": "test_short_plane_fit_preserves_mask_length"
+          },
+          {
+            "end_line": 26,
+            "line": 23,
+            "name": "test_short_cylinder_fit_preserves_mask_length"
+          },
+          {
+            "end_line": 46,
+            "line": 29,
+            "name": "test_seeded_plane_refinement_rejects_outliers_and_global_rng_is_untouched"
+          },
+          {
+            "end_line": 62,
+            "line": 51,
+            "name": "test_rotated_cylinder_and_normal_projection"
+          },
+          {
+            "end_line": 70,
+            "line": 65,
+            "name": "test_cylinder_handles_independently_flipped_normals"
+          },
+          {
+            "end_line": 87,
+            "line": 73,
+            "name": "test_multiple_planes_and_mixed_radii_no_reused_support"
+          },
+          {
+            "end_line": 96,
+            "line": 90,
+            "name": "test_bad_curvature_shape_and_missing_fields"
+          },
+          {
+            "end_line": 104,
+            "line": 99,
+            "name": "test_zero_normals_cannot_be_inliers"
+          },
+          {
+            "end_line": 110,
+            "line": 108,
+            "name": "test_ransac_config_validation"
+          }
+        ],
+        "live_sha256": "34b0488fba4cf377bcdf9e1f2f1ba9e7d0fae89693f73d9c2cf2837c3dfdeb15",
+        "live_symbols": [
+          {
+            "end_line": 11,
+            "line": 8,
+            "name": "test_sign_invariant_topology_and_invalids"
+          },
+          {
+            "end_line": 19,
+            "line": 15,
+            "name": "test_short_plane_fit_preserves_mask_length"
+          },
+          {
+            "end_line": 26,
+            "line": 23,
+            "name": "test_short_cylinder_fit_preserves_mask_length"
+          },
+          {
+            "end_line": 46,
+            "line": 29,
+            "name": "test_seeded_plane_refinement_rejects_outliers_and_global_rng_is_untouched"
+          },
+          {
+            "end_line": 62,
+            "line": 51,
+            "name": "test_rotated_cylinder_and_normal_projection"
+          },
+          {
+            "end_line": 70,
+            "line": 65,
+            "name": "test_cylinder_handles_independently_flipped_normals"
+          },
+          {
+            "end_line": 87,
+            "line": 73,
+            "name": "test_multiple_planes_and_mixed_radii_no_reused_support"
+          },
+          {
+            "end_line": 96,
+            "line": 90,
+            "name": "test_bad_curvature_shape_and_missing_fields"
+          },
+          {
+            "end_line": 104,
+            "line": 99,
+            "name": "test_zero_normals_cannot_be_inliers"
+          },
+          {
+            "end_line": 110,
+            "line": 108,
+            "name": "test_ransac_config_validation"
+          }
+        ],
+        "state": "equal"
+      },
+      "tests/test_step_roundtrip.py": {
+        "archive_sha256": "68b45d85be7b98efe042fa5224003e8c38cf63e0b8d0f2216d602823b2d04a0d",
+        "archive_symbols": [
+          {
+            "end_line": 29,
+            "line": 22,
+            "name": "read_shape"
+          },
+          {
+            "end_line": 38,
+            "line": 32,
+            "name": "count_shapes"
+          },
+          {
+            "end_line": 44,
+            "line": 41,
+            "name": "area"
+          },
+          {
+            "end_line": 55,
+            "line": 48,
+            "name": "test_plane_roundtrip_and_unit_scale"
+          },
+          {
+            "end_line": 69,
+            "line": 59,
+            "name": "test_schema_roundtrip_and_setting_restoration"
+          },
+          {
+            "end_line": 81,
+            "line": 72,
+            "name": "test_bounded_cylinder_with_rotation_and_seam"
+          },
+          {
+            "end_line": 87,
+            "line": 84,
+            "name": "test_unbounded_legacy_face_is_rejected"
+          },
+          {
+            "end_line": 94,
+            "line": 90,
+            "name": "test_noncoplanar_boundary_is_rejected"
+          }
+        ],
+        "live_sha256": "68b45d85be7b98efe042fa5224003e8c38cf63e0b8d0f2216d602823b2d04a0d",
+        "live_symbols": [
+          {
+            "end_line": 29,
+            "line": 22,
+            "name": "read_shape"
+          },
+          {
+            "end_line": 38,
+            "line": 32,
+            "name": "count_shapes"
+          },
+          {
+            "end_line": 44,
+            "line": 41,
+            "name": "area"
+          },
+          {
+            "end_line": 55,
+            "line": 48,
+            "name": "test_plane_roundtrip_and_unit_scale"
+          },
+          {
+            "end_line": 69,
+            "line": 59,
+            "name": "test_schema_roundtrip_and_setting_restoration"
+          },
+          {
+            "end_line": 81,
+            "line": 72,
+            "name": "test_bounded_cylinder_with_rotation_and_seam"
+          },
+          {
+            "end_line": 87,
+            "line": 84,
+            "name": "test_unbounded_legacy_face_is_rejected"
+          },
+          {
+            "end_line": 94,
+            "line": 90,
+            "name": "test_noncoplanar_boundary_is_rejected"
+          }
+        ],
+        "state": "equal"
+      },
+      "tests/test_stl_reader.py": {
+        "archive_sha256": "0ca7a04b64415b9c20f59d06e51b14cbb3963b4fe90cdedac49ddf9f51ba2ca4",
+        "archive_symbols": [
+          {
+            "end_line": 25,
+            "line": 16,
+            "name": "test_binary_records_and_winding"
+          },
+          {
+            "end_line": 35,
+            "line": 28,
+            "name": "test_ascii_matches_binary_and_multisolid"
+          },
+          {
+            "end_line": 46,
+            "line": 39,
+            "name": "test_empty_stl"
+          },
+          {
+            "end_line": 56,
+            "line": 50,
+            "name": "test_binary_malformed_rejected"
+          },
+          {
+            "end_line": 71,
+            "line": 67,
+            "name": "test_ascii_malformed_rejected"
+          },
+          {
+            "end_line": 84,
+            "line": 75,
+            "name": "test_nonfinite_vertices_rejected"
+          },
+          {
+            "end_line": 96,
+            "line": 87,
+            "name": "test_degenerate_policy_and_area_tolerance"
+          },
+          {
+            "end_line": 106,
+            "line": 99,
+            "name": "test_limits_before_allocation_and_missing_file"
+          },
+          {
+            "end_line": 112,
+            "line": 110,
+            "name": "test_reader_configuration_validation"
+          }
+        ],
+        "live_sha256": "0ca7a04b64415b9c20f59d06e51b14cbb3963b4fe90cdedac49ddf9f51ba2ca4",
+        "live_symbols": [
+          {
+            "end_line": 25,
+            "line": 16,
+            "name": "test_binary_records_and_winding"
+          },
+          {
+            "end_line": 35,
+            "line": 28,
+            "name": "test_ascii_matches_binary_and_multisolid"
+          },
+          {
+            "end_line": 46,
+            "line": 39,
+            "name": "test_empty_stl"
+          },
+          {
+            "end_line": 56,
+            "line": 50,
+            "name": "test_binary_malformed_rejected"
+          },
+          {
+            "end_line": 71,
+            "line": 67,
+            "name": "test_ascii_malformed_rejected"
+          },
+          {
+            "end_line": 84,
+            "line": 75,
+            "name": "test_nonfinite_vertices_rejected"
+          },
+          {
+            "end_line": 96,
+            "line": 87,
+            "name": "test_degenerate_policy_and_area_tolerance"
+          },
+          {
+            "end_line": 106,
+            "line": 99,
+            "name": "test_limits_before_allocation_and_missing_file"
+          },
+          {
+            "end_line": 112,
+            "line": 110,
+            "name": "test_reader_configuration_validation"
+          }
+        ],
+        "state": "equal"
+      }
+    }
+  }
+}

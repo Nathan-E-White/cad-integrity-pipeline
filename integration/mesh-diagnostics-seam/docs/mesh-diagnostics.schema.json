@@ -1,0 +1,334 @@
+{
+  "$defs": {
+    "EdgeTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "geometry_revision": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Geometry Revision",
+          "type": "string"
+        },
+        "kind": {
+          "const": "edges",
+          "default": "edges",
+          "title": "Kind",
+          "type": "string"
+        },
+        "indices": {
+          "items": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3000000,
+          "title": "Indices",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "geometry_revision",
+        "indices"
+      ],
+      "title": "EdgeTarget",
+      "type": "object"
+    },
+    "FaceTarget": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "geometry_revision": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Geometry Revision",
+          "type": "string"
+        },
+        "kind": {
+          "const": "faces",
+          "default": "faces",
+          "title": "Kind",
+          "type": "string"
+        },
+        "ids": {
+          "items": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 500000,
+          "title": "Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "geometry_revision",
+        "ids"
+      ],
+      "title": "FaceTarget",
+      "type": "object"
+    },
+    "Metric": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "label": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Value"
+        },
+        "status": {
+          "enum": [
+            "info",
+            "pass",
+            "warn",
+            "fail",
+            "not_checked"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "maxLength": 4096,
+          "title": "Description",
+          "type": "string"
+        },
+        "target_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Id"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "value",
+        "status"
+      ],
+      "title": "Metric",
+      "type": "object"
+    },
+    "SegmentTarget": {
+      "additionalProperties": false,
+      "description": "Unclassified WORLD-space segments, chiefly for legacy payload adaptation.",
+      "properties": {
+        "id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "geometry_revision": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Geometry Revision",
+          "type": "string"
+        },
+        "kind": {
+          "const": "segments",
+          "default": "segments",
+          "title": "Kind",
+          "type": "string"
+        },
+        "positions": {
+          "items": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          },
+          "maxItems": 3000000,
+          "title": "Positions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "geometry_revision",
+        "positions"
+      ],
+      "title": "SegmentTarget",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "mesh-diagnostics/1",
+      "default": "mesh-diagnostics/1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "mesh_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Mesh Id",
+      "type": "string"
+    },
+    "geometry_revision": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Geometry Revision",
+      "type": "string"
+    },
+    "diagnostic_revision": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Diagnostic Revision",
+      "type": "string"
+    },
+    "stage": {
+      "default": "unspecified",
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Stage",
+      "type": "string"
+    },
+    "units": {
+      "default": "unspecified",
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Units",
+      "type": "string"
+    },
+    "positions": {
+      "items": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          }
+        ]
+      },
+      "maxItems": 750000,
+      "title": "Positions",
+      "type": "array"
+    },
+    "triangles": {
+      "items": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 1500000,
+      "title": "Triangles",
+      "type": "array"
+    },
+    "triangle_parent_faces": {
+      "anyOf": [
+        {
+          "items": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 500000,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Triangle Parent Faces"
+    },
+    "targets": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "edges": "#/$defs/EdgeTarget",
+            "faces": "#/$defs/FaceTarget",
+            "segments": "#/$defs/SegmentTarget"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/FaceTarget"
+          },
+          {
+            "$ref": "#/$defs/EdgeTarget"
+          },
+          {
+            "$ref": "#/$defs/SegmentTarget"
+          }
+        ]
+      },
+      "maxItems": 128,
+      "title": "Targets",
+      "type": "array"
+    },
+    "metrics": {
+      "items": {
+        "$ref": "#/$defs/Metric"
+      },
+      "maxItems": 512,
+      "title": "Metrics",
+      "type": "array"
+    },
+    "notes": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 128,
+      "title": "Notes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "mesh_id",
+    "geometry_revision",
+    "diagnostic_revision",
+    "positions",
+    "triangles"
+  ],
+  "title": "MeshPayload",
+  "type": "object"
+}

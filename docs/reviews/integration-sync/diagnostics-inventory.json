@@ -1,0 +1,2780 @@
+{
+  "archive": {
+    ".gitignore": {
+      "bytes": 73,
+      "sha256": "ccc6974a08e685d195dead5f219a6f263989299f02ee9727d089c78fc8946a1d"
+    },
+    "CHECKSUMS.sha256": {
+      "bytes": 4581,
+      "sha256": "9dd39ac3993712a3e69ce02f12f487a16279832cdfd7cf2dc0b1031cd07e1a44"
+    },
+    "CODEX_INTEGRATION.md": {
+      "bytes": 5467,
+      "sha256": "08cd6f0f6a74727223369723477f56f566d64f5c0459a013f18c607ba01bf7e5"
+    },
+    "README.md": {
+      "bytes": 11276,
+      "sha256": "9cc7408342e7b6b8bb4856efabb89ce5d11ae2eb28dba56672e692ef7359c7de"
+    },
+    "docs/ACCEPTANCE.md": {
+      "bytes": 3653,
+      "sha256": "8fc5c2737101d026e96ed725d7660ae8eb6118713a3532bd0ac39c4452bb005f"
+    },
+    "docs/MATHEMATICS.md": {
+      "bytes": 5386,
+      "sha256": "a9f428b39b1db102a2ab9e165386dbcd76bbb8baa51b4fa5153abe97a993274f"
+    },
+    "docs/REFERENCES.md": {
+      "bytes": 1538,
+      "sha256": "be9ccaf09eac0d1817e23580658a925c8e9f7c1bfbfc72880ac833b807e39b79"
+    },
+    "docs/VERIFICATION.md": {
+      "bytes": 2694,
+      "sha256": "22418c78a22ab2740d26bd5360399f6ddf8f945ae6eadda9c352bd61fc63e334"
+    },
+    "docs/frontend-compile-results.json": {
+      "bytes": 1587,
+      "sha256": "edd8b38e1b6b93a6eafd101115125ec7c2a9ebb2dd3092ace9835b938d236a13"
+    },
+    "docs/mesh-diagnostics.schema.json": {
+      "bytes": 7144,
+      "sha256": "f4e423dbb30c3a6fae0a47350733ba17f0ab94bcb73cc7dcaa3f1cd7f899249a"
+    },
+    "docs/node-test-results.txt": {
+      "bytes": 3397,
+      "sha256": "44adc57056ef234da36576c1c8f7fdb8bd2043cdd8b62a663b95f8e52888c7a4"
+    },
+    "docs/python-test-results.txt": {
+      "bytes": 99,
+      "sha256": "25a7bf58d1c580eefc9bbaeef7c326d0b5bc77893f1785ca65ae568f02732cc4"
+    },
+    "examples/fixture.json": {
+      "bytes": 6869,
+      "sha256": "cc7c21f23c769718b4388b9597fa8d5fb9a51e945becf985ccac5a0899381534"
+    },
+    "examples/gradio_app.py": {
+      "bytes": 1094,
+      "imports": [
+        {
+          "line": 2,
+          "source": "import logging"
+        },
+        {
+          "line": 3,
+          "source": "import gradio as gr"
+        },
+        {
+          "line": 4,
+          "source": "from mesh_diagnostics import MeshValidationError"
+        },
+        {
+          "line": 6,
+          "source": "from gradio_meshdiagnostics import MeshDiagnostics"
+        },
+        {
+          "line": 7,
+          "source": "from pipeline import process_and_audit_mesh"
+        }
+      ],
+      "sha256": "92d245d48623bee9ee06f0cfc6ce9f5e8f7e3b71476683478914fe23478ccf08",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 12,
+          "name": "audit_upload"
+        }
+      ]
+    },
+    "examples/make_fixtures.py": {
+      "bytes": 1510,
+      "imports": [
+        {
+          "line": 2,
+          "source": "from pathlib import Path"
+        },
+        {
+          "line": 3,
+          "source": "import json"
+        },
+        {
+          "line": 4,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 5,
+          "source": "from mesh_diagnostics import TriangleMesh, audit_mesh, payload_from_audit"
+        },
+        {
+          "line": 33,
+          "source": "from mesh_diagnostics import MeshPayload"
+        }
+      ],
+      "sha256": "363f23c6112f767095b9437b46358840c0844b86a9be3360bf53403a3455cea3",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 8,
+          "name": "synthetic_fixture"
+        }
+      ]
+    },
+    "examples/pipeline.py": {
+      "bytes": 583,
+      "imports": [
+        {
+          "line": 4,
+          "source": "from pathlib import Path"
+        },
+        {
+          "line": 5,
+          "source": "from mesh_diagnostics import AuditPolicy, audit_mesh, load_triangle_mesh, payload_from_audit"
+        }
+      ],
+      "sha256": "38a7e62ea55ca1e8e442ecd78b83224cca355e83e291983027774b8dc3316f1d",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 8,
+          "name": "process_and_audit_mesh"
+        }
+      ]
+    },
+    "frontend/Example.svelte": {
+      "bytes": 695,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "import type { MeshPayload } from \"./src/model/types.ts\";"
+        }
+      ],
+      "sha256": "e51731dac2c2cf16bd9a4624eed9c4c06a2ed562c18bb256c6a2f8dd6b2b5c04"
+    },
+    "frontend/Index.svelte": {
+      "bytes": 1890,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "import MeshDiagnosticsView from \"./src/components/MeshDiagnosticsView.svelte\";"
+        },
+        {
+          "line": 3,
+          "source": "import type { MetricSelection } from \"./src/model/types.ts\";"
+        }
+      ],
+      "sha256": "7c508b8bb8fda7e559882d8a01fafa12748fc0a7f096f2733b4e596ec6958bda"
+    },
+    "frontend/demo/App.svelte": {
+      "bytes": 1492,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "import MeshDiagnosticsView from \"../src/components/MeshDiagnosticsView.svelte\";"
+        },
+        {
+          "line": 3,
+          "source": "import fixture from \"./fixture.json\";"
+        }
+      ],
+      "sha256": "486bb73be1eed4992bbcd275858278535c829264651bc7999abd47af80809721"
+    },
+    "frontend/demo/fixture.json": {
+      "bytes": 6869,
+      "sha256": "cc7c21f23c769718b4388b9597fa8d5fb9a51e945becf985ccac5a0899381534"
+    },
+    "frontend/demo/main.ts": {
+      "bytes": 121,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import { mount } from \"svelte\";"
+        },
+        {
+          "line": 2,
+          "source": "import App from \"./App.svelte\";"
+        }
+      ],
+      "sha256": "3cf851627ee6f5ec9ae56a6819a4e86ad394619212a31e39f5a00b4367dbe0dc"
+    },
+    "frontend/index.html": {
+      "bytes": 269,
+      "sha256": "eccc30edc2ab44bbbf6ecce66121c034e772dca096aff7eb6d6b5a297d5999ce"
+    },
+    "frontend/package.json": {
+      "bytes": 717,
+      "sha256": "2fd34bcaa52a89dde45c18af2d3d9f528d03c3cdc8687bfdff2fbe65dbe6350e"
+    },
+    "frontend/src/components/MeshDiagnosticsView.svelte": {
+      "bytes": 8993,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "import { onMount } from \"svelte\";"
+        },
+        {
+          "line": 3,
+          "source": "import { decodePayload } from \"../model/parse.ts\";"
+        },
+        {
+          "line": 4,
+          "source": "import type { MeshDocument, Metric, MetricSelection } from \"../model/types.ts\";"
+        },
+        {
+          "line": 5,
+          "source": "import { ThreeMeshViewport, DEFAULT_OPTIONS, MAX_WIREFRAME_TRIANGLES } from \"../render/ThreeMeshViewport.ts\";"
+        },
+        {
+          "line": 6,
+          "source": "import MetricsPanel from \"./MetricsPanel.svelte\";"
+        }
+      ],
+      "sha256": "4840bc2bc731990ab2afbce58073297c5facd7579a690b4233e50e74ac3e4fd4"
+    },
+    "frontend/src/components/MetricsPanel.svelte": {
+      "bytes": 4616,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "import type { Metric } from \"../model/types.ts\";"
+        }
+      ],
+      "sha256": "360df88cd1dd42c827201c555bd6d4dc2e5d7a51fb3c26a9b85f74bbe24dd134"
+    },
+    "frontend/src/model/buffers.ts": {
+      "bytes": 1417,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import { localPositions } from \"./frame.ts\";"
+        },
+        {
+          "line": 2,
+          "source": "import type { MeshDocument, Target } from \"./types.ts\";"
+        },
+        {
+          "line": 4,
+          "source": "export function trianglePositions(doc: MeshDocument, ids: readonly number[]): Float32Array {"
+        },
+        {
+          "line": 14,
+          "source": "export function edgePositions(doc: MeshDocument, target: Exclude<Target, { kind: \"faces\" }>): Float32Array {"
+        },
+        {
+          "line": 23,
+          "source": "export function triangleEdgePositions(positions: Float32Array): Float32Array {"
+        }
+      ],
+      "sha256": "8c30eb96222241eca15f923d9093c1bb0f6d06d51e70b4eff5099a3a01337135"
+    },
+    "frontend/src/model/frame.ts": {
+      "bytes": 1455,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import type { CoordinateFrame } from \"./types.ts\";"
+        },
+        {
+          "line": 3,
+          "source": "export function coordinateFrame(positions: readonly number[]): CoordinateFrame {"
+        },
+        {
+          "line": 17,
+          "source": "export function localCoordinate(value: number, axis: number, frame: CoordinateFrame): number {"
+        },
+        {
+          "line": 29,
+          "source": "export function localPositions(world: readonly number[], frame: CoordinateFrame): Float32Array {"
+        }
+      ],
+      "sha256": "d221f6ec6962c545e24bc6e4fff84e631e7135718a3393eee3449423de54de56"
+    },
+    "frontend/src/model/parse.ts": {
+      "bytes": 6254,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import { coordinateFrame, localPositions } from \"./frame.ts\";"
+        },
+        {
+          "line": 2,
+          "source": "import type { MeshDocument, MeshPayload, Metric, Status, Target } from \"./types.ts\";"
+        },
+        {
+          "line": 4,
+          "source": "export class PayloadError extends Error {"
+        },
+        {
+          "line": 33,
+          "source": "export function parsePayload(value: unknown): MeshDocument {"
+        },
+        {
+          "line": 96,
+          "source": "export function decodePayload(value: unknown): { document: MeshDocument | null; error: string | null } {"
+        }
+      ],
+      "sha256": "7c5b35556a354ec196a82c80603cdf7f3a4fbfab5a8390d4039583d9ac90d409"
+    },
+    "frontend/src/model/types.ts": {
+      "bytes": 1481,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "export type Status = \"info\" | \"pass\" | \"warn\" | \"fail\" | \"not_checked\";"
+        },
+        {
+          "line": 3,
+          "source": "export interface Metric {"
+        },
+        {
+          "line": 12,
+          "source": "export type Target ="
+        },
+        {
+          "line": 16,
+          "source": "export interface MeshPayload {"
+        },
+        {
+          "line": 30,
+          "source": "export interface CoordinateFrame {"
+        },
+        {
+          "line": 35,
+          "source": "export interface MeshDocument {"
+        },
+        {
+          "line": 42,
+          "source": "export interface MetricSelection {"
+        }
+      ],
+      "sha256": "b72d3806154700c78e3be6b670337f3071e463cc661a6b12a104b62123d47288"
+    },
+    "frontend/src/render/DiagnosticsLayer.ts": {
+      "bytes": 5899,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import * as THREE from \"three\";"
+        },
+        {
+          "line": 2,
+          "source": "import { LineSegments2 } from \"three/addons/lines/LineSegments2.js\";"
+        },
+        {
+          "line": 3,
+          "source": "import { LineSegmentsGeometry } from \"three/addons/lines/LineSegmentsGeometry.js\";"
+        },
+        {
+          "line": 4,
+          "source": "import { LineMaterial } from \"three/addons/lines/LineMaterial.js\";"
+        },
+        {
+          "line": 5,
+          "source": "import type { MeshDocument, Target } from \"../model/types.ts\";"
+        },
+        {
+          "line": 6,
+          "source": "import { edgePositions, triangleEdgePositions, trianglePositions } from \"../model/buffers.ts\";"
+        },
+        {
+          "line": 7,
+          "source": "import { ResourceScope } from \"./resources.ts\";"
+        },
+        {
+          "line": 72,
+          "source": "export class DiagnosticsLayer {"
+        }
+      ],
+      "sha256": "5a0c24e428c00ee6150911aa539018d99748d6569d8e110559f6784f6476f072"
+    },
+    "frontend/src/render/ThreeMeshViewport.ts": {
+      "bytes": 13091,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import * as THREE from \"three\";"
+        },
+        {
+          "line": 2,
+          "source": "import { OrbitControls } from \"three/addons/controls/OrbitControls.js\";"
+        },
+        {
+          "line": 3,
+          "source": "import type { MeshDocument } from \"../model/types.ts\";"
+        },
+        {
+          "line": 4,
+          "source": "import { DiagnosticsLayer } from \"./DiagnosticsLayer.ts\";"
+        },
+        {
+          "line": 5,
+          "source": "import { ResourceScope } from \"./resources.ts\";"
+        },
+        {
+          "line": 7,
+          "source": "export const MAX_WIREFRAME_TRIANGLES = 150_000;"
+        },
+        {
+          "line": 8,
+          "source": "export interface ViewOptions { ghost: boolean; wireframe: boolean; xray: boolean; pulse: boolean }"
+        },
+        {
+          "line": 9,
+          "source": "export const DEFAULT_OPTIONS: ViewOptions = { ghost: true, wireframe: true, xray: true, pulse: false };"
+        },
+        {
+          "line": 10,
+          "source": "export interface ViewportStatus { state: \"ready\" | \"context-lost\" | \"error\"; message: string }"
+        },
+        {
+          "line": 17,
+          "source": "export class ThreeMeshViewport {"
+        }
+      ],
+      "sha256": "10b1e5975977d3ce340079d50fd42393917ef9f49e485485f40c1036d64f3488"
+    },
+    "frontend/src/render/resources.ts": {
+      "bytes": 1091,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "export interface Disposable { dispose(): void }"
+        },
+        {
+          "line": 3,
+          "source": "export class ResourceScope implements Disposable {"
+        }
+      ],
+      "sha256": "e1f616305de1e489b43a946b1bd7a7ff2ef17f8a8b9e24332275f861419b383f"
+    },
+    "frontend/svelte.config.js": {
+      "bytes": 112,
+      "sha256": "dceef17fe63f425f194adba7ae52503dde17d4c833608b84bde5de8c367fd473"
+    },
+    "frontend/test/model.test.ts": {
+      "bytes": 3665,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import test from \"node:test\";"
+        },
+        {
+          "line": 2,
+          "source": "import assert from \"node:assert/strict\";"
+        },
+        {
+          "line": 3,
+          "source": "import { readFileSync } from \"node:fs\";"
+        },
+        {
+          "line": 4,
+          "source": "import { parsePayload, decodePayload } from \"../src/model/parse.ts\";"
+        },
+        {
+          "line": 5,
+          "source": "import { coordinateFrame, localPositions } from \"../src/model/frame.ts\";"
+        },
+        {
+          "line": 6,
+          "source": "import { trianglePositions, edgePositions } from \"../src/model/buffers.ts\";"
+        },
+        {
+          "line": 7,
+          "source": "import { ResourceScope } from \"../src/render/resources.ts\";"
+        },
+        {
+          "line": 13,
+          "source": "test(\"Python-generated fixture obeys the TypeScript contract\", () => {"
+        },
+        {
+          "line": 20,
+          "source": "test(\"null is a valid clear, malformed data is not a silent empty success\", () => {"
+        },
+        {
+          "line": 26,
+          "source": "test(`reject bad index ${String(bad)} before unsigned conversion`, () => {"
+        },
+        {
+          "line": 32,
+          "source": "test(\"reject stale targets\", () => {"
+        },
+        {
+          "line": 37,
+          "source": "test(\"reject unknown metric targets and duplicate metric IDs\", () => {"
+        },
+        {
+          "line": 44,
+          "source": "test(\"large world origin is subtracted BEFORE float32 conversion\", () => {"
+        },
+        {
+          "line": 52,
+          "source": "test(\"extreme finite coordinates normalize without NaNs\", () => {"
+        },
+        {
+          "line": 57,
+          "source": "test(\"empty or coincident geometry has a usable frame\", () => {"
+        },
+        {
+          "line": 62,
+          "source": "test(\"face extraction preserves source triangle IDs\", () => {"
+        },
+        {
+          "line": 71,
+          "source": "test(\"edge extraction uses source vertex indices\", () => {"
+        },
+        {
+          "line": 77,
+          "source": "test(\"uint32 is selected when the vertex table exceeds uint16 address space\", () => {"
+        },
+        {
+          "line": 83,
+          "source": "test(\"resource ownership is idempotent and deduplicated\", () => {"
+        }
+      ],
+      "sha256": "553add48063f7c7b11c8ca433a668bc827e19f955737243e4dbcad0771ce8254"
+    },
+    "frontend/tsconfig.json": {
+      "bytes": 457,
+      "sha256": "a0331b659bf41ed79b9fb469d2049defb538a5f7189b3d518aa58f42a7367761"
+    },
+    "frontend/vite.config.ts": {
+      "bytes": 146,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import { defineConfig } from \"vite\";"
+        },
+        {
+          "line": 2,
+          "source": "import { svelte } from \"@sveltejs/vite-plugin-svelte\";"
+        }
+      ],
+      "sha256": "19d524175be6aa0172e49517779d3429cdef86a82332452be2fac837e744e904"
+    },
+    "gradio_adapter/meshdiagnostics.py": {
+      "bytes": 2520,
+      "imports": [
+        {
+          "line": 5,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 6,
+          "source": "from collections.abc import Mapping"
+        },
+        {
+          "line": 7,
+          "source": "from typing import Any"
+        },
+        {
+          "line": 8,
+          "source": "from gradio.components.base import Component"
+        },
+        {
+          "line": 9,
+          "source": "from gradio.data_classes import GradioModel"
+        },
+        {
+          "line": 10,
+          "source": "from gradio.events import Events"
+        },
+        {
+          "line": 11,
+          "source": "from mesh_diagnostics import MeshPayload, adapt_legacy_payload"
+        }
+      ],
+      "sha256": "f3d615f4aeac1f08d64ffdcacd586586f7b7521e32ed39b1f8528b8bf0f6f38e",
+      "symbols": [
+        {
+          "kind": "ClassDef",
+          "line": 14,
+          "name": "GradioMeshPayload"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 18,
+          "name": "MeshDiagnostics"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 22,
+          "name": "MeshDiagnostics.__init__"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 26,
+          "name": "MeshDiagnostics.postprocess"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 41,
+          "name": "MeshDiagnostics.preprocess"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 47,
+          "name": "MeshDiagnostics.example_payload"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 56,
+          "name": "MeshDiagnostics.example_value"
+        }
+      ]
+    },
+    "pyproject.toml": {
+      "bytes": 546,
+      "sha256": "ea9658a3241099bce4cc536a2111903e934945a0a0b66b0cc5870c7c42c44d60"
+    },
+    "python/mesh_diagnostics/__init__.py": {
+      "bytes": 971,
+      "imports": [
+        {
+          "line": 2,
+          "source": "from .model import MeshLimits, MeshValidationError, TriangleMesh"
+        },
+        {
+          "line": 3,
+          "source": "from .quality import TriangleQuality, triangle_quality"
+        },
+        {
+          "line": 4,
+          "source": "from .topology import EdgeTopology, edge_topology"
+        },
+        {
+          "line": 5,
+          "source": "from .audit import AuditPolicy, AuditResult, audit_mesh"
+        },
+        {
+          "line": 6,
+          "source": "from .contract import EdgeTarget, FaceTarget, SegmentTarget, Metric, MeshPayload"
+        },
+        {
+          "line": 7,
+          "source": "from .payload import assemble_payload, payload_from_audit"
+        },
+        {
+          "line": 8,
+          "source": "from .legacy import adapt_legacy_payload, mesh_from_mapping"
+        },
+        {
+          "line": 9,
+          "source": "from .io import ArchiveLimits, load_npz_arrays, load_triangle_mesh"
+        }
+      ],
+      "sha256": "3163eb712b89ab86a24f4852b6fcaabfd7566aafd16f017ec4c08ff3057427cc",
+      "symbols": []
+    },
+    "python/mesh_diagnostics/audit.py": {
+      "bytes": 1680,
+      "imports": [
+        {
+          "line": 2,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 3,
+          "source": "from dataclasses import asdict, dataclass"
+        },
+        {
+          "line": 4,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 5,
+          "source": "from .model import TriangleMesh"
+        },
+        {
+          "line": 6,
+          "source": "from .quality import TriangleQuality, triangle_quality"
+        },
+        {
+          "line": 7,
+          "source": "from .topology import EdgeTopology, edge_topology"
+        }
+      ],
+      "sha256": "ada85eaa5d77a4dc420b7abff40621d2028642787bbd5bf33d1d7f163c59f919",
+      "symbols": [
+        {
+          "kind": "ClassDef",
+          "line": 11,
+          "name": "AuditPolicy"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 17,
+          "name": "AuditPolicy.__post_init__"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 29,
+          "name": "AuditResult"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 36,
+          "name": "audit_mesh"
+        }
+      ]
+    },
+    "python/mesh_diagnostics/contract.py": {
+      "bytes": 4809,
+      "imports": [
+        {
+          "line": 2,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 3,
+          "source": "from typing import Annotated, Literal"
+        },
+        {
+          "line": 4,
+          "source": "from pydantic import BaseModel, ConfigDict, Field, StrictFloat, StrictInt, model_validator"
+        }
+      ],
+      "sha256": "8413719904bc39fa81682aef20c5e3d330651c599a6f175a21bf08064cf99744",
+      "symbols": [
+        {
+          "kind": "ClassDef",
+          "line": 12,
+          "name": "WireModel"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 16,
+          "name": "FaceTarget"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 23,
+          "name": "EdgeTarget"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 30,
+          "name": "SegmentTarget"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 41,
+          "name": "Metric"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 50,
+          "name": "MeshPayload"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 66,
+          "name": "MeshPayload.validate_relations"
+        }
+      ]
+    },
+    "python/mesh_diagnostics/io.py": {
+      "bytes": 4125,
+      "imports": [
+        {
+          "line": 6,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 7,
+          "source": "from dataclasses import dataclass"
+        },
+        {
+          "line": 8,
+          "source": "from pathlib import Path"
+        },
+        {
+          "line": 9,
+          "source": "from math import prod"
+        },
+        {
+          "line": 10,
+          "source": "from zipfile import ZipFile, BadZipFile"
+        },
+        {
+          "line": 11,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 12,
+          "source": "from .model import MeshValidationError, TriangleMesh"
+        },
+        {
+          "line": 13,
+          "source": "from .legacy import mesh_from_mapping"
+        }
+      ],
+      "sha256": "7ed004af275489737080b794035603b28be638e79b9d85069b40f7c9108b720e",
+      "symbols": [
+        {
+          "kind": "ClassDef",
+          "line": 17,
+          "name": "ArchiveLimits"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 29,
+          "name": "load_npz_arrays"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 75,
+          "name": "load_triangle_mesh"
+        }
+      ]
+    },
+    "python/mesh_diagnostics/legacy.py": {
+      "bytes": 4345,
+      "imports": [
+        {
+          "line": 5,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 6,
+          "source": "from collections.abc import Mapping"
+        },
+        {
+          "line": 7,
+          "source": "from typing import Any"
+        },
+        {
+          "line": 8,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 9,
+          "source": "from .model import TriangleMesh, MeshValidationError, _matrix"
+        },
+        {
+          "line": 10,
+          "source": "from .contract import FaceTarget, SegmentTarget, Metric, MeshPayload"
+        },
+        {
+          "line": 11,
+          "source": "from .payload import assemble_payload"
+        }
+      ],
+      "sha256": "9775fd66228354ec232436376aa09e29ed0ae38777d84eb076f1783e151af6af",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 14,
+          "name": "_alias"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 21,
+          "name": "mesh_from_mapping"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 26,
+          "name": "adapt_legacy_payload"
+        }
+      ]
+    },
+    "python/mesh_diagnostics/model.py": {
+      "bytes": 3786,
+      "imports": [
+        {
+          "line": 2,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 4,
+          "source": "from dataclasses import dataclass"
+        },
+        {
+          "line": 5,
+          "source": "from hashlib import sha256"
+        },
+        {
+          "line": 6,
+          "source": "from typing import Any"
+        },
+        {
+          "line": 8,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 9,
+          "source": "from numpy.typing import NDArray"
+        }
+      ],
+      "sha256": "a2a0a15eee08ce4f9cf0df9888857a777dd6daa2427ea4b8e732ee641692d153",
+      "symbols": [
+        {
+          "kind": "ClassDef",
+          "line": 12,
+          "name": "MeshValidationError"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 17,
+          "name": "MeshLimits"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 22,
+          "name": "_matrix"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 37,
+          "name": "TriangleMesh"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 45,
+          "name": "TriangleMesh.__init__"
+        }
+      ]
+    },
+    "python/mesh_diagnostics/payload.py": {
+      "bytes": 7821,
+      "imports": [
+        {
+          "line": 2,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 3,
+          "source": "from hashlib import sha256"
+        },
+        {
+          "line": 4,
+          "source": "import json"
+        },
+        {
+          "line": 5,
+          "source": "from collections.abc import Iterable"
+        },
+        {
+          "line": 6,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 7,
+          "source": "from .audit import AuditResult"
+        },
+        {
+          "line": 8,
+          "source": "from .contract import EdgeTarget, FaceTarget, MeshPayload, Metric, Target"
+        },
+        {
+          "line": 9,
+          "source": "from .model import TriangleMesh"
+        }
+      ],
+      "sha256": "4b2662f9718951fbf6f75664ef80375e5487cb7f71f8b89448e711a8c39cebfd",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 12,
+          "name": "assemble_payload"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 35,
+          "name": "payload_from_audit"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 42,
+          "name": "payload_from_audit.faces"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 48,
+          "name": "payload_from_audit.edges"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 54,
+          "name": "payload_from_audit.metric"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 58,
+          "name": "payload_from_audit.check"
+        }
+      ]
+    },
+    "python/mesh_diagnostics/quality.py": {
+      "bytes": 3771,
+      "imports": [
+        {
+          "line": 6,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 7,
+          "source": "from dataclasses import dataclass"
+        },
+        {
+          "line": 8,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 9,
+          "source": "from numpy.typing import NDArray"
+        },
+        {
+          "line": 10,
+          "source": "from .model import TriangleMesh, MeshValidationError"
+        }
+      ],
+      "sha256": "2c7ca3a7f2b7197d807c63615068200b85e35a2e3affa48520ff1022601729ec",
+      "symbols": [
+        {
+          "kind": "ClassDef",
+          "line": 14,
+          "name": "TriangleQuality"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 21,
+          "name": "triangle_quality"
+        }
+      ]
+    },
+    "python/mesh_diagnostics/topology.py": {
+      "bytes": 2699,
+      "imports": [
+        {
+          "line": 6,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 7,
+          "source": "from dataclasses import dataclass"
+        },
+        {
+          "line": 8,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 9,
+          "source": "from numpy.typing import NDArray"
+        },
+        {
+          "line": 10,
+          "source": "from .model import TriangleMesh"
+        }
+      ],
+      "sha256": "de3a5d07d3e9af8f613f181c93f4ffa037f3e0df602e76b698c3fd0c1bcdcbbf",
+      "symbols": [
+        {
+          "kind": "ClassDef",
+          "line": 14,
+          "name": "EdgeTopology"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 26,
+          "name": "edge_topology"
+        }
+      ]
+    },
+    "tests/test_diagnostics.py": {
+      "bytes": 11565,
+      "imports": [
+        {
+          "line": 1,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 2,
+          "source": "from dataclasses import replace"
+        },
+        {
+          "line": 3,
+          "source": "from io import BytesIO"
+        },
+        {
+          "line": 4,
+          "source": "import importlib"
+        },
+        {
+          "line": 5,
+          "source": "import json"
+        },
+        {
+          "line": 6,
+          "source": "from pathlib import Path"
+        },
+        {
+          "line": 7,
+          "source": "import sys"
+        },
+        {
+          "line": 8,
+          "source": "from zipfile import ZipFile"
+        },
+        {
+          "line": 9,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 10,
+          "source": "import pytest"
+        },
+        {
+          "line": 11,
+          "source": "from pydantic import ValidationError"
+        },
+        {
+          "line": 12,
+          "source": "from mesh_diagnostics import (\n    TriangleMesh, MeshLimits, MeshValidationError, triangle_quality, edge_topology,\n    AuditPolicy, audit_mesh, payload_from_audit, adapt_legacy_payload, mesh_from_mapping,\n    MeshPayload, FaceTarget, EdgeTarget, Metric, assemble_payload,\n    load_npz_arrays, load_triangle_mesh, ArchiveLimits,\n)"
+        }
+      ],
+      "sha256": "630f17831310d8c0d551b34c21190bae3b95caf080f4909e940f79c02b412e33",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 20,
+          "name": "equilateral"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 24,
+          "name": "tetra"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 29,
+          "name": "test_equilateral_reference_values"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 37,
+          "name": "test_quality_is_scale_invariant"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 43,
+          "name": "test_right_triangle_values"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 49,
+          "name": "test_rotation_and_translation"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 55,
+          "name": "test_reversing_triangle_does_not_sign_unsigned_quality"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 65,
+          "name": "test_invalid_reference_normals"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 69,
+          "name": "test_degenerate_quality_is_explicit_and_json_is_finite"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 79,
+          "name": "test_degenerate_is_failure_even_with_zero_quality_threshold"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 85,
+          "name": "test_closed_tetrahedron_edge_incidence"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 92,
+          "name": "test_single_triangle_has_three_boundary_edges_not_three_loops"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 97,
+          "name": "test_three_face_edge_is_distinct_from_boundary"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 104,
+          "name": "test_winding_conflict_detected_separately"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 109,
+          "name": "test_duplicates_all_members_and_repeated_indices"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 119,
+          "name": "test_edge_manifold_does_not_imply_vertex_manifold"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 131,
+          "name": "test_open_surface_policy_changes_status_not_geometry"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 142,
+          "name": "test_empty_mesh_has_no_false_overall_pass"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 154,
+          "name": "test_bad_input_rejected_before_unsigned_cast"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 158,
+          "name": "test_flat_input_and_owned_readonly_snapshot"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 166,
+          "name": "test_geometry_hash_changes_when_triangle_order_changes"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 171,
+          "name": "test_limits"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 177,
+          "name": "test_invalid_policy"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 181,
+          "name": "test_contract_validates_targets_and_metric_links"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 198,
+          "name": "test_bad_wire_contract"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 204,
+          "name": "test_legacy_counts_flat_inputs_without_claiming_pass"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 211,
+          "name": "test_legacy_diagnostics_remain_reachable_without_ids"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 220,
+          "name": "test_ambiguous_aliases_rejected"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 224,
+          "name": "test_safe_npz_roundtrip"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 233,
+          "name": "test_pickled_npz_is_rejected"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 239,
+          "name": "test_npz_unknown_member_and_budget"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 246,
+          "name": "test_npz_lying_npy_header_rejected_before_allocation"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 254,
+          "name": "test_npz_duplicate_members_rejected"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 263,
+          "name": "test_gradio_adapter_serialization_and_schema"
+        }
+      ]
+    },
+    "tools/check.sh": {
+      "bytes": 291,
+      "sha256": "da039179a7ff5f69ec763169c1c4b980f395925b67f825c4d98ab84a77728715"
+    },
+    "tools/compile_svelte.mjs": {
+      "bytes": 1040,
+      "sha256": "a4274df3e8652aadd2fc1d0fa59b7ecff3273d84d8e732d8dcab179fe4c2a59f"
+    }
+  },
+  "archive_file_count": 50,
+  "archive_manifest_entries": 49,
+  "archive_manifest_errors": [],
+  "archive_path": "integration/mesh-diagnostics-seam/mesh-diagnostics-seams.tar.gz",
+  "archive_sha256": "807c46906790dd2bad568f56cb48607c86bc31a4e789a0a90a176d3fc0f94b1f",
+  "basename_candidates": [
+    {
+      "archive": "CODEX_INTEGRATION.md",
+      "equal": true,
+      "loose": "CODEX_INTEGRATION.md"
+    },
+    {
+      "archive": "README.md",
+      "equal": true,
+      "loose": "README.md"
+    },
+    {
+      "archive": "docs/ACCEPTANCE.md",
+      "equal": true,
+      "loose": "ACCEPTANCE.md"
+    },
+    {
+      "archive": "docs/MATHEMATICS.md",
+      "equal": true,
+      "loose": "MATHEMATICS.md"
+    },
+    {
+      "archive": "docs/VERIFICATION.md",
+      "equal": true,
+      "loose": "VERIFICATION.md"
+    },
+    {
+      "archive": "frontend/Index.svelte",
+      "equal": false,
+      "loose": "Index.svelte"
+    },
+    {
+      "archive": "frontend/demo/main.ts",
+      "equal": false,
+      "loose": "main.ts"
+    },
+    {
+      "archive": "frontend/index.html",
+      "equal": false,
+      "loose": "index.html"
+    },
+    {
+      "archive": "frontend/package.json",
+      "equal": false,
+      "loose": "package.json"
+    },
+    {
+      "archive": "frontend/tsconfig.json",
+      "equal": false,
+      "loose": "tsconfig.json"
+    },
+    {
+      "archive": "pyproject.toml",
+      "equal": false,
+      "loose": "pyproject.toml"
+    },
+    {
+      "archive": "python/mesh_diagnostics/__init__.py",
+      "equal": false,
+      "loose": "__init__.py"
+    },
+    {
+      "archive": "python/mesh_diagnostics/legacy.py",
+      "equal": false,
+      "loose": "legacy.py"
+    },
+    {
+      "archive": "python/mesh_diagnostics/payload.py",
+      "equal": false,
+      "loose": "payload.py"
+    },
+    {
+      "archive": "tests/test_diagnostics.py",
+      "equal": false,
+      "loose": "test_diagnostics.py"
+    }
+  ],
+  "loose": {
+    "ACCEPTANCE.md": {
+      "bytes": 3653,
+      "sha256": "8fc5c2737101d026e96ed725d7660ae8eb6118713a3532bd0ac39c4452bb005f"
+    },
+    "CODEX_INTEGRATION.md": {
+      "bytes": 5467,
+      "sha256": "08cd6f0f6a74727223369723477f56f566d64f5c0459a013f18c607ba01bf7e5"
+    },
+    "CameraLink.ts": {
+      "bytes": 1036,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import type { Vec3 } from \"../core/math.js\";"
+        },
+        {
+          "line": 2,
+          "source": "export interface CameraPose { position: Vec3; target: Vec3; up: Vec3; fov: number; zoom: number; near: number; far: number }"
+        },
+        {
+          "line": 3,
+          "source": "export interface CameraPort { getPose(): CameraPose; setPose(pose: CameraPose): void; onPose: ((pose: CameraPose) => void) | null }"
+        },
+        {
+          "line": 5,
+          "source": "export function linkCameras(ports: readonly CameraPort[]): () => void {"
+        }
+      ],
+      "sha256": "3e815ed274a7ed35c7c738f4279532645b3a819925cf1d2711291e0dddd20d28"
+    },
+    "Demo.svelte": {
+      "bytes": 481,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "import MeshInspector from \"./components/MeshInspector.svelte\";"
+        },
+        {
+          "line": 3,
+          "source": "import fixture from \"../../examples/torus-comparison.json\";"
+        }
+      ],
+      "sha256": "9888d3bc3804914b5bfefc3cb9d977d74bbe21689777bf4577e3306a14642296"
+    },
+    "DiagnosticLayer.ts": {
+      "bytes": 4811,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import * as THREE from \"three\";"
+        },
+        {
+          "line": 2,
+          "source": "import { LineSegments2 } from \"three/addons/lines/LineSegments2.js\";"
+        },
+        {
+          "line": 3,
+          "source": "import { LineSegmentsGeometry } from \"three/addons/lines/LineSegmentsGeometry.js\";"
+        },
+        {
+          "line": 4,
+          "source": "import { LineMaterial } from \"three/addons/lines/LineMaterial.js\";"
+        },
+        {
+          "line": 5,
+          "source": "import type { MeshPayload, Selection } from \"../core/contracts.js\";"
+        },
+        {
+          "line": 6,
+          "source": "import type { DisplayFrame } from \"../core/math.js\";"
+        },
+        {
+          "line": 7,
+          "source": "import { clippingPlane, displayPositions } from \"../core/math.js\";"
+        },
+        {
+          "line": 8,
+          "source": "import { pathSegments } from \"../core/geometry.js\";"
+        },
+        {
+          "line": 9,
+          "source": "import type { InspectionState } from \"../core/state.js\";"
+        },
+        {
+          "line": 10,
+          "source": "import { ResourceScope } from \"./ResourceScope.js\";"
+        },
+        {
+          "line": 14,
+          "source": "export class DiagnosticLayer {"
+        }
+      ],
+      "sha256": "284b5f202ee2c811f1cd1348de8883dd85f743da17d102244a466ea34cae22fd"
+    },
+    "Index.svelte": {
+      "bytes": 8984,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 3,
+          "source": "import { onMount, onDestroy } from 'svelte';"
+        },
+        {
+          "line": 4,
+          "source": "import * as THREE from 'three';"
+        },
+        {
+          "line": 5,
+          "source": "import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';"
+        }
+      ],
+      "sha256": "b106d9d368c176ad2132c45816954bf7cc33d786203e66ab4931835f821c2c00"
+    },
+    "InspectorToolbar.svelte": {
+      "bytes": 3865,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "import type { ScalarField } from \"../core/contracts.js\";"
+        },
+        {
+          "line": 3,
+          "source": "import type { Bounds } from \"../core/math.js\";"
+        },
+        {
+          "line": 4,
+          "source": "import type { InspectionState } from \"../core/state.js\";"
+        }
+      ],
+      "sha256": "720be1280318a98a09011c0bfc8aabead6b61bf5ffc685369f0535f2b7b1c5a6"
+    },
+    "MATHEMATICS.md": {
+      "bytes": 5386,
+      "sha256": "a9f428b39b1db102a2ab9e165386dbcd76bbb8baa51b4fa5153abe97a993274f"
+    },
+    "MetricPanel.svelte": {
+      "bytes": 6406,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "import { onDestroy } from \"svelte\";"
+        },
+        {
+          "line": 3,
+          "source": "import type { MeshPayload, Metric, Selection } from \"../core/contracts.js\";"
+        },
+        {
+          "line": 4,
+          "source": "import { type Target, sameTarget, selectionHasGeometry } from \"../core/selection.js\";"
+        }
+      ],
+      "sha256": "95f59c5e1498b4aa779de6441e135e93e4696e1cef6f2a2df41c56eae9fedf8c"
+    },
+    "README.md": {
+      "bytes": 11276,
+      "sha256": "9cc7408342e7b6b8bb4856efabb89ce5d11ae2eb28dba56672e692ef7359c7de"
+    },
+    "ResourceScope.ts": {
+      "bytes": 606,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "export interface Disposable { dispose(): void }"
+        },
+        {
+          "line": 3,
+          "source": "export class ResourceScope {"
+        }
+      ],
+      "sha256": "513a979078d94c71858482a62f54d9346573977c432f1d21303ba8566c792def"
+    },
+    "ScalarLegend.svelte": {
+      "bytes": 1393,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "import type { ScalarField } from \"../core/contracts.js\";"
+        },
+        {
+          "line": 3,
+          "source": "import { legendGradient, MISSING_COLOR } from \"../core/colors.js\";"
+        }
+      ],
+      "sha256": "aeae0cff55c4837312103ab283f4f1a895f778194bc0f508a0c3b4556e5a9821"
+    },
+    "SurfaceLayer.ts": {
+      "bytes": 5897,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import * as THREE from \"three\";"
+        },
+        {
+          "line": 2,
+          "source": "import type { MeshPayload, Selection } from \"../core/contracts.js\";"
+        },
+        {
+          "line": 3,
+          "source": "import type { DisplayFrame } from \"../core/math.js\";"
+        },
+        {
+          "line": 4,
+          "source": "import { clippingPlane } from \"../core/math.js\";"
+        },
+        {
+          "line": 5,
+          "source": "import { cornerBuffers } from \"../core/geometry.js\";"
+        },
+        {
+          "line": 6,
+          "source": "import { faceColors } from \"../core/colors.js\";"
+        },
+        {
+          "line": 7,
+          "source": "import type { InspectionState } from \"../core/state.js\";"
+        },
+        {
+          "line": 8,
+          "source": "import { ResourceScope } from \"./ResourceScope.js\";"
+        },
+        {
+          "line": 9,
+          "source": "import { surfaceVertex, surfaceFragment } from \"./shaders.js\";"
+        },
+        {
+          "line": 11,
+          "source": "export class SurfaceLayer {"
+        }
+      ],
+      "sha256": "8b34ee3ce0c5f648fce1da7a80ffee3c38399aa16e394d56da7492e1929558f3"
+    },
+    "VERIFICATION.md": {
+      "bytes": 2694,
+      "sha256": "22418c78a22ab2740d26bd5360399f6ddf8f945ae6eadda9c352bd61fc63e334"
+    },
+    "Viewport.ts": {
+      "bytes": 13132,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import * as THREE from \"three\";"
+        },
+        {
+          "line": 2,
+          "source": "import { OrbitControls } from \"three/addons/controls/OrbitControls.js\";"
+        },
+        {
+          "line": 3,
+          "source": "import type { MeshPayload, Selection } from \"../core/contracts.js\";"
+        },
+        {
+          "line": 4,
+          "source": "import { type DisplayFrame, type Vec3, fitDistance, pulseOpacity, toDisplay } from \"../core/math.js\";"
+        },
+        {
+          "line": 5,
+          "source": "import { FrameScheduler } from \"../core/scheduler.js\";"
+        },
+        {
+          "line": 6,
+          "source": "import { defaultState, type InspectionState, validateState } from \"../core/state.js\";"
+        },
+        {
+          "line": 7,
+          "source": "import { resolveTarget, type Target } from \"../core/selection.js\";"
+        },
+        {
+          "line": 8,
+          "source": "import { SurfaceLayer } from \"./SurfaceLayer.js\";"
+        },
+        {
+          "line": 9,
+          "source": "import { DiagnosticLayer } from \"./DiagnosticLayer.js\";"
+        },
+        {
+          "line": 10,
+          "source": "import { pickTriangle } from \"./picking.js\";"
+        },
+        {
+          "line": 11,
+          "source": "import type { CameraPose } from \"./CameraLink.js\";"
+        },
+        {
+          "line": 13,
+          "source": "export interface ViewportOptions { onError?: (message: string | null) => void; onPick?: (target: Target | null) => void }"
+        },
+        {
+          "line": 15,
+          "source": "export class Viewport {"
+        }
+      ],
+      "sha256": "e63ec26be096768a58eace1245621611aab85a00b82c9935337672a1a46d41ef"
+    },
+    "__init__.py": {
+      "bytes": 444,
+      "imports": [
+        {
+          "line": 2,
+          "source": "from .contracts import InspectorDocument, MeshPayload, Metric, ScalarField, Selection, Trace"
+        },
+        {
+          "line": 3,
+          "source": "from .payload import document, inspect_triangles, mesh_payload"
+        },
+        {
+          "line": 4,
+          "source": "from .npz_io import load_numeric_npz"
+        }
+      ],
+      "sha256": "fb24d05a12bb7e61f5df2b2bca0bf246100e90937ddab03804e6dcd66dcb6f7b",
+      "symbols": []
+    },
+    "adapters.py": {
+      "bytes": 4225,
+      "imports": [
+        {
+          "line": 6,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 7,
+          "source": "from typing import Any"
+        },
+        {
+          "line": 8,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 9,
+          "source": "from .contracts import Metric, ScalarField, Selection"
+        },
+        {
+          "line": 10,
+          "source": "from .payload import mesh_payload"
+        }
+      ],
+      "sha256": "3b80a545c6fd3e5cb709b6c56eed62ecd3096597f89a901d7d29343d7172a761",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 13,
+          "name": "from_triangle_reports"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 39,
+          "name": "from_polygonal_report"
+        }
+      ]
+    },
+    "arrays.py": {
+      "bytes": 1502,
+      "imports": [
+        {
+          "line": 2,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 3,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 4,
+          "source": "from numpy.typing import ArrayLike, NDArray"
+        },
+        {
+          "line": 5,
+          "source": "from .contracts import MAX_TRIANGLES, MAX_VERTICES"
+        }
+      ],
+      "sha256": "734364dceaf5bbc77e44764122746ac52a00a5c925e450f87b8c1af93b6cc308",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 8,
+          "name": "mesh_arrays"
+        }
+      ]
+    },
+    "colors.ts": {
+      "bytes": 1360,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "export const SCALE = [\"#b2182b\", \"#ef8a62\", \"#f7f7f7\", \"#67a9cf\", \"#2166ac\"] as const;"
+        },
+        {
+          "line": 3,
+          "source": "export const MISSING_COLOR = \"#9ca3af\";"
+        },
+        {
+          "line": 6,
+          "source": "export const srgbToLinear = (c: number): number => c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;"
+        },
+        {
+          "line": 7,
+          "source": "export function scalarColor(value: number | null, domain: readonly [number, number]): RGB {"
+        },
+        {
+          "line": 14,
+          "source": "export const legendGradient = `linear-gradient(to right, ${SCALE.join(\", \")})`;"
+        },
+        {
+          "line": 15,
+          "source": "export function faceColors(values: readonly (number | null)[], domain: readonly [number, number]): Float32Array {"
+        }
+      ],
+      "sha256": "283a8387f97782dbd698faf97eb53f81689ed82a8f1fe500f563cd0bc4f40a34"
+    },
+    "contracts.py": {
+      "bytes": 7097,
+      "imports": [
+        {
+          "line": 2,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 4,
+          "source": "import math"
+        },
+        {
+          "line": 5,
+          "source": "from typing import Literal, Self"
+        },
+        {
+          "line": 6,
+          "source": "from pydantic import BaseModel, ConfigDict, Field, model_validator"
+        }
+      ],
+      "sha256": "eccce5af992334338cece4aae22b23fc856f1f0352857936cd6878489618549a",
+      "symbols": [
+        {
+          "kind": "ClassDef",
+          "line": 14,
+          "name": "Contract"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 18,
+          "name": "ScalarField"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 28,
+          "name": "ScalarField.ordered_domain"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 34,
+          "name": "Trace"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 43,
+          "name": "Trace.triples"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 49,
+          "name": "Selection"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 59,
+          "name": "Metric"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 68,
+          "name": "MeshPayload"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 85,
+          "name": "MeshPayload.valid_references"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 122,
+          "name": "InspectorDocument"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 128,
+          "name": "InspectorDocument.coherent_views"
+        }
+      ]
+    },
+    "contracts.ts": {
+      "bytes": 9740,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "export type Status = \"info\" | \"pass\" | \"warn\" | \"fail\" | \"unknown\";"
+        },
+        {
+          "line": 3,
+          "source": "export interface ScalarField {"
+        },
+        {
+          "line": 7,
+          "source": "export interface Trace {"
+        },
+        {
+          "line": 13,
+          "source": "export interface Selection {"
+        },
+        {
+          "line": 17,
+          "source": "export interface Metric {"
+        },
+        {
+          "line": 21,
+          "source": "export interface MeshPayload {"
+        },
+        {
+          "line": 26,
+          "source": "export interface InspectorDocument { schema_version: 1; meshes: MeshPayload[]; linked_views: boolean }"
+        },
+        {
+          "line": 27,
+          "source": "export class PayloadError extends Error { override name = \"PayloadError\"; }"
+        },
+        {
+          "line": 131,
+          "source": "export function parseDocument(value: unknown): InspectorDocument {"
+        }
+      ],
+      "sha256": "5f8aca0a16582cadef7b5e412b9b4868ea895e6bf12e2d81661a43e80bd64eb8"
+    },
+    "diagnostics.py": {
+      "bytes": 3748,
+      "imports": [
+        {
+          "line": 6,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 7,
+          "source": "from dataclasses import dataclass"
+        },
+        {
+          "line": 8,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 9,
+          "source": "from numpy.typing import ArrayLike, NDArray"
+        },
+        {
+          "line": 10,
+          "source": "from .arrays import mesh_arrays"
+        }
+      ],
+      "sha256": "f7791048626bbd591b0b7ba1f064db90d7e40369402ce9fba8dc0704e2a123bf",
+      "symbols": [
+        {
+          "kind": "ClassDef",
+          "line": 14,
+          "name": "EdgeIncidence"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 24,
+          "name": "edge_incidence"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 43,
+          "name": "TriangleQuality"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 50,
+          "name": "triangle_quality"
+        }
+      ]
+    },
+    "geometry.ts": {
+      "bytes": 1828,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import type { MeshPayload } from \"./contracts.js\";"
+        },
+        {
+          "line": 2,
+          "source": "import { displayPositions, type DisplayFrame } from \"./math.js\";"
+        },
+        {
+          "line": 3,
+          "source": "export interface CornerBuffers { positions: Float32Array; centers: Float32Array; barycentric: Float32Array }"
+        },
+        {
+          "line": 4,
+          "source": "export function cornerBuffers(mesh: MeshPayload, frame: DisplayFrame, byteBudget = 96 * 1024 * 1024): CornerBuffers {"
+        },
+        {
+          "line": 26,
+          "source": "export function pathSegments(points: readonly number[]): number[] {"
+        }
+      ],
+      "sha256": "4bb32dcf5d3d20e87adc9a2a67817edeb6ef3c03c5c67b272e55d62945e8f4fb"
+    },
+    "gradio_component.py": {
+      "bytes": 1671,
+      "imports": [
+        {
+          "line": 6,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 7,
+          "source": "from typing import Any"
+        },
+        {
+          "line": 8,
+          "source": "from gradio.components.base import Component"
+        },
+        {
+          "line": 9,
+          "source": "from gradio.data_classes import GradioModel"
+        },
+        {
+          "line": 10,
+          "source": "from .contracts import InspectorDocument, MeshPayload"
+        }
+      ],
+      "sha256": "fe2332a6e78c238d4ffa1e11e1d531ec90b294e19d8832a043dd2ba3526125d2",
+      "symbols": [
+        {
+          "kind": "ClassDef",
+          "line": 13,
+          "name": "InspectorData"
+        },
+        {
+          "kind": "ClassDef",
+          "line": 19,
+          "name": "MeshDiagnostics"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 24,
+          "name": "MeshDiagnostics.__init__"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 27,
+          "name": "MeshDiagnostics.preprocess"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 31,
+          "name": "MeshDiagnostics.postprocess"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 40,
+          "name": "MeshDiagnostics.example_payload"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 43,
+          "name": "MeshDiagnostics.example_value"
+        }
+      ]
+    },
+    "gradio_demo.py": {
+      "bytes": 784,
+      "imports": [
+        {
+          "line": 6,
+          "source": "import gradio as gr"
+        },
+        {
+          "line": 7,
+          "source": "from make_fixture import build"
+        },
+        {
+          "line": 9,
+          "source": "from gradio_meshdiagnostics import MeshDiagnostics"
+        }
+      ],
+      "sha256": "31334418a3a9f6f1ccede2e3caf136575e7882d4e19afa1340e4b96b16c29c10",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 12,
+          "name": "make_display_document"
+        }
+      ]
+    },
+    "index.html": {
+      "bytes": 266,
+      "sha256": "52502c3f23503064c4cc22d68fc031adf043eacb3c722b74d568df70e83dc888"
+    },
+    "legacy.py": {
+      "bytes": 4845,
+      "imports": [
+        {
+          "line": 7,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 8,
+          "source": "from collections.abc import Mapping"
+        },
+        {
+          "line": 9,
+          "source": "from typing import Any"
+        },
+        {
+          "line": 10,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 11,
+          "source": "from .contracts import Metric, ScalarField, Selection, Trace"
+        },
+        {
+          "line": 12,
+          "source": "from .payload import mesh_payload"
+        }
+      ],
+      "sha256": "ace25a02a60f25c0f565f0da5e44f8394f07819a7712e4d69559630258fc12db",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 15,
+          "name": "upgrade_legacy_payload"
+        }
+      ]
+    },
+    "main.ts": {
+      "bytes": 198,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import { mount } from \"svelte\";"
+        },
+        {
+          "line": 2,
+          "source": "import Demo from \"./Demo.svelte\";"
+        }
+      ],
+      "sha256": "c4aeafac2cab7694e6378c93bb664f32d9669eb62295f440227139608c584f77"
+    },
+    "make_fixture.py": {
+      "bytes": 2468,
+      "imports": [
+        {
+          "line": 2,
+          "source": "from pathlib import Path"
+        },
+        {
+          "line": 3,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 4,
+          "source": "from cad_mesh_inspector import document, inspect_triangles, Metric, Selection, Trace"
+        }
+      ],
+      "sha256": "80a974e6668b4680d088c03f3322d693d351e631d64d601f269b997e2068b49d",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 7,
+          "name": "build"
+        }
+      ]
+    },
+    "math.ts": {
+      "bytes": 3167,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import type { MeshPayload } from \"./contracts.js\";"
+        },
+        {
+          "line": 2,
+          "source": "export type Vec3 = [number, number, number];"
+        },
+        {
+          "line": 3,
+          "source": "export interface Bounds { min: Vec3; max: Vec3 }"
+        },
+        {
+          "line": 4,
+          "source": "export interface DisplayFrame { origin: Vec3; scale: number }"
+        },
+        {
+          "line": 5,
+          "source": "export const clamp = (x: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, x));"
+        },
+        {
+          "line": 6,
+          "source": "export function boundsOf(positions: ArrayLike<number>): Bounds | null {"
+        },
+        {
+          "line": 15,
+          "source": "export function frameFor(meshes: readonly MeshPayload[]): DisplayFrame {"
+        },
+        {
+          "line": 30,
+          "source": "export function toDisplay(point: ArrayLike<number>, frame: DisplayFrame): Vec3 {"
+        },
+        {
+          "line": 34,
+          "source": "export function displayPositions(positions: ArrayLike<number>, frame: DisplayFrame): Float32Array {"
+        },
+        {
+          "line": 44,
+          "source": "export function clippingPlane(axis: 0 | 1 | 2, offset: number, frame: DisplayFrame): [number, number, number, number] {"
+        },
+        {
+          "line": 49,
+          "source": "export function shrinkPoint(point: Vec3, center: Vec3, factor: number): Vec3 {"
+        },
+        {
+          "line": 52,
+          "source": "export function fitDistance(radius: number, verticalFovDegrees: number, aspect: number, padding = 1.15): number {"
+        },
+        {
+          "line": 57,
+          "source": "export function pulseOpacity(seconds: number): number { return 0.85 + 0.15 * Math.sin(2 * Math.PI * 0.8 * seconds); }"
+        }
+      ],
+      "sha256": "0546d8efb755c6c945d73f6b74e6bebd0fa7674f76231dec8c49403420aa5685"
+    },
+    "package.json": {
+      "bytes": 728,
+      "sha256": "c607fcb8833d169742c2ed6c96de411a60ee08694e75b9b2231a1975dd61a995"
+    },
+    "payload.py": {
+      "bytes": 4863,
+      "imports": [
+        {
+          "line": 2,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 3,
+          "source": "from collections.abc import Sequence"
+        },
+        {
+          "line": 4,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 5,
+          "source": "from numpy.typing import ArrayLike"
+        },
+        {
+          "line": 6,
+          "source": "from .arrays import mesh_arrays"
+        },
+        {
+          "line": 7,
+          "source": "from .contracts import InspectorDocument, MeshPayload, Metric, ScalarField, Selection, Trace"
+        },
+        {
+          "line": 8,
+          "source": "from .diagnostics import edge_incidence, triangle_quality"
+        }
+      ],
+      "sha256": "3af686ba86d5c4f7072b932e23f6a8e7256bb73a2c47eab4800ab733e601f226",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 11,
+          "name": "mesh_payload"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 23,
+          "name": "inspect_triangles"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 69,
+          "name": "document"
+        }
+      ]
+    },
+    "picking.ts": {
+      "bytes": 1829,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import * as THREE from \"three\";"
+        },
+        {
+          "line": 2,
+          "source": "import { clippingPlane } from \"../core/math.js\";"
+        },
+        {
+          "line": 3,
+          "source": "import type { InspectionState } from \"../core/state.js\";"
+        },
+        {
+          "line": 4,
+          "source": "import type { SurfaceLayer } from \"./SurfaceLayer.js\";"
+        },
+        {
+          "line": 10,
+          "source": "export function pickTriangle(layer: SurfaceLayer, ray: THREE.Ray, state: InspectionState,"
+        }
+      ],
+      "sha256": "35502d44b987ab7ce23c5dc5d60a22f8b8e104c563040f0056d0ec0bc8be2f73"
+    },
+    "pyproject.toml": {
+      "bytes": 527,
+      "sha256": "aaf8dbf2db2dd4da81d62235b56af2e1b25989c53a323ddee4594346a31e27d7"
+    },
+    "scheduler.ts": {
+      "bytes": 1283,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "export class FrameScheduler {"
+        }
+      ],
+      "sha256": "c49cf51a6e6d72e3d8f27286374ba20af088b0e85585de108b63b6d6c903ae0b"
+    },
+    "selection.ts": {
+      "bytes": 1399,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "import type { MeshPayload, Selection } from \"./contracts.js\";"
+        },
+        {
+          "line": 3,
+          "source": "export type Target = (Scoped & { kind: \"selection\"; id: string }) | (Scoped & { kind: \"face\"; faceId: number }) | (Scoped & { kind: \"path\"; pathId: string });"
+        },
+        {
+          "line": 4,
+          "source": "export function resolveTarget(mesh: MeshPayload, target: Target | null): Selection | null {"
+        },
+        {
+          "line": 12,
+          "source": "export function sameTarget(a: Target | null, b: Target | null): boolean { return JSON.stringify(a) === JSON.stringify(b); }"
+        },
+        {
+          "line": 13,
+          "source": "export function selectionHasGeometry(selection: Selection | undefined): boolean {"
+        }
+      ],
+      "sha256": "284709c8fabd58271ea7d272739e09f43629cd1d1c35c72374768fb0da1035fe"
+    },
+    "shaders.ts": {
+      "bytes": 2383,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 2,
+          "source": "export const surfaceVertex = /* glsl */ `"
+        },
+        {
+          "line": 26,
+          "source": "export const surfaceFragment = /* glsl */ `"
+        }
+      ],
+      "sha256": "f20f2baefb0acde863f245df1efa845f6b0967ff6853ff68d0f4d3719e124eeb"
+    },
+    "state.ts": {
+      "bytes": 918,
+      "lexical_declarations_and_tests": [
+        {
+          "line": 1,
+          "source": "export interface InspectionState {"
+        },
+        {
+          "line": 15,
+          "source": "export const defaultState = (): InspectionState => ({ mode: \"solid\", fieldId: null, shrink: 1, wire: true,"
+        },
+        {
+          "line": 18,
+          "source": "export function validateState(s: InspectionState): void {"
+        }
+      ],
+      "sha256": "cb25ba5f50a3d4ecb963659cad51572d0d150cb983934b73bd55f45aa7edd006"
+    },
+    "test_contracts.py": {
+      "bytes": 3301,
+      "imports": [
+        {
+          "line": 1,
+          "source": "import json"
+        },
+        {
+          "line": 2,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 3,
+          "source": "import pytest"
+        },
+        {
+          "line": 4,
+          "source": "from pydantic import ValidationError"
+        },
+        {
+          "line": 5,
+          "source": "from cad_mesh_inspector import document, inspect_triangles, InspectorDocument"
+        },
+        {
+          "line": 6,
+          "source": "from cad_mesh_inspector.legacy import upgrade_legacy_payload"
+        }
+      ],
+      "sha256": "ecf84c48c44fd5b41032c7feb918f0776e8046a632efbb0e5f9a96b9c6b7787b",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 9,
+          "name": "payload"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 13,
+          "name": "test_json_roundtrip"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 29,
+          "name": "test_bad_contract_references"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 34,
+          "name": "test_unknown_scalar_is_null_not_perfect_quality"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 39,
+          "name": "test_comparison_requires_matching_frame_and_units"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 46,
+          "name": "test_paired_scalar_domains_must_match"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 51,
+          "name": "test_legacy_does_not_endorse_jacobian_or_manifold_claims"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 59,
+          "name": "test_legacy_crashed_path_not_cycle_or_collision_proof"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 64,
+          "name": "test_no_synthetic_paths_on_missing_input"
+        }
+      ]
+    },
+    "test_diagnostics.py": {
+      "bytes": 4056,
+      "imports": [
+        {
+          "line": 1,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 2,
+          "source": "import pytest"
+        },
+        {
+          "line": 3,
+          "source": "from cad_mesh_inspector.arrays import mesh_arrays"
+        },
+        {
+          "line": 4,
+          "source": "from cad_mesh_inspector.diagnostics import edge_incidence, triangle_quality"
+        },
+        {
+          "line": 5,
+          "source": "from cad_mesh_inspector import inspect_triangles"
+        }
+      ],
+      "sha256": "96bf57659f5dd8a0df1d421a246c50a17adf693dd518c5fff1a1f9e3c18579ed",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 11,
+          "name": "test_equilateral_scale_invariance"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 18,
+          "name": "test_reversing_winding_does_not_make_mean_ratio_signed"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 22,
+          "name": "test_sliver_and_degenerate_are_not_given_fake_area"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 31,
+          "name": "test_triangle_boundary_edges_are_not_three_loops"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 37,
+          "name": "test_nonmanifold_three_faces_share_one_edge"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 43,
+          "name": "test_winding_conflicts_distinct_from_edge_degree"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 51,
+          "name": "test_closed_tetrahedron_incidence"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 58,
+          "name": "test_duplicate_rows_and_repeated_vertices_preserved"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 65,
+          "name": "test_empty_arrays_work"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 70,
+          "name": "test_invalid_connectivity_rejected_before_unsigned_cast"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 74,
+          "name": "test_nonfinite_coordinates_rejected"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 79,
+          "name": "test_flat_inputs_count_entities_not_coordinates"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 85,
+          "name": "test_boundaries_are_policy_not_automatic_failure"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 92,
+          "name": "test_no_mutation_and_tolerance_units"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 99,
+          "name": "test_bad_threshold"
+        }
+      ]
+    },
+    "test_gradio.py": {
+      "bytes": 802,
+      "imports": [
+        {
+          "line": 1,
+          "source": "import pytest"
+        },
+        {
+          "line": 3,
+          "source": "from cad_mesh_inspector.gradio_component import MeshDiagnostics"
+        },
+        {
+          "line": 4,
+          "source": "from cad_mesh_inspector import document, inspect_triangles"
+        }
+      ],
+      "sha256": "3a8aa1c4f9f2b72e98c1d865516ab35453a72163999803b780d068de454531e3",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 7,
+          "name": "test_gradio_output_validation_and_no_browser_geometry_input"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 16,
+          "name": "test_gradio_rejects_error_instead_of_blank_fallback"
+        }
+      ]
+    },
+    "test_host_adapters.py": {
+      "bytes": 1678,
+      "imports": [
+        {
+          "line": 2,
+          "source": "import importlib"
+        },
+        {
+          "line": 3,
+          "source": "import os"
+        },
+        {
+          "line": 4,
+          "source": "from pathlib import Path"
+        },
+        {
+          "line": 5,
+          "source": "import sys"
+        },
+        {
+          "line": 6,
+          "source": "import types"
+        },
+        {
+          "line": 7,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 8,
+          "source": "import pytest"
+        },
+        {
+          "line": 9,
+          "source": "from cad_mesh_inspector.adapters import from_polygonal_report,from_triangle_reports"
+        }
+      ],
+      "sha256": "4a37f36136a401bb1dcc9f218f12aa32a470c531bbd85f68aa8a14972443bc14",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 12,
+          "name": "host"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 22,
+          "name": "test_adapter_uses_existing_quality_definition"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 31,
+          "name": "test_adapter_maps_source_polygon_to_triangles"
+        }
+      ]
+    },
+    "test_io.py": {
+      "bytes": 2107,
+      "imports": [
+        {
+          "line": 1,
+          "source": "import io"
+        },
+        {
+          "line": 2,
+          "source": "import zipfile"
+        },
+        {
+          "line": 3,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 4,
+          "source": "import pytest"
+        },
+        {
+          "line": 5,
+          "source": "from cad_mesh_inspector.npz_io import load_numeric_npz"
+        },
+        {
+          "line": 6,
+          "source": "from cad_mesh_inspector.traces import traces_from_offsets"
+        }
+      ],
+      "sha256": "c6f8e2ae97833dccfcd39589565df9c692f9667533163caf061af52db207595f",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 9,
+          "name": "test_numeric_npz_aliases"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 15,
+          "name": "test_pickle_object_rejected"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 20,
+          "name": "test_bad_header_shape_before_allocation"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 27,
+          "name": "test_ambiguous_keys_rejected"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 32,
+          "name": "test_unexpected_member_rejected"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 38,
+          "name": "test_truncated_file_raises"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 43,
+          "name": "test_offsets_make_imported_paths_without_inferred_states"
+        },
+        {
+          "kind": "FunctionDef",
+          "line": 48,
+          "name": "test_bad_offsets"
+        }
+      ]
+    },
+    "torus-comparison.json": {
+      "bytes": 184325,
+      "sha256": "3760c0d514fef13722d35e1664121920a83eef30b8153d1bfc43e18da7e5bbd6"
+    },
+    "traces.py": {
+      "bytes": 1267,
+      "imports": [
+        {
+          "line": 2,
+          "source": "from __future__ import annotations"
+        },
+        {
+          "line": 3,
+          "source": "from collections.abc import Sequence"
+        },
+        {
+          "line": 4,
+          "source": "import numpy as np"
+        },
+        {
+          "line": 5,
+          "source": "from .contracts import Trace"
+        }
+      ],
+      "sha256": "de6fc665ac7290f1b308f392ed34ee5da9173e5c3a92187456cf4b48cbf25612",
+      "symbols": [
+        {
+          "kind": "FunctionDef",
+          "line": 8,
+          "name": "traces_from_offsets"
+        }
+      ]
+    },
+    "tsconfig.core.json": {
+      "bytes": 370,
+      "sha256": "dbd3a66855b737809897fcd9fa55bcc41fc41640bda0f889671086e2b2209d2c"
+    },
+    "tsconfig.json": {
+      "bytes": 335,
+      "sha256": "5bb7223f45c563c500958b5d4943b80b4a40d0108245487f129a57eaa10821af"
+    }
+  },
+  "loose_file_count_excluding_archive": 47,
+  "method": "Archive root stripped; exact relative paths first. Basenames are candidates, not equivalence.",
+  "same_relative_path": [
+    {
+      "archive": "CODEX_INTEGRATION.md",
+      "equal": true,
+      "loose": "CODEX_INTEGRATION.md"
+    },
+    {
+      "archive": "README.md",
+      "equal": true,
+      "loose": "README.md"
+    },
+    {
+      "archive": "pyproject.toml",
+      "equal": false,
+      "loose": "pyproject.toml"
+    }
+  ]
+}

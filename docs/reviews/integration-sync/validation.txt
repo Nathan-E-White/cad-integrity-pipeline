@@ -1,0 +1,28 @@
+Working directory: /private/tmp/cad-integrity-integration-sync
+Baseline: 075b2dd11f49e7781daa50dc26b8f2827c178f61
+Cleanup diff: bc78be0...e9178bb
+
+Read-only dependency check:
+PYTHONDONTWRITEBYTECODE=1 /Users/nathanwhite/Software-Development/cad-integrity-pipeline/.pixi/envs/default/bin/python -B scripts/check_dependencies.py
+Dependency declarations and parent/child relationships verified.
+
+Baseline artifact check, before creating review artifacts:
+python3 -B scripts/verify_artifacts.py
+Artifact manifests verified.
+
+Focused regression command:
+TMPDIR=/private/tmp/cad-integrity-integration-sync/outputs/integration-sync/tmp PYTHONDONTWRITEBYTECODE=1 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 /Users/nathanwhite/Software-Development/cad-integrity-pipeline/.pixi/envs/default/bin/python -B -m pytest tests/test_repository_manifests.py -q -p no:cacheprovider --basetemp=/private/tmp/cad-integrity-integration-sync/outputs/integration-sync/pytest
+.......                                                                  [100%]
+7 passed in 0.17s
+
+Static delivery inventory:
+python3 -B docs/reviews/integration-sync/compare_diagnostics.py > docs/reviews/integration-sync/diagnostics-inventory.json
+50 archive files; 47 loose files excluding archive.
+49 archive manifest entries; zero hash mismatches.
+Three exact-relative-path peers, two byte-equal documentation files.
+Five byte-equal basename peers, all documentation.
+32 archive Python test functions; 35 loose Python test functions.
+These are AST counts, not pytest execution results.
+
+No package installations, prototype execution, CAD suites, frontend builds,
+browser/GPU acceptance or hosted CI verification performed in this review.

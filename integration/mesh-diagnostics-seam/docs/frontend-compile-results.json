@@ -1,0 +1,82 @@
+{
+  "svelte": "5.48.0",
+  "typescript": "5.8.3",
+  "errors": 0,
+  "results": [
+    {
+      "file": "Example.svelte",
+      "kind": "svelte-client",
+      "warnings": []
+    },
+    {
+      "file": "Index.svelte",
+      "kind": "svelte-client",
+      "warnings": []
+    },
+    {
+      "file": "demo/App.svelte",
+      "kind": "svelte-client",
+      "warnings": []
+    },
+    {
+      "file": "demo/main.ts",
+      "kind": "ts-syntax",
+      "errors": []
+    },
+    {
+      "file": "src/components/MeshDiagnosticsView.svelte",
+      "kind": "svelte-client",
+      "warnings": []
+    },
+    {
+      "file": "src/components/MetricsPanel.svelte",
+      "kind": "svelte-client",
+      "warnings": []
+    },
+    {
+      "file": "src/model/buffers.ts",
+      "kind": "ts-syntax",
+      "errors": []
+    },
+    {
+      "file": "src/model/frame.ts",
+      "kind": "ts-syntax",
+      "errors": []
+    },
+    {
+      "file": "src/model/parse.ts",
+      "kind": "ts-syntax",
+      "errors": []
+    },
+    {
+      "file": "src/model/types.ts",
+      "kind": "ts-syntax",
+      "errors": []
+    },
+    {
+      "file": "src/render/DiagnosticsLayer.ts",
+      "kind": "ts-syntax",
+      "errors": []
+    },
+    {
+      "file": "src/render/ThreeMeshViewport.ts",
+      "kind": "ts-syntax",
+      "errors": []
+    },
+    {
+      "file": "src/render/resources.ts",
+      "kind": "ts-syntax",
+      "errors": []
+    },
+    {
+      "file": "test/model.test.ts",
+      "kind": "ts-syntax",
+      "errors": []
+    },
+    {
+      "file": "vite.config.ts",
+      "kind": "ts-syntax",
+      "errors": []
+    }
+  ]
+}

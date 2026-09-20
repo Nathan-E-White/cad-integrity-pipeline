@@ -1,0 +1,43 @@
+Working tree: /private/tmp/cad-integrity-integration-sync
+Baseline: 075b2dd
+Review: September 20, 2026
+
+Test interpreter (existing environment, no installation):
+/Users/nathanwhite/Software-Development/cad-integrity-pipeline/.pixi/envs/default/bin/python
+
+Environment for both supplied suites:
+TMPDIR=/private/tmp/cad-integrity-integration-sync/outputs/integration-sync/tmp
+PYTHONDONTWRITEBYTECODE=1
+PYTEST_DISABLE_PLUGIN_AUTOLOAD=1
+XDG_CACHE_HOME=/private/tmp/cad-integrity-integration-sync/outputs/integration-sync/cache
+
+Working directory: integration/mesh_healing_extension
+Command: python -B -m pytest -q -p no:cacheprovider --basetemp=/private/tmp/cad-integrity-integration-sync/outputs/integration-sync/healing-tests
+.....................................................................    [100%]
+69 passed in 15.11s
+Exit 0; no skips.
+
+Working directory: integration/nurbs_core_professionalized
+Command: python -B -m pytest -q -p no:cacheprovider --basetemp=/private/tmp/cad-integrity-integration-sync/outputs/integration-sync/nurbs-tests
+........................................................................ [ 54%]
+............................................................             [100%]
+132 passed in 6.88s
+Exit 0; no skips.
+
+Working directory: repository root
+Command: TMPDIR=/private/tmp/cad-integrity-integration-sync/outputs/integration-sync/tmp /usr/bin/clang++ -std=c++2c -fsyntax-only -I native/nurbs/include native/nurbs/src/nurbs.cpp
+Exit 1; eight compiler errors. Diagnostic excerpts:
+native/nurbs/src/nurbs.cpp:304:15: error: use of class template 'SurfaceGeometry' requires template arguments
+native/nurbs/include/cad_mat/nurbs.hpp:103:11: note: template is declared here
+native/nurbs/src/nurbs.cpp:340:19: error: no viable constructor or deduction guide for deduction of template arguments of 'SurfaceGeometry'
+Additional errors cascade from the invalid return type. Toolchain also emitted
+Xcode cache/event-stream warnings; the source template mismatch is explicit and
+does not depend on treating those warnings as a geometry failure.
+
+Archive/static inventory:
+python3 -B docs/reviews/integration-sync/compare_geometry_bundles.py
+Mesh healing: 19 paths; 16 equal, 3 metadata/manifests changed, 0 missing.
+NURBS: 24 paths; 24 equal, 0 changed, 0 missing.
+
+No fresh environment, browser, hosted CI, maximum-resource or native/Python parity
+qualification performed. No prototype algorithms or native files edited.
