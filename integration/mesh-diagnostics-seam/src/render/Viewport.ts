@@ -40,6 +40,7 @@ export class Viewport {
 
   constructor(private readonly host: HTMLElement, private readonly options: ViewportOptions = {}) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+    try {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.localClippingEnabled = true;
     this.scene.background = new THREE.Color("#f8fafc");
@@ -70,6 +71,7 @@ export class Viewport {
     this.renderer.domElement.addEventListener("pointerup", this.pointerUp);
     this.renderer.domElement.addEventListener("pointercancel", this.pointerCancel);
     this.resize();
+    } catch (error) { this.dispose(); throw error; }
   }
 
   setMesh(mesh: MeshPayload, frame: DisplayFrame): void {
@@ -201,10 +203,10 @@ export class Viewport {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
-    this.scheduler.dispose(); this.resizeObserver.disconnect(); this.intersectionObserver.disconnect();
+    this.scheduler?.dispose(); this.resizeObserver?.disconnect(); this.intersectionObserver?.disconnect();
     document.removeEventListener("visibilitychange", this.updateEnabled); window.removeEventListener("resize", this.resize);
     this.reducedMotion.removeEventListener("change", this.changed);
-    this.controls.removeEventListener("change", this.changed); this.controls.removeEventListener("start", this.cancelFocus); this.controls.dispose();
+    this.controls?.removeEventListener("change", this.changed); this.controls?.removeEventListener("start", this.cancelFocus); this.controls?.dispose();
     const canvas = this.renderer.domElement;
     canvas.removeEventListener("webglcontextlost", this.lost); canvas.removeEventListener("webglcontextrestored", this.restored);
     canvas.removeEventListener("pointerdown", this.pointerDown); canvas.removeEventListener("pointerup", this.pointerUp); canvas.removeEventListener("pointercancel", this.pointerCancel);

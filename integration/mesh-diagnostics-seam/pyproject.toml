@@ -1,21 +1,30 @@
 [build-system]
-requires = ["setuptools>=70"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
 
 [project]
-name = "cad-mesh-inspector"
+name = "gradio_meshdiagnostics"
 version = "0.1.0"
-description = "Bounded diagnostic display contracts and Svelte/Three.js integration seams"
+description = "Bounded diagnostic display contracts and Svelte/Three.js Gradio component"
+readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["numpy>=1.26", "pydantic>=2.10,<3"]
+keywords = ["gradio-custom-component"]
 
 [project.optional-dependencies]
 gradio = ["gradio>=6,<7"]
 test = ["pytest>=8"]
 
-[tool.setuptools.packages.find]
-where = ["python"]
+[tool.hatch.build]
+artifacts = ["/backend/gradio_meshdiagnostics/templates"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["python/cad_mesh_inspector", "backend/gradio_meshdiagnostics"]
+
+[tool.hatch.build.targets.sdist]
+include = ["python", "backend", "src", "tests", "examples", "scripts", "*.svelte", "*.ts", "*.js", "*.json", "*.md", "*.toml", "index.html"]
+exclude = ["node_modules", ".core-build", "dist", "test-results"]
 
 [tool.pytest.ini_options]
-pythonpath = ["python"]
+pythonpath = ["python", "backend"]
 testpaths = ["tests"]

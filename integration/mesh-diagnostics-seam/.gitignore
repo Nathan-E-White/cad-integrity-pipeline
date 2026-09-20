@@ -1,0 +1,6 @@
+node_modules/
+.core-build/
+test-results/
+playwright-report/
+backend/gradio_meshdiagnostics/templates/
+*.pyi

@@ -47,3 +47,33 @@ def test_offsets_make_imported_paths_without_inferred_states():
 @pytest.mark.parametrize("offsets",[np.array([1,5]),np.array([0,1,5]),np.array([0,6]),np.array([0.,5.])])
 def test_bad_offsets(offsets):
     with pytest.raises(ValueError): traces_from_offsets(np.arange(15.).reshape(5,3),offsets)
+
+
+def test_archive_budgets_and_invalid_connectivity(tmp_path):
+    from cad_mesh_inspector.npz_io import ArchiveLimits
+    p = tmp_path / "mesh.npz"
+    np.savez(p, positions=np.zeros((3, 3)), triangles=np.array([[0, 1, 3]]))
+    with pytest.raises(ValueError, match="compressed-byte"):
+        load_numeric_npz(p, ArchiveLimits(max_compressed_bytes=1))
+    with pytest.raises(ValueError, match="expanded-byte"):
+        load_numeric_npz(p, ArchiveLimits(max_expanded_bytes=1))
+    with pytest.raises(ValueError, match="members"):
+        load_numeric_npz(p, ArchiveLimits(max_members=1))
+    with pytest.raises(ValueError, match="out of range"):
+        load_numeric_npz(p)
+
+
+def test_duplicate_members_and_truncated_body(tmp_path):
+    p = tmp_path / "mesh.npz"
+    array = io.BytesIO()
+    np.save(array, np.zeros((3, 3)))
+    with zipfile.ZipFile(p, "w") as archive:
+        archive.writestr("positions.npy", array.getvalue())
+        with pytest.warns(UserWarning):
+            archive.writestr("positions.npy", array.getvalue())
+    with pytest.raises(ValueError, match="duplicate"):
+        load_numeric_npz(p)
+    with zipfile.ZipFile(p, "w") as archive:
+        archive.writestr("positions.npy", array.getvalue()[:-1])
+    with pytest.raises(ValueError, match="header shape"):
+        load_numeric_npz(p)
