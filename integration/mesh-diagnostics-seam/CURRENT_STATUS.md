@@ -4,8 +4,8 @@ September 20, 2026. Start with the repository's current
 [integration plan](../../docs/INTEGRATION_PLAN.md) for adoption scope and ownership.
 This directory is integration material, not an installed host component.
 
-The original loose delivery places files such as `contracts.py`, `payload.py`,
-`gradio_component.py`, and `Index.svelte` directly in this directory. Missing
+The original loose delivery placed files such as `contracts.py`, `payload.py`,
+`gradio_component.py`, and `Index.svelte` directly in this directory (their current Python locations are listed below). Missing
 archive-relative files were subsequently restored under `python/`, `frontend/`,
 `gradio_adapter/`, `tests/`, `examples/`, `docs/`, and `tools/`, without overwriting
 the loose files. The two layouts have different contracts; restoring files does
@@ -21,3 +21,30 @@ this combined directory or the host application. They remain unchanged, as does
 Agree the adopted package and wire contract before following either delivery's
 installation instructions. Host integration and a built Gradio frontend remain
 separate work.
+
+## Runnable loose Python package
+
+The formerly flat Python modules now live in `python/cad_mesh_inspector/`.
+The distribution `cad-mesh-inspector` installs this package only; the restored
+`python/mesh_diagnostics/` remains a separate reference implementation.
+Use `from cad_mesh_inspector import inspect_triangles` or import submodules such
+as `cad_mesh_inspector.adapters`. The optional Gradio backend is
+`cad_mesh_inspector.gradio_component`; packaging it does not build a frontend.
+
+From this directory, with the host and test/Gradio dependencies installed:
+
+```sh
+python -m pip install --no-deps -e .
+python -m pytest tests_loose -q
+python make_fixture.py
+```
+
+Pytest also supports a source checkout through the configured `python` path.
+The default test target is `tests_loose`; restored archive tests remain in `tests`
+and must be requested separately. Host adapter tests require the host package or
+`CAD_INTEGRITY_SOURCE_DIR` pointing to its `src/cad_integrity` directory.
+
+`test_io.py` remains an unfinished delivery specification outside that target:
+its `cad_mesh_inspector.npz_io.load_numeric_npz` implementation was never supplied.
+The package no longer advertises that missing function. Archive NPZ behavior is
+not substituted for it. LE-4 through LE-6 are still separate behavioral repairs.

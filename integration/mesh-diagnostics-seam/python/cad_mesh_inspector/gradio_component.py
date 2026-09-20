@@ -1,7 +1,7 @@
 """Backend seam for a BUILT custom Gradio component, not a drop-in gr.HTML hack.
 
 The Gradio-generated package must include the compiled frontend and metadata.
-See CURRENT_STATUS.md for the current integration guide and delivery boundaries.
+See ../../CURRENT_STATUS.md for the current integration guide and delivery boundaries.
 This class alone does not install a custom frontend.
 """
 from __future__ import annotations
