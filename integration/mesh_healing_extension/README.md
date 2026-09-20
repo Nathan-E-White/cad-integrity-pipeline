@@ -367,7 +367,7 @@ still a relaxed linear field smoother, not a prescribed-singularity optimizer.
 
 ## Verification and remaining engineering boundaries
 
-The current suite adds twelve regression cases to the original 69 below. They
+The current suite adds fourteen regression cases to the original 69 below. They
 cover preservation of warped-quad and polygon triangulation during winding repair, NumPy
 face selections in JSON export, large finite faces during preprocessing,
 transactional numerical-range rejection, UV overflow rejection before export,
@@ -375,6 +375,20 @@ cross-field normalization of large and tiny nonzero normals, and scale-invariant
 cotangent weights at extreme uniform scales. Polygon ears are selected by vertex
 coordinates so reversing winding or splitting a vertex fan preserves the discrete
 surface when coordinates remain unchanged.
+
+The additional connectivity cases verify that missing or invalid half-edge next
+pointers raise `TopologyError`. Solver update caches use distinct typed Woodbury
+and sparse-refactor records; their numerical paths and reuse counters are unchanged.
+The engine and exporter pass the following focused check from the repository root
+using the development environment's mypy and SciPy stubs:
+
+```bash
+python -m mypy --follow-imports=skip \
+  integration/mesh_healing_extension/mesh_healing_engine.py \
+  integration/mesh_healing_extension/mesh_export.py
+```
+
+This checks these two modules, not the entire repository or demo orchestration.
 
 Finite inputs alone do not guarantee representable intermediate arithmetic.
 Unrepresentable face-coordinate differences raise `NumericalRangeError` and

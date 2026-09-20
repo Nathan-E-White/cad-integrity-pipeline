@@ -538,6 +538,17 @@ def test_legacy_uniform_helper_and_geometry_route(grid):
         parameterize_macro_patch([4],b,e.adjacency,weighting='cotangent')
 
 
+@pytest.mark.parametrize('broken_next', [None, 999])
+def test_halfedge_operations_reject_broken_connectivity(grid, broken_next):
+    engine, _ = grid
+    tracer = MotorcycleGraphTracer.from_mesh(engine)
+    tracer.half_edges[0].next_he = broken_next
+    with pytest.raises(TopologyError, match='next_he'):
+        tracer.edge_vertex_map()
+    with pytest.raises(TopologyError, match='next_he'):
+        tracer.find_straight_ahead_opposite(0)
+
+
 def test_halfedge_tracer_records_exit_boundary_and_repeatable_graph(grid):
     e,_=grid
     t=MotorcycleGraphTracer.from_mesh(e)

@@ -8,18 +8,28 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Sequence, Optional
+from typing import Mapping, Sequence, Optional, TypedDict
 import json
 import os
 import tempfile
 import threading
 
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
 
 from mesh_healing_engine import MeshHealingEngine, MeshError, ParameterizationError, _finite_array
 
 _STEP_LOCK = threading.Lock()
 _UNITS = {"mm": "MM", "cm": "CM", "m": "M", "in": "INCH", "ft": "FT", "um": "UM"}
+
+
+class StepExportOptions(TypedDict, total=False):
+    space: str
+    units: str
+    uv_scale: float
+    sewing_tolerance: float
+    sew: bool
+    face_ids: Optional[Sequence[int]]
 
 
 def _destination(filename: str | Path) -> Path:
@@ -28,7 +38,7 @@ def _destination(filename: str | Path) -> Path:
     return path
 
 
-def _atomic_json(path: Path, value):
+def _atomic_json(path: Path, value: object) -> None:
     path = _destination(path)
     fd, tmp = tempfile.mkstemp(prefix=f'.{path.name}.', suffix='.tmp', dir=path.parent)
     try:
@@ -43,7 +53,7 @@ def _atomic_json(path: Path, value):
 
 def export_frontend_json(engine: MeshHealingEngine, filename: str | Path,
                          coords_2d: Mapping[int, Sequence[float]], *,
-                         units: str = "mm", face_ids=None) -> Path:
+                         units: str = "mm", face_ids: Optional[Sequence[int]] = None) -> Path:
     """Export exact mesh indexing and BOTH UV/XYZ; no implicit normalization.
 
     Vertex IDs may be noncontiguous when exporting a subset. Indices in
@@ -103,7 +113,7 @@ def export_step(engine: MeshHealingEngine, filename: str | Path, *,
                 coords_2d: Optional[Mapping[int, Sequence[float]]] = None,
                 space: str = "xyz", units: str = "mm",
                 uv_scale: float = 1.0, sewing_tolerance: float = 1e-7,
-                sew: bool = True, face_ids=None) -> StepExportResult:
+                sew: bool = True, face_ids: Optional[Sequence[int]] = None) -> StepExportResult:
     """Export actual CAD face topology using CadQuery/OpenCascade, then reimport.
 
     space='xyz': original piecewise-linear 3D surface.
@@ -143,6 +153,8 @@ def export_step(engine: MeshHealingEngine, filename: str | Path, *,
         if not quality.locally_valid:
             raise ParameterizationError("Cannot export a folded/collapsed UV chart")
     if space == 'uv':
+        if coords_2d is None:
+            raise MeshError("A UV STEP export requires coords_2d")
         for v in np.unique(triangles):
             uv = _finite_array(coords_2d[int(v)], (2,), 'UV')
             positions[int(v)] = (uv_scale * uv[0], uv_scale * uv[1], 0.0)
@@ -221,7 +233,8 @@ class UVSurfaceMap:
     shared-edge hits use the first triangle only when all candidate XYZ values
     agree. Overlapping charts with conflicting XYZ are rejected as ambiguous.
     """
-    def __init__(self, engine: MeshHealingEngine, coords_2d, *, face_ids=None):
+    def __init__(self, engine: MeshHealingEngine, coords_2d: Mapping[int, Sequence[float]], *,
+                 face_ids: Optional[Sequence[int]] = None) -> None:
         self.engine = engine
         self._signature = engine._fingerprint()
         self._revision = engine._revision
@@ -238,12 +251,13 @@ class UVSurfaceMap:
         edges = self.uv[:, 1:] - self.uv[:, :1]
         self.inverse_edges = np.linalg.inv(edges)
 
-    def _fresh(self):
+    def _fresh(self) -> None:
         if self.engine._revision != self._revision or self.engine._fingerprint() != self._signature:
             from mesh_healing_engine import StaleSystemError
             raise StaleSystemError("Mesh changed; rebuild the UV evaluator")
 
-    def evaluate(self, uv_queries, triangle_ids, *, tolerance: float = 1e-9) -> np.ndarray:
+    def evaluate(self, uv_queries: ArrayLike, triangle_ids: ArrayLike, *,
+                 tolerance: float = 1e-9) -> NDArray[np.float64]:
         self._fresh()
         if not np.isfinite(tolerance) or tolerance < 0:
             raise MeshError("Barycentric tolerance must be finite and nonnegative")
@@ -261,7 +275,7 @@ class UVSurfaceMap:
             raise MeshError("UV query lies outside its supplied triangle")
         return np.einsum('qi,qij->qj', barycentric, self.xyz[ids])
 
-    def locate(self, uv_queries, *, tolerance: float = 1e-9) -> np.ndarray:
+    def locate(self, uv_queries: ArrayLike, *, tolerance: float = 1e-9) -> NDArray[np.int64]:
         self._fresh()
         if not np.isfinite(tolerance) or tolerance < 0:
             raise MeshError("Barycentric tolerance must be finite and nonnegative")
@@ -284,5 +298,5 @@ class UVSurfaceMap:
             ids.append(int(candidates[0]))
         return np.array(ids, dtype=np.int64)
 
-    def sample(self, uv_queries, *, tolerance: float = 1e-9) -> np.ndarray:
+    def sample(self, uv_queries: ArrayLike, *, tolerance: float = 1e-9) -> NDArray[np.float64]:
         return self.evaluate(uv_queries, self.locate(uv_queries, tolerance=tolerance), tolerance=tolerance)

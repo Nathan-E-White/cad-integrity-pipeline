@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Tuple, Set, Optional, Mapping, Sequence, Iterable
+from typing import Dict, List, Tuple, Set, Optional, Mapping, Sequence, Iterable, TYPE_CHECKING, TypedDict
 import hashlib
 import json
 import logging
@@ -19,6 +19,7 @@ import numbers
 import warnings
 
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
 import scipy.linalg as la
 import scipy.sparse as sp
 import scipy.sparse.linalg as spla
@@ -26,9 +27,33 @@ from scipy.optimize import milp, LinearConstraint, Bounds
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 
+if TYPE_CHECKING:
+    from typing import Unpack
+    from mesh_export import StepExportOptions, StepExportResult
+
 LOG = logging.getLogger(__name__)
 Edge = Tuple[int, int]
 UVMap = Dict[int, Tuple[float, float]]
+EdgeIncidence = Mapping[Edge, List[Tuple[int, int, int]]]
+VertexIncidence = Mapping[int, List[int]]
+
+
+class CotangentOptions(TypedDict, total=False):
+    face_ids: Optional[Sequence[int]]
+    face_confidence: Optional[Mapping[int, float]]
+
+
+class HarmonicOptions(CotangentOptions, total=False):
+    require_full_boundary: bool
+    max_update_rank: int
+
+
+class MILPOptions(TypedDict, total=False):
+    disp: bool
+    node_limit: int
+    presolve: bool
+    time_limit: float
+    mip_rel_gap: float
 
 
 class MeshError(ValueError):
@@ -55,7 +80,7 @@ def _edge(a: int, b: int) -> Edge:
     return (min(a, b), max(a, b))
 
 
-def _index(value, size: int, name: str = "index") -> int:
+def _index(value: object, size: int, name: str = "index") -> int:
     if isinstance(value, (bool, np.bool_)) or not isinstance(value, numbers.Integral):
         raise MeshError(f"{name} must be an integer, got {value!r}")
     value = int(value)
@@ -64,14 +89,14 @@ def _index(value, size: int, name: str = "index") -> int:
     return value
 
 
-def _finite_array(value, shape, name: str) -> np.ndarray:
+def _finite_array(value: ArrayLike, shape: Tuple[int, ...], name: str) -> NDArray[np.float64]:
     result = np.asarray(value, dtype=np.float64)
     if result.shape != shape or not np.all(np.isfinite(result)):
         raise MeshError(f"{name} must have shape {shape} and finite values")
     return result
 
 
-def _cross2(a, b) -> float:
+def _cross2(a: NDArray[np.float64], b: NDArray[np.float64]) -> float:
     return float(a[0] * b[1] - a[1] * b[0])
 
 
@@ -83,9 +108,9 @@ def _canonical_face(f: Sequence[int]) -> tuple:
     return min(candidates)
 
 
-def _incidence(faces: Sequence[Sequence[int]]):
-    edges = defaultdict(list)
-    incident = defaultdict(list)
+def _incidence(faces: Sequence[Sequence[int]]) -> Tuple[EdgeIncidence, VertexIncidence]:
+    edges: defaultdict[Edge, List[Tuple[int, int, int]]] = defaultdict(list)
+    incident: defaultdict[int, List[int]] = defaultdict(list)
     for fid, f in enumerate(faces):
         for i, u in enumerate(f):
             v = f[(i + 1) % len(f)]
@@ -94,10 +119,11 @@ def _incidence(faces: Sequence[Sequence[int]]):
     return edges, incident
 
 
-def _face_fans(v: int, faces, edges, incident) -> List[List[int]]:
+def _face_fans(v: int, faces: Sequence[Sequence[int]], edges: EdgeIncidence,
+               incident: VertexIncidence) -> List[List[int]]:
     """Connected incident-face fans, connected ONLY through an edge at v."""
     remaining = set(incident[v])
-    graph = {f: set() for f in remaining}
+    graph: Dict[int, Set[int]] = {f: set() for f in remaining}
     for fid in remaining:
         f = faces[fid]
         k = f.index(v)
@@ -162,7 +188,7 @@ class PreprocessReport:
         """Fan-split vertices duplicate the constraint; conflicting welds fail."""
         if not np.isfinite(atol) or atol < 0:
             raise MeshError("atol must be finite and nonnegative")
-        out = {}
+        out: UVMap = {}
         for old, value in constraints.items():
             old = _index(old, len(self.old_to_new_vertices), "old vertex")
             uv = _finite_array(value, (2,), "boundary UV")
@@ -172,7 +198,7 @@ class PreprocessReport:
             for new in targets:
                 if new in out and not np.allclose(out[new], uv, atol=atol, rtol=0):
                     raise MeshError(f"Conflicting constraints were welded at vertex {new}")
-                out[new] = tuple(map(float, uv))
+                out[new] = (float(uv[0]), float(uv[1]))
         return out
 
 
@@ -223,12 +249,13 @@ def _triangulate_face(vertices: np.ndarray, face: Sequence[int],
     area = sum(_cross2(q[i], q[(i + 1) % len(f)]) for i in range(len(f)))
     sign = 1.0 if area > 0 else -1.0
 
-    def on_segment(a, b, x):
+    def on_segment(a: NDArray[np.float64], b: NDArray[np.float64], x: NDArray[np.float64]) -> bool | np.bool_:
         return (abs(_cross2(b - a, x - a)) <= relative_tol
                 and np.all(x >= np.minimum(a, b) - relative_tol)
                 and np.all(x <= np.maximum(a, b) + relative_tol))
 
-    def intersects(a, b, c, d):
+    def intersects(a: NDArray[np.float64], b: NDArray[np.float64],
+                   c: NDArray[np.float64], d: NDArray[np.float64]) -> bool | np.bool_:
         s1, s2 = _cross2(b - a, c - a), _cross2(b - a, d - a)
         s3, s4 = _cross2(d - c, a - c), _cross2(d - c, b - c)
         if s1 * s2 < 0 and s3 * s4 < 0:
@@ -301,10 +328,10 @@ class MeshHealingEngine:
         self.last_uv_quality: Optional[UVQuality] = None
         self._build_topology()
 
-    def _build_topology(self):
+    def _build_topology(self) -> None:
         """Reset, rather than append to, all connectivity after edits."""
         self.num_vertices = len(self.v3d)
-        self.adjacency = {i: set() for i in range(self.num_vertices)}
+        self.adjacency: Dict[int, Set[int]] = {i: set() for i in range(self.num_vertices)}
         self.edge_faces, self.vertex_faces = _incidence(self.faces)
         for u, v in self.edge_faces:
             self.adjacency[u].add(v)
@@ -365,7 +392,7 @@ class MeshHealingEngine:
             sorted(set(range(self.num_vertices)) - set(incident)),
         )
 
-    def triangulated_faces(self, face_ids: Optional[Sequence[int]] = None):
+    def triangulated_faces(self, face_ids: Optional[Sequence[int]] = None) -> Tuple[NDArray[np.int64], NDArray[np.int64]]:
         ids = list(range(len(self.faces))) if face_ids is None else list(face_ids)
         if len(ids) != len(set(ids)):
             raise MeshError("face_ids contains duplicates")
@@ -381,7 +408,7 @@ class MeshHealingEngine:
         return (np.asarray(triangles, dtype=np.int64).reshape(-1, 3),
                 np.asarray(parents, dtype=np.int64))
 
-    def _orient_faces(self):
+    def _orient_faces(self) -> None:
         edges, _ = _incidence(self.faces)
         if any(len(fs) > 2 for fs in edges.values()):
             raise TopologyError("An edge has more than two incident faces; sheet ownership is ambiguous")
@@ -433,12 +460,12 @@ class MeshHealingEngine:
         boundary = sorted(e for e, fs in self.edge_faces.items() if len(fs) == 1)
         rejected = []
 
-        def root(a, p=parent):
+        def root(a: int, p: NDArray[np.int64] = parent) -> int:
             while p[a] != a:
                 a = int(p[a])
             return a
 
-        def endpoints(e, f):
+        def endpoints(e: Edge, f: Edge) -> Optional[Tuple[Edge, Edge]]:
             choices = [((e[0], f[0]), (e[1], f[1])),
                        ((e[0], f[1]), (e[1], f[0]))]
             scores = [max(np.linalg.norm(self.v3d[a] - self.v3d[b]) for a, b in choice)
@@ -470,7 +497,7 @@ class MeshHealingEngine:
                     rejected.append(f"{e}/{f}: likely overlapping sheets or a sharp ambiguous fold")
                     continue
                 candidates.append((e, f, pairing))
-            counts = defaultdict(int)
+            counts: defaultdict[Edge, int] = defaultdict(int)
             for e, f, _ in candidates:
                 counts[e] += 1
                 counts[f] += 1
@@ -482,7 +509,7 @@ class MeshHealingEngine:
                     rejected.append(f"{e}/{f}: multiple possible seam partners")
             candidates = safe
         elif seam_pairs is not None:
-            used = set()
+            used: Set[Edge] = set()
             for e, f in seam_pairs:
                 e = _edge(*(_index(v, n) for v in e))
                 f = _edge(*(_index(v, n) for v in f))
@@ -541,7 +568,7 @@ class MeshHealingEngine:
 
     def preprocess(self, stitch_tolerance: float = 1e-5, *,
                    stitch: bool = True, split_bowties: bool = True,
-                   seam_pairs=None) -> PreprocessReport:
+                   seam_pairs: Optional[Sequence[Tuple[Edge, Edge]]] = None) -> PreprocessReport:
         """Transactional pre-pruner: clean -> split fans -> orient -> stitch.
 
         Preserves a mapping from each original vertex to zero/one/multiple new
@@ -553,7 +580,7 @@ class MeshHealingEngine:
         origins = list(range(old_n))
         clean, source_faces, removed, seen = [], [], [], set()
         for fid, face in enumerate(work.faces):
-            f = []
+            f: List[int] = []
             for v in face:
                 if not f or f[-1] != v:
                     f.append(v)
@@ -609,7 +636,7 @@ class MeshHealingEngine:
         assert stitch_report is not None
         active = sorted({v for f in work.faces for v in f})
         compact = {v: i for i, v in enumerate(active)}
-        provenance = {i: set() for i in range(old_n)}
+        provenance: Dict[int, Set[int]] = {i: set() for i in range(old_n)}
         for expanded, original in enumerate(origins):
             welded = int(stitch_report.old_to_new[expanded])
             if welded in compact:
@@ -632,7 +659,7 @@ class MeshHealingEngine:
         self.last_stitch_report = stitch_report
         return report
 
-    def compute_cotangent_weights(self, *, face_ids=None,
+    def compute_cotangent_weights(self, *, face_ids: Optional[Sequence[int]] = None,
                                   face_confidence: Optional[Mapping[int, float]] = None) -> sp.csr_matrix:
         """Symmetric off-diagonal W; L=diag(W.sum(axis=1))-W.
 
@@ -647,7 +674,9 @@ class MeshHealingEngine:
             _index(fid, len(self.faces), "confidence face")
             if not np.isfinite(c) or not 0 <= c <= 1:
                 raise MeshError("Face confidence must be finite and in [0,1]")
-        rows, cols, values = [], [], []
+        rows: List[int] = []
+        cols: List[int] = []
+        values: List[float] = []
         for tri, fid in zip(triangles, parents):
             c = float(confidence.get(int(fid), 1.0))
             if c == 0:
@@ -681,18 +710,20 @@ class MeshHealingEngine:
             raise NumericalRangeError("Cotangent assembly exceeds numerical range")
         return W
 
-    def compute_cotangent_laplacian(self, **kwargs) -> sp.csr_matrix:
+    def compute_cotangent_laplacian(self, **kwargs: Unpack[CotangentOptions]) -> sp.csr_matrix:
         W = self.compute_cotangent_weights(**kwargs)
         return (sp.diags(np.asarray(W.sum(axis=1)).ravel()) - W).tocsr()
 
     def prepare_harmonic_system(self, internal_nodes: List[int], boundary_nodes: Sequence[int],
-                                **kwargs) -> 'HarmonicSystem':
+                                **kwargs: Unpack[HarmonicOptions]) -> 'HarmonicSystem':
         return HarmonicSystem(self, internal_nodes, boundary_nodes, **kwargs)
 
     def compute_harmonic_map(self, internal_nodes: List[int],
                              boundary_constraints: Dict[int, Tuple[float, float]], *,
-                             face_ids=None, face_confidence=None,
-                             soft_constraints=None, check_orientation=True) -> UVMap:
+                             face_ids: Optional[Sequence[int]] = None,
+                             face_confidence: Optional[Mapping[int, float]] = None,
+                             soft_constraints: Optional[Mapping[int, SoftConstraint]] = None,
+                             check_orientation: bool = True) -> UVMap:
         system = self.prepare_harmonic_system(internal_nodes, list(boundary_constraints),
                                               face_ids=face_ids, face_confidence=face_confidence)
         return system.solve(boundary_constraints, soft_constraints=soft_constraints,
@@ -700,7 +731,8 @@ class MeshHealingEngine:
 
     def repair_contaminated_coordinates(self, coords_2d: Mapping[int, Sequence[float]],
                                         contaminated_vertices: Iterable[int], *,
-                                        face_ids=None, check_orientation=True) -> UVMap:
+                                        face_ids: Optional[Sequence[int]] = None,
+                                        check_orientation: bool = True) -> UVMap:
         """Recompute flagged UV values while keeping EVERY unflagged value exact.
 
         This uses an explicit caller-supplied mask, not a contamination detector.
@@ -716,7 +748,7 @@ class MeshHealingEngine:
         return system.solve(trusted, check_orientation=check_orientation)
 
     def validate_uv(self, coords_2d: Mapping[int, Sequence[float]], *,
-                    face_ids=None, orientation: int = 1) -> UVQuality:
+                    face_ids: Optional[Sequence[int]] = None, orientation: int = 1) -> UVQuality:
         """Validate local UV geometry, rejecting unrepresentable arithmetic."""
         try:
             with np.errstate(over='raise', invalid='raise', divide='raise'):
@@ -762,11 +794,12 @@ class MeshHealingEngine:
         return UVQuality(len(triangles), flipped, degenerate,
                          min(areas, default=float('nan')), max(distortion, default=float('nan')))
 
-    def export_step(self, filename: str, coords_2d=None, **kwargs):
+    def export_step(self, filename: str, coords_2d: Optional[Mapping[int, Sequence[float]]] = None,
+                    **kwargs: Unpack[StepExportOptions]) -> StepExportResult:
         from mesh_export import export_step
         return export_step(self, filename, coords_2d=coords_2d, **kwargs)
 
-    def export_mock_step_structure(self, filename: str, coords_2d: UVMap):
+    def export_mock_step_structure(self, filename: str, coords_2d: UVMap) -> StepExportResult:
         """Compatibility entry point; now produces real planar STEP faces."""
         warnings.warn("export_mock_step_structure now writes real faceted STEP; use export_step",
                       DeprecationWarning, stacklevel=2)
@@ -778,12 +811,24 @@ class SoftConstraint:
     target: Tuple[float, float]
     weight: float = 1.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         target = _finite_array(self.target, (2,), "soft target")
         if not np.isfinite(self.weight) or self.weight < 0:
             raise MeshError("Soft-constraint weight must be finite and nonnegative")
         object.__setattr__(self, "target", tuple(map(float, target)))
         object.__setattr__(self, "weight", float(self.weight))
+
+
+@dataclass(frozen=True)
+class _WoodburyUpdate:
+    U: NDArray[np.float64]
+    Z: NDArray[np.float64]
+    factor: Tuple[NDArray[np.float64], bool]
+
+
+@dataclass(frozen=True)
+class _RefactorUpdate:
+    lu: spla.SuperLU
 
 
 class HarmonicSystem:
@@ -800,8 +845,9 @@ class HarmonicSystem:
     Not thread-safe: give concurrent workers independent system objects.
     """
     def __init__(self, engine: MeshHealingEngine, internal_nodes: Sequence[int],
-                 boundary_nodes: Sequence[int], *, face_ids=None, face_confidence=None,
-                 require_full_boundary: bool = True, max_update_rank: int = 32):
+                 boundary_nodes: Sequence[int], *, face_ids: Optional[Sequence[int]] = None,
+                 face_confidence: Optional[Mapping[int, float]] = None,
+                 require_full_boundary: bool = True, max_update_rank: int = 32) -> None:
         self.engine = engine
         self.internal = tuple(_index(v, engine.num_vertices) for v in internal_nodes)
         self.boundary = tuple(_index(v, engine.num_vertices) for v in boundary_nodes)
@@ -855,8 +901,9 @@ class HarmonicSystem:
         self.last_update_method = "none"
         self.last_relative_residual = float('nan')
         self.last_quality: Optional[UVQuality] = None
-        self._update_key = None
-        self._update_cache = None
+        self._update_key: Optional[Tuple[Tuple[int, float], ...]] = None
+        self._update_cache: Optional[_WoodburyUpdate | _RefactorUpdate] = None
+        self._lu: Optional[spla.SuperLU] = None
         if n:
             try:
                 self._lu = spla.splu(self.A)
@@ -866,7 +913,7 @@ class HarmonicSystem:
         else:
             self._lu = None
 
-    def _check_fresh(self):
+    def _check_fresh(self) -> None:
         if self.engine._revision != self._revision or self.engine._fingerprint() != self._signature:
             raise StaleSystemError("Geometry/topology changed: remap constraints and prepare a new harmonic system")
 
@@ -906,25 +953,28 @@ class HarmonicSystem:
         if ids:
             rhs[rows] += weights[:, None] * np.array([anchors[v].target for v in ids])
         effective = self.A + sp.diags(diagonal, format='csc')
+        base_lu = self._lu
         if not n:
             X = np.empty((0, 2))
             self.last_update_method = "boundary-only"
+        elif base_lu is None:
+            raise ParameterizationError("Internal vertices require a Dirichlet factorization")
         elif not ids:
-            X = self._lu.solve(rhs)
+            X = base_lu.solve(rhs)
             self.last_update_method = "base-factorization"
         else:
             key = tuple((v, anchors[v].weight) for v in ids)
             if self._update_key != key:
-                cache = None
+                cache: Optional[_WoodburyUpdate | _RefactorUpdate] = None
                 if len(ids) <= self.max_update_rank:
                     U = np.zeros((n, len(ids)))
                     U[rows, np.arange(len(ids))] = np.sqrt(weights)
-                    Z = self._lu.solve(U)
+                    Z = base_lu.solve(U)
                     small = np.eye(len(ids)) + U.T @ Z
                     if np.all(np.isfinite(small)) and np.linalg.cond(small) < 1e12:
                         try:
                             factor = la.cho_factor(0.5 * (small + small.T), lower=True)
-                            cache = ("woodbury", U, Z, factor)
+                            cache = _WoodburyUpdate(U, Z, factor)
                             self.low_rank_update_count += 1
                         except la.LinAlgError:
                             cache = None
@@ -933,19 +983,21 @@ class HarmonicSystem:
                         lu = spla.splu(effective)
                     except RuntimeError as exc:
                         raise ParameterizationError("Soft-update factorization failed") from exc
-                    cache = ("refactor", lu)
+                    cache = _RefactorUpdate(lu)
                     self.factorization_count += 1
                 self._update_key, self._update_cache = key, cache
             cache = self._update_cache
-            self.last_update_method = cache[0]
-            if cache[0] == "woodbury":
-                _, U, Z, factor = cache
-                base = self._lu.solve(rhs)
-                X = base - Z @ la.cho_solve(factor, U.T @ base)
+            if cache is None:
+                raise ParameterizationError("Soft-update cache is unavailable")
+            if isinstance(cache, _WoodburyUpdate):
+                self.last_update_method = "woodbury"
+                base = base_lu.solve(rhs)
+                X = base - cache.Z @ la.cho_solve(cache.factor, cache.U.T @ base)
             else:
-                X = cache[1].solve(rhs)
+                self.last_update_method = "refactor"
+                X = cache.lu.solve(rhs)
         # Check backward error; do not silently return a poor Woodbury update.
-        def residual(x):
+        def residual(x: NDArray[np.float64]) -> float:
             if not n:
                 return 0.0
             norm_a = float(np.max(np.asarray(abs(effective).sum(axis=1))))
@@ -954,7 +1006,7 @@ class HarmonicSystem:
         error = residual(X)
         if (not np.all(np.isfinite(X)) or error > 1e-10) and n and self.last_update_method == "woodbury":
             lu = spla.splu(effective)
-            self._update_cache = ("refactor", lu)
+            self._update_cache = _RefactorUpdate(lu)
             self.factorization_count += 1
             X = lu.solve(rhs)
             self.last_update_method = "refactor-after-residual-check"
@@ -962,8 +1014,8 @@ class HarmonicSystem:
         if not np.all(np.isfinite(X)) or error > 1e-10:
             raise ParameterizationError(f"Unacceptable linear-system residual: {error:g}")
         self.last_relative_residual = error
-        coords = {v: tuple(map(float, X[i])) for i, v in enumerate(self.internal)}
-        coords.update({v: tuple(map(float, B[i])) for i, v in enumerate(self.boundary)})
+        coords = {v: (float(X[i, 0]), float(X[i, 1])) for i, v in enumerate(self.internal)}
+        coords.update({v: (float(B[i, 0]), float(B[i, 1])) for i, v in enumerate(self.boundary)})
         quality = self.engine.validate_uv(coords, face_ids=self.face_ids, orientation=orientation)
         self.last_quality = self.engine.last_uv_quality = quality
         if check_orientation and not quality.locally_valid:
@@ -1004,15 +1056,15 @@ class MotorcycleGraphTracer:
     Sequential collisions are deterministic and order-dependent. Face occupancy
     also detects crossings through a quad, not only previously visited edges.
     """
-    def __init__(self):
+    def __init__(self) -> None:
         self.vertices: Dict[int, Vertex] = {}
         self.half_edges: Dict[int, HalfEdge] = {}
         self.faces: Dict[int, Face] = {}
         self.occupied_edges: Set[int] = set()
         self._occupied_faces: Set[int] = set()
-        self._engine = None
-        self._signature = None
-        self._revision = None
+        self._engine: Optional[MeshHealingEngine] = None
+        self._signature: Optional[bytes] = None
+        self._revision: Optional[int] = None
 
     @classmethod
     def from_mesh(cls, engine: MeshHealingEngine) -> 'MotorcycleGraphTracer':
@@ -1042,7 +1094,7 @@ class MotorcycleGraphTracer:
             tracer.half_edges[hid].twin = directed.get((v, u))
         return tracer
 
-    def _check_fresh(self):
+    def _check_fresh(self) -> None:
         if self._engine is not None and (self._engine._revision != self._revision
                                         or self._engine._fingerprint() != self._signature):
             raise StaleSystemError("Mesh changed; rebuild the half-edge tracer")
@@ -1053,14 +1105,19 @@ class MotorcycleGraphTracer:
 
     def edge_vertex_map(self) -> Dict[int, Edge]:
         self._check_fresh()
-        return {self.get_undirected_edge_id(hid): _edge(he.origin, self.half_edges[he.next_he].origin)
-                for hid, he in self.half_edges.items()}
+        result = {}
+        for hid, he in self.half_edges.items():
+            if he.next_he is None or he.next_he not in self.half_edges:
+                raise TopologyError("Broken next_he pointer")
+            result[self.get_undirected_edge_id(hid)] = _edge(he.origin, self.half_edges[he.next_he].origin)
+        return result
 
     def find_straight_ahead_opposite(self, entry_he_id: int) -> int:
         he0 = self.half_edges[entry_he_id]
-        loop, cur = [], entry_he_id
+        loop: List[int] = []
+        cur: Optional[int] = entry_he_id
         for _ in range(4):
-            if cur not in self.half_edges:
+            if cur is None or cur not in self.half_edges:
                 raise TopologyError("Broken next_he pointer")
             loop.append(cur)
             cur = self.half_edges[cur].next_he
@@ -1072,7 +1129,8 @@ class MotorcycleGraphTracer:
         self._check_fresh()
         if start_he_id not in self.half_edges:
             raise MeshError("Unknown starting half-edge")
-        track, current = [], start_he_id
+        track: List[int] = []
+        current = start_he_id
         while current is not None:
             he = self.half_edges[current]
             edge = self.get_undirected_edge_id(current)
@@ -1101,7 +1159,7 @@ class MotorcycleGraphTracer:
         if reset:
             self.occupied_edges.clear()
             self._occupied_faces.clear()
-        trajectories = {}
+        trajectories: Dict[int, List[int]] = {}
         for v in sorted(self.vertices):
             vertex = self.vertices[v]
             if vertex.is_singularity:
@@ -1111,7 +1169,7 @@ class MotorcycleGraphTracer:
 
 
 def solve_igm_quantization(initial_lengths: list, patches: list, *,
-                           weights=None, min_length: int = 1,
+                           weights: Optional[ArrayLike] = None, min_length: int = 1,
                            max_length: Optional[int] = None,
                            time_limit: Optional[float] = None) -> np.ndarray:
     """Preserved L1 MILP for integer segment lengths and opposite-side sums.
@@ -1162,7 +1220,7 @@ def solve_igm_quantization(initial_lengths: list, patches: list, *,
     if row_count:
         constraints.append(LinearConstraint(sp.hstack((eq, sp.csr_matrix((row_count, n))), format='csr'),
                                             np.zeros(row_count), np.zeros(row_count)))
-    options = {"mip_rel_gap": 0.0}
+    options: MILPOptions = {"mip_rel_gap": 0.0}
     if time_limit is not None:
         if not np.isfinite(time_limit) or time_limit <= 0:
             raise MeshError("time_limit must be positive and finite")
@@ -1200,7 +1258,7 @@ def prune_motorcycle_graph(trajectories: dict, length_threshold: float,
                            edge_vertices: Optional[Mapping[int, Edge]] = None,
                            stitch_tolerance: float = 1e-5,
                            protected_tracks: Iterable[int] = (),
-                           return_report: bool = False):
+                           return_report: bool = False) -> PruneReport | Dict[int, List[int]]:
     """Extend the existing threshold pruner with actual mesh preprocessing.
 
     With mesh_engine: transactionally clean/split/stitch BEFORE filtering tracks,
@@ -1225,7 +1283,8 @@ def prune_motorcycle_graph(trajectories: dict, length_threshold: float,
             raise MeshError("Pass edge_vertices=tracer.edge_vertex_map() or preprocess before tracing")
         work = MeshHealingEngine(mesh_engine.v3d, mesh_engine.faces)
         prep = work.preprocess(stitch_tolerance)
-        new_edges, by_pair, mapping, lengths = {}, {}, {}, {}
+        by_pair: Dict[Edge, int] = {}
+        new_edges, mapping, lengths = {}, {}, {}
         for eid in sorted(endpoints):
             u, v = endpoints[eid]
             u = _index(u, mesh_engine.num_vertices, "edge endpoint")
@@ -1247,7 +1306,7 @@ def prune_motorcycle_graph(trajectories: dict, length_threshold: float,
         endpoints = new_edges
         remapped = {}
         for tid, path in tracks.items():
-            out = []
+            out: List[int] = []
             for e in path:
                 if e not in mapping:
                     raise MeshError(f"Track {tid} lacks endpoint data for edge {e}")
@@ -1273,6 +1332,8 @@ def prune_motorcycle_graph(trajectories: dict, length_threshold: float,
             removed.append(tid)
             LOG.info("Topological pruning: removed track %s (length %.6g)", tid, total)
     if work is not None:
+        if mesh_engine is None or prep is None:
+            raise MeshError("Preprocessing result lacks its source engine or report")
         mesh_engine.v3d, mesh_engine.faces = work.v3d, work.faces
         mesh_engine._revision += 1
         mesh_engine._build_topology()
@@ -1283,9 +1344,11 @@ def prune_motorcycle_graph(trajectories: dict, length_threshold: float,
 
 
 def parameterize_macro_patch(internal_vertices: list, boundary_mapping: dict,
-                              adjacency: dict, *, mesh_engine=None,
-                              vertices=None, faces=None, face_ids=None,
-                              weighting: str = "auto", face_confidence=None,
+                              adjacency: dict, *, mesh_engine: Optional[MeshHealingEngine] = None,
+                              vertices: Optional[NDArray[np.float64]] = None,
+                              faces: Optional[List[List[int]]] = None,
+                              face_ids: Optional[Sequence[int]] = None,
+                              weighting: str = "auto", face_confidence: Optional[Mapping[int, float]] = None,
                               check_orientation: bool = True) -> dict:
     """Preserve the old three-argument API, prefer cotangents with geometry.
 
@@ -1300,6 +1363,8 @@ def parameterize_macro_patch(internal_vertices: list, boundary_mapping: dict,
     if (vertices is None) != (faces is None):
         raise MeshError("vertices and faces must be supplied together")
     if mesh_engine is None and vertices is not None:
+        if faces is None:
+            raise MeshError("vertices and faces must be supplied together")
         mesh_engine = MeshHealingEngine(vertices, faces)
     if mesh_engine is not None and weighting != "uniform":
         return mesh_engine.compute_harmonic_map(internal_vertices, boundary_mapping,
@@ -1367,7 +1432,7 @@ class CrossFieldOptimizer:
         self.normals = scaled / np.linalg.norm(scaled, axis=1)[:, None]
         if not np.all(np.isfinite(self.normals)) or np.any(np.linalg.norm(self.normals, axis=1) == 0):
             raise NumericalRangeError("Face normal normalization exceeds numerical range")
-        self.adjacency = {i: set() for i in range(self.num_faces)}
+        self.adjacency: Dict[int, Set[int]] = {i: set() for i in range(self.num_faces)}
         for i, ns in adjacency.items():
             i = _index(i, self.num_faces, "face")
             for j in ns:
@@ -1433,7 +1498,8 @@ class CrossFieldOptimizer:
                 raise MeshError("Face confidence must be in [0,1]")
             confidence[i] = c
         A = sp.lil_matrix((n, n), dtype=complex)
-        graph_rows, graph_cols = [], []
+        graph_rows: List[int] = []
+        graph_cols: List[int] = []
         for i in range(n):
             for j in sorted(self.adjacency[i]):
                 if i >= j:
@@ -1450,7 +1516,7 @@ class CrossFieldOptimizer:
                 graph_cols.extend((j, i))
         fixed = {}
 
-        def encode(i, vector):
+        def encode(i: int, vector: ArrayLike) -> complex:
             t = _finite_array(vector, (3,), "feature tangent")
             u, v = self.compute_local_basis(i)
             xy = np.array([np.dot(t, u), np.dot(t, v)])
@@ -1475,12 +1541,12 @@ class CrossFieldOptimizer:
                 self.last_gauge_faces.append(members[0])
         free = [i for i in range(n) if i not in fixed]
         known = sorted(fixed)
-        field_values = np.zeros(n, dtype=complex)
+        field_values: NDArray[np.complex128] = np.zeros(n, dtype=complex)
         field_values[known] = [fixed[i] for i in known]
-        A = A.tocsr()
+        A_csr = A.tocsr()
         if free:
-            rhs = -A[free, :][:, known] @ field_values[known]
-            field_values[free] = spla.splu(A[free, :][:, free].tocsc()).solve(rhs)
+            rhs = -A_csr[free, :][:, known] @ field_values[known]
+            field_values[free] = spla.splu(A_csr[free, :][:, free].tocsc()).solve(rhs)
         if not np.all(np.isfinite(field_values)):
             raise ParameterizationError("Nonfinite cross-field solution")
         magnitude = np.abs(field_values)
