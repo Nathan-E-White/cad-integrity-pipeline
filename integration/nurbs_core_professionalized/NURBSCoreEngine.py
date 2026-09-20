@@ -981,11 +981,11 @@ class STEPGeometryExportEngine:
             from OCP.BRep import BRep_Builder
             from OCP.BRepBuilderAPI import BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakePolygon
             from OCP.BRepCheck import BRepCheck_Analyzer
+            from OCP.gp import gp_Ax3, gp_Cylinder, gp_Dir, gp_Pln, gp_Pnt
             from OCP.IFSelect import IFSelect_RetDone
             from OCP.Interface import Interface_Static
             from OCP.STEPControl import STEPControl_AsIs, STEPControl_Controller, STEPControl_Writer
             from OCP.TopoDS import TopoDS_Compound
-            from OCP.gp import gp_Ax3, gp_Cylinder, gp_Dir, gp_Pln, gp_Pnt
         except ImportError as exc:
             raise OptionalDependencyError(
                 "STEP export requires OCP: install 'cadquery-ocp>=7.9,<8' "
