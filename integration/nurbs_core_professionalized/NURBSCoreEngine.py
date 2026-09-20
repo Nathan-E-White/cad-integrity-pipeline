@@ -223,9 +223,12 @@ class NURBSCoreEngine:
             raise GeometryValidationError("u must be a one-dimensional parameter vector")
         if np.any(parameters < knots[p]) or np.any(parameters > knots[n + 1]):
             raise GeometryValidationError(f"parameters must lie in [{knots[p]}, {knots[n + 1]}]")
-        # The exact upper endpoint belongs to the last active span. No epsilon
-        # is subtracted: subtraction fails on large or tiny knot scales.
-        return np.clip(np.searchsorted(knots, parameters, side="right") - 1, p, n).astype(np.int64)
+        spans = np.searchsorted(knots, parameters, side="right") - 1
+        # Use the last nonzero span to the left of the upper endpoint, even
+        # when repeated knots make span n empty. Keep the parameter exact.
+        upper = knots[n + 1]
+        spans[parameters == upper] = np.searchsorted(knots, upper, side="left") - 1
+        return np.clip(spans, p, n).astype(np.int64)
 
     @staticmethod
     def basis_derivatives_vectorized(

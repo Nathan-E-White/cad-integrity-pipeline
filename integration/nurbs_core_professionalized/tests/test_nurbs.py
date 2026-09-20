@@ -24,6 +24,39 @@ def test_basis_matches_scipy(degree, scale, shift):
     assert spans[-1] == n - 1
 
 
+@pytest.mark.parametrize("scale,shift", [(1., 0.), (1e-8, 0.), (4., 1e8)])
+def test_repeated_upper_endpoint_uses_left_polynomial(scale, shift):
+    knots = np.array([0, 1, 2, 3, 3, 3, 4, 5], dtype=float) * scale + shift
+    spans, derivatives = NURBSCoreEngine.basis_derivatives_vectorized(
+        2, [knots[5]], knots, 4,
+    )
+    # On [2, 3], with t = u - 2, the three active basis polynomials are
+    # (1-t)^2/2, (1+2*t-3*t^2)/2, and t^2. Evaluate at t=1 from the left.
+    np.testing.assert_array_equal(spans, [2])
+    expected = [[0., 0., 1.], [0., -2., 2.], [1., -3., 2.], [0., 0., 0.], [0., 0., 0.]]
+    for order, values in enumerate(expected):
+        np.testing.assert_allclose(derivatives[order, 0] * scale**order, values, atol=1e-12)
+
+
+@pytest.mark.parametrize("batch_size", [1, 64])
+def test_surface_repeated_upper_endpoints_in_both_directions(batch_size):
+    knots = [0, 1, 2, 3, 3, 3, 4, 5]
+    cp = np.array([[[i, j, 0] for j in range(5)] for i in range(5)], dtype=float)
+    result = NURBSCoreEngine.evaluate_surface(
+        2, 2, knots, knots, cp, [2., 3., 2.5], [3., 2.5],
+        batch_size=batch_size, singular_policy="raise",
+    )
+    # The coordinate polynomial on this span is 1/2 + t + t^2/2, t = u - 2.
+    expected = [[[0.5, 2., 0.], [0.5, 1.125, 0.]],
+                [[2., 2., 0.], [2., 1.125, 0.]],
+                [[1.125, 2., 0.], [1.125, 1.125, 0.]]]
+    np.testing.assert_allclose(result.points, expected, atol=1e-12)
+    assert result.valid_mask.all()
+    np.testing.assert_allclose(result.normals, np.broadcast_to([0., 0., 1.], (3, 2, 3)))
+    np.testing.assert_allclose(result.principal_max, 0., atol=1e-12)
+    np.testing.assert_allclose(result.principal_min, 0., atol=1e-12)
+
+
 @pytest.mark.parametrize("bad", [
     dict(p=-1, u=[0.5], knot_vector=[0, 0, 1, 1]),
     dict(p=1, u=[-0.1], knot_vector=[0, 0, 1, 1]),
