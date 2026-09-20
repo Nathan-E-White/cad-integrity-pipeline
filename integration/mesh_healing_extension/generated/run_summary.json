@@ -1,0 +1,113 @@
+{
+  "center_uv": [
+    0.9999563025210634,
+    1.0000686696947936
+  ],
+  "base_factorization_count": 1,
+  "total_factorization_count": 1,
+  "soft_update_method": "woodbury",
+  "soft_center_uv": [
+    1.0028851611544598,
+    0.9986030980277504
+  ],
+  "repaired_center_uv": [
+    0.9999563025210634,
+    1.0000686696947936
+  ],
+  "weighted_center_uv": [
+    1.1154253223872113,
+    1.115505985597303
+  ],
+  "affine_equivariance_error": 1.1102230246251565e-16,
+  "relative_residual": 0.0,
+  "uv_quality": {
+    "triangle_count": 8,
+    "flipped_triangles": [],
+    "degenerate_triangles": [],
+    "minimum_signed_double_area": 0.9998876328262698,
+    "maximum_conformal_distortion": 1.0005848630007785
+  },
+  "integer_lengths": [
+    3,
+    5,
+    8,
+    5,
+    5
+  ],
+  "stitched_vertices": 2,
+  "sample_uv": [
+    [
+      0.25,
+      0.25
+    ],
+    [
+      0.75,
+      1.25
+    ],
+    [
+      1.75,
+      1.75
+    ]
+  ],
+  "sample_xyz": [
+    [
+      0.2500109236196125,
+      0.2499828337551024,
+      0.01249926654026082
+    ],
+    [
+      0.7500218511948253,
+      1.24996566129406,
+      0.010001123798015307
+    ],
+    [
+      1.7500109238923875,
+      1.749982833326442,
+      0.012499609855416666
+    ]
+  ],
+  "cross_field": [
+    [
+      1.0,
+      0.0
+    ],
+    [
+      0.999999875371873,
+      0.0004992556845467461
+    ],
+    [
+      0.9999999950503137,
+      9.949559300523447e-05
+    ],
+    [
+      0.9999995008888849,
+      0.0009991105949959105
+    ]
+  ],
+  "step_exports": [
+    {
+      "path": "patch_uv.step",
+      "triangle_faces": 8,
+      "imported_faces": 8,
+      "imported_shells": 1,
+      "imported_solids": 0,
+      "space": "uv",
+      "units": "mm",
+      "roundtrip_valid": true,
+      "area_relative_error": 0.0,
+      "bounds_absolute_error": 3.4350300381902343e-13
+    },
+    {
+      "path": "patch_xyz.step",
+      "triangle_faces": 8,
+      "imported_faces": 8,
+      "imported_shells": 1,
+      "imported_solids": 0,
+      "space": "xyz",
+      "units": "mm",
+      "roundtrip_valid": true,
+      "area_relative_error": 0.0,
+      "bounds_absolute_error": 9.995476668578362e-15
+    }
+  ]
+}
