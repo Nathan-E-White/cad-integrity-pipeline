@@ -12,8 +12,31 @@ fragments constructed and checked by Open CASCADE.
 
 ## Install and run
 
-Python 3.11 or newer is the declared target. The delivered revision was executed
-on Python 3.13.5; see [VALIDATION.md](VALIDATION.md) for the exact tested environment.
+### In this repository: Pixi
+
+Use the root Pixi environment and `pixi.lock` for development, dependencies, and
+validation. It supplies Python 3.13, NumPy/SciPy, OCP, and development tooling;
+no package-local `.venv` or editable installation is needed. See
+[dependency ownership](../../docs/DEPENDENCIES.md).
+
+Run from the repository root:
+
+```bash
+pixi install --locked
+pixi run --locked test-nurbs
+pixi run --locked python integration/nurbs_core_professionalized/main.py \
+  integration/nurbs_core_professionalized/examples/plane.stl \
+  --units mm --cards /tmp/nurbs-plane.geometry.json --step /tmp/nurbs-plane.step
+```
+
+The sample outputs must not already exist unless `--overwrite` is supplied.
+
+### Standalone installation outside this repository
+
+The reusable package declares Python 3.11 or newer. The following alternative is
+for using the package independently of the host Pixi workspace. Run from the
+standalone package directory. [VALIDATION.md](VALIDATION.md) records the original
+delivery's historical environment and checks.
 
 ```bash
 python -m venv .venv
@@ -292,6 +315,19 @@ codes remain unchanged: 2 for input/I/O errors and 3 for STEP/backend errors.
 
 ## Tests and project layout
 
+For this repository, run from the repository root using the locked Pixi environment:
+
+```bash
+pixi run --locked test-nurbs
+pixi run --locked python -m mypy \
+  --config-file integration/nurbs_core_professionalized/pyproject.toml \
+  integration/nurbs_core_professionalized/NURBSCoreEngine.py \
+  integration/nurbs_core_professionalized/STLReader.py \
+  integration/nurbs_core_professionalized/main.py
+```
+
+For a standalone installation with the `dev` extra, run from the package directory:
+
 ```bash
 python -m mypy
 python -m pytest -q
@@ -300,8 +336,8 @@ python -m compileall -q NURBSCoreEngine.py STLReader.py main.py
 ```
 
 STEP tests skip when OCP is absent. The delivered validation run included it.
-Install the `dev` extra and run `python -m mypy` from this package directory using
-the same interpreter that resolved NumPy/SciPy. Mypy follows that interpreter's
+Both workflows use the same interpreter that resolved NumPy/SciPy for mypy.
+Mypy follows that interpreter's
 Python version; forcing a lower target against newer installed dependency stubs
 can fail before checking package source. To check Python 3.11 compatibility, use
 a Python 3.11 environment with its own resolved dependencies. The package retains
