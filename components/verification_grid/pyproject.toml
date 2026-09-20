@@ -9,24 +9,22 @@ build-backend = "hatchling.build"
 [project]
 name = "gradio_verificationgrid"
 version = "0.0.1"
-description = "Python library for easily interacting with trained machine learning models"
+description = "CAD Integrity verification grid Gradio display"
 readme = "README.md"
 license = "Apache-2.0"
-requires-python = ">=3.8"
-authors = [{ name = "YOUR NAME", email = "YOUREMAIL@domain.com" }]
+requires-python = ">=3.10"
+authors = [{ name = "Nathan White" }]
 keywords = [
   "gradio-custom-component",
   "gradio-template-Fallback"
 ]
 # Add dependencies here
-dependencies = ["gradio>=6.0,<7.0"]
+dependencies = ["gradio>=6.27,<7"]
 classifiers = [
   'Development Status :: 3 - Alpha',
   'Operating System :: OS Independent',
   'Programming Language :: Python :: 3',
   'Programming Language :: Python :: 3 :: Only',
-  'Programming Language :: Python :: 3.8',
-  'Programming Language :: Python :: 3.9',
   'Programming Language :: Python :: 3.10',
   'Programming Language :: Python :: 3.11',
   'Topic :: Scientific/Engineering',
