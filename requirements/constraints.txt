@@ -1,0 +1,11 @@
+# Shared Python versions validated in the root Pixi environment.
+# Apply with pip -c requirements/constraints.txt; this is not a full Linux lock.
+cadquery==2.8.0
+cadquery-ocp==7.9.3.1.1
+gradio==6.27.0
+mypy==1.20.2
+numpy==2.5.3
+pytest==9.1.1
+pytest-cov==7.1.0
+ruff==0.16.7
+scipy==1.18.1
