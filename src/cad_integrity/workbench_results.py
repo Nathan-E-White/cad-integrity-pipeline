@@ -70,6 +70,7 @@ class DecisionBrief:
     candidate_available: bool
     markdown: str
     dashboard_markdown: str | None = None
+    dashboard_data: Any | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -213,6 +214,7 @@ def with_outcome_details(
         brief.candidate_available,
         "\n".join(lines),
         brief.dashboard_markdown,
+        brief.dashboard_data,
     )
 
 
