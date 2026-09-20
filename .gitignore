@@ -14,3 +14,6 @@ build/
 dist/
 .ipynb_checkpoints/
 outputs/
+
+# MacOS finder breadcrumbs
+.DS_Store
