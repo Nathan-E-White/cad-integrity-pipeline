@@ -1,268 +1,224 @@
 #include <iostream>
 #include <vector>
 #include <algorithm>
-#include <set>
-#include <map>
+#include <concepts>
 #include <expected>
 #include <string>
-#include <ranges>
-#include <concepts>
-#include <mdspan>
-#include <linalg>
+#include <span>
+#include <cstdint>
 #include <numeric>
-#include <stdfloat>
 
-// Error taxonomy for geometric and resource allocation failures
-enum class ComplexError {
-    InvalidGeometry,
-    RepeatedVertices,
-    ResourceLimitExceeded,
+// Unifying error tracking using modern lightweight value types
+enum class TopologyStatus : uint8_t {
+    Success,
+    DuplicateVertices,
+    BudgetExceeded,
     InvalidDimension
 };
 
-// String mapping for clear error descriptions
-std::string to_string(ComplexError err) {
-    switch (err) {
-        case ComplexError::InvalidGeometry: return "A simplex requires one or more valid vertex IDs.";
-        case ComplexError::RepeatedVertices: return "Repeated vertices detected within a single simplex.";
-        case ComplexError::ResourceLimitExceeded: return "Simplex count exceeds the specified max budget.";
-        case ComplexError::InvalidDimension: return "Requested dimension is out of bounds for this complex.";
+inline std::string to_string(TopologyStatus status) {
+        switch (status) {
+        case TopologyStatus::Success:           return "Success";
+        case TopologyStatus::DuplicateVertices: return "Structural error: Duplicate vertices found within a facet.";
+        case TopologyStatus::BudgetExceeded:   return "Resource constraint: Complex size crossed allocation limits.";
+        case TopologyStatus::InvalidDimension:  return "Boundary operator error: Requested dimension out of bounds.";
     }
-    return "Unknown error.";
+    return "Unknown state.";
 }
 
-/**
- * Flat zero allocation inline rep
- */
-template <std::size_t Dim>
-struct Simplex2 {
-
-    std::array<int, 1 + Dim> vertices {};
-    auto operator <=> (const Simplex2 &) const = default;
-}
-
-struct CSRKey {
-    std::size_t k1;
-    std::size_t k2;
-    /// Homogeneous comparisons
-    auto operator <=> (const CSRKey &) const = default;
-    /// Heterogeneous comparisons
-    auto operator <=> (const std::pair<std::size_t, std::size_t> & rhs) const {
-        return std::tie(k1, k2) <=> std::tie(rhs.first, rhs.second);
-    }
-}
-
-struct CSRIndexCompare {
-    using is_transparent = void;
-
-    auto operator ()(const CSRKey & lhs, const CSRKey & rhs) const -> bool {
-        return lhs < rhs;
-    }
-
-    auto operator()(const CSRKey & lhs, std::pair<std::size_t, std::size_t> rhs) const -> bool {
-        return std::tie(lhs.k1,lhs.k2) < std::tie(rhs.first, rhs.second);
-    }
-
-    auto operator()(std::pair<std::size_t,std::size_t> lhs, const CSRKey & rhs) const -> bool {
-        return std::tie(lhs.first, lhs.second) < std::tie(rhs.k1, rhs.k2);
-    }
-}
-
-
-struct CSRMatrix2 {
-    auto data = std::flat_map<CSRKey, std::bfloat16_t, CSRIndexCompare>{};
-}
-
-// Immutable representation of a topological simplex with canonical vertex ordering
+// Flat, un-fragmented representation of a simplex using an explicitly managed contiguous block
 struct Simplex {
-
     std::vector<int> vertices;
 
-    size_t dim() const {
+    size_t dim() const noexcept {
         return vertices.empty() ? 0 : vertices.size() - 1;
     }
 
-    // Modern C++20 default spaceship operator for strict lexicographical sorting
     auto operator<=>(const Simplex&) const = default;
 };
 
-// Factory function mimicking Python's __post_init__ validation and canonical sorting
-std::expected<Simplex, ComplexError> make_simplex(std::vector<int> verts) {
-    if (verts.empty()) {
-        return std::unexpected(ComplexError::InvalidGeometry);
-    }
-
-    // Sort vertices to ensure structural identity (canonical ordering)
-    std::sort(verts.begin(), verts.end());
-
-    // Check for adjacent duplicates
-    auto it = std::adjacent_find(verts.begin(), verts.end());
-    if (it != verts.end()) {
-        return std::unexpected(ComplexError::RepeatedVertices);
-    }
-
-    return Simplex{ .vertices = std::move(verts) };
-}
-
-// Compressed Sparse Row (CSR) matrix representation optimized for boundary operators
-struct CSRMatrix {
+// Custom Compressed Sparse Row (CSR) implementation optimized for topological operators.
+// Since boundary entries are exclusively +1 or -1, we store coefficients using int8_t,
+// saving 87.5% memory overhead on numerical values relative to double-precision layouts.
+struct OksSparseCSR {
     std::vector<size_t> row_ptr;
     std::vector<size_t> col_ind;
-    std::vector<double> values; // Double precision to integrate natively with std::linalg
+    std::vector<int8_t> values;
     size_t num_rows = 0;
     size_t num_cols = 0;
 
-    void print() const {
-        std::cout << "CSR Matrix (" << num_rows << " x " << num_cols << "):\n";
-        std::cout << "  row_ptr: ";
-        for (auto p : row_ptr) std::cout << p << " ";
-        std::cout << "\n  col_ind: ";
-        for (auto c : col_ind) std::cout << c << " ";
-        std::cout << "\n  values:  ";
-        for (auto v : values) std::cout << v << " ";
+    void print() const noexcept {
+        std::cout << "Optimized CSR Matrix [" << num_rows << " x " << num_cols << "] (" << values.size() << " NNZ):\n";
+        std::cout << "  row_ptr: "; for (auto p : row_ptr) std::cout << p << " ";
+        std::cout << "\n  col_ind: "; for (auto c : col_ind) std::cout << c << " ";
+        std::cout << "\n  values:  "; for (auto v : values) std::cout << static_cast<int>(v) << " ";
         std::cout << "\n\n";
     }
 };
 
-// Helper structure to sort boundary indices during conversion to CSR format
-struct MatrixTriplet {
-    size_t row;
-    size_t col;
-    double value;
-
-    auto operator<=>(const MatrixTriplet&) const = default;
-};
-
-// Primary Simplicial Complex class ensuring downward closure property
 class SimplicialComplex {
 private:
-    std::vector<Simplex> simplices_;
+    // Memory Layout: A flat vector of dimensions, where each dimension holds a flat,
+    // contiguous, lexicographically sorted vector of Simplices. This guarantees
+    // maximum hardware prefetcher efficiency and cache-line saturation.
+    std::vector<std::vector<Simplex>> spatial_tiers_;
     size_t max_dim_ = 0;
-    std::vector<std::vector<Simplex>> by_dim_;
 
-    // Private constructor enforcing initialization via factory pattern
-    SimplicialComplex(std::vector<Simplex> simplices, size_t max_dim, std::vector<std::vector<Simplex>> by_dim)
-        : simplices_(std::move(simplices)), max_dim_(max_dim), by_dim_(std::move(by_dim)) {}
+    // Micro-optimized zero-allocation comparator. Compares a lower-dimensional simplex
+    // against an upper-dimensional simplex *as if* the upper simplex had its k-th vertex removed.
+    // This allows complete binary search logic across spans without copying or allocating memory.
+    static int compare_skipped_face(std::span<const int> lower, std::span<const int> upper, size_t skip_idx) noexcept {
+        size_t l_idx = 0;
+        for (size_t u_idx = 0; u_idx < upper.size(); ++u_idx) {
+            if (u_idx == skip_idx) [[unlikely]] continue;
+            if (l_idx >= lower.size()) return -1;
+
+            if (lower[l_idx] < upper[u_idx]) return -1;
+            if (lower[l_idx] > upper[u_idx]) return 1;
+
+             l_idx++;
+        }
+        return (l_idx < lower.size()) ? 1 : 0;
+    }
+
+    // Binary search engine implementing the zero-allocation comparison routine
+    static size_t find_face_index(std::span<const Simplex> lower_tier, const Simplex& upper, size_t skip_idx) noexcept {
+        long long low = 0;
+        long long high = static_cast<long long>(lower_tier.size()) - 1;
+
+        while (low <= high) {
+            long long mid = low + (high - low) / 2;
+            int comparison = compare_skipped_face(lower_tier[mid].vertices, upper.vertices, skip_idx);
+
+            if (comparison == 0) return static_cast<size_t>(mid);
+            if (comparison < 0) low = mid + 1;
+            else high = mid - 1;
+        }
+        return std::string::npos;
+            }
 
 public:
-    static std::expected<SimplicialComplex, ComplexError> build(
+    explicit SimplicialComplex(std::vector<std::vector<Simplex>> tiers, size_t max_dim)
+        : spatial_tiers_(std::move(tiers)), max_dim_(max_dim) {}
+
+    // Blazing-fast factory using the Vector Sort-Unique pattern instead of tree-balanced std::sets.
+    // Drastically lowers heap allocations by accumulating in flat staging arrays before deduplication.
+    static std::expected<SimplicialComplex, TopologyStatus> build(
         const std::vector<std::vector<int>>& facets,
-        size_t max_simplices = 50000)
+        size_t simplex_budget = 100'000)
     {
-        std::set<Simplex> unique_simplices;
+        if (facets.empty()) return SimplicialComplex({}, 0);
 
-        for (const auto& facet : facets) {
-            auto clean_facet_res = make_simplex(facet);
-            if (!clean_facet_res) return std::unexpected(clean_facet_res.error());
+        // Determine ultimate dimension limits to scale out initial tracking buffers safely
+        size_t calculated_max_dim = 0;
+        for (const auto& f : facets) {
+            if (!f.empty()) calculated_max_dim = std::max(calculated_max_dim, f.size() - 1);
+        }
 
-            const auto& vertices = clean_facet_res->vertices;
-            size_t n = vertices.size();
-            if (n >= 64) return std::unexpected(ComplexError::ResourceLimitExceeded);
+            std::vector<std::vector<Simplex>> staging_tiers(calculated_max_dim + 1);
+        size_t total_allocated = 0;
 
-            uint64_t total_faces = (1ULL << n) - 1;
-            if (unique_simplices.size() + total_faces > max_simplices) {
-                return std::unexpected(ComplexError::ResourceLimitExceeded);
+        for (auto facet : facets) {
+            if (facet.empty()) continue;
+
+            std::sort(facet.begin(), facet.end());
+            if (std::adjacent_find(facet.begin(), facet.end()) != facet.end()) {
+                return std::unexpected(TopologyStatus::DuplicateVertices);
             }
 
-            // Generate full downward closure via powerset bit manipulation
-            for (uint64_t i = 1; i <= total_faces; ++i) {
-                std::vector<int> face_verts;
-                for (size_t j = 0; j < n; ++j) {
-                    if ((i >> j) & 1) {
-                        face_verts.push_back(vertices[j]);
+            size_t n = facet.size();
+            uint64_t subfaces = (1ULL << n) - 1;
+
+            // Compute subface properties inline via bitmask permutations
+            for (uint64_t mask = 1; mask <= subfaces; ++mask) {
+                std::vector<int> face_vertices;
+                face_vertices.reserve(std::popcount(mask));
+
+                                for (size_t i = 0; i < n; ++i) {
+                    if ((mask >> i) & 1) {
+                        face_vertices.push_back(facet[i]);
                     }
                 }
-                unique_simplices.insert(Simplex{ .vertices = std::move(face_verts) });
+
+                size_t d = face_vertices.size() - 1;
+                staging_tiers[d].push_back(Simplex{ .vertices = std::move(face_vertices) });
             }
         }
 
-        if (unique_simplices.size() > max_simplices) {
-            return std::unexpected(ComplexError::ResourceLimitExceeded);
-        }
+        // Deduplicate staging tiers sequentially via sorting and unique-filtering contiguous spans
+        for (auto& tier : staging_tiers) {
+            std::sort(tier.begin(), tier.end());
+            auto unique_range = std::unique(tier.begin(), tier.end());
+            tier.erase(unique_range, tier.end());
+            total_allocated += tier.size();
 
-        // Flatten and sort by dimension, then by vertex order
-        std::vector<Simplex> all_simplices(unique_simplices.begin(), unique_simplices.end());
-        std::sort(all_simplices.begin(), all_simplices.end(), [](const Simplex& a, const Simplex& b) {
-            if (a.dim() != b.dim()) return a.dim() < b.dim();
-            return a.vertices < b.vertices;
-        });
+            if (total_allocated > simplex_budget) [[unlikely]] {
 
-        size_t max_dim = all_simplices.empty() ? 0 : all_simplices.back().dim();
-        std::vector<std::vector<Simplex>> by_dim(max_dim + 1);
-        for (const auto& s : all_simplices) {
-            by_dim[s.dim()].push_back(s);
-        }
-
-        return SimplicialComplex(std::move(all_simplices), max_dim, std::move(by_dim));
-    }
-
-    std::span<const Simplex> get_simplices_of_dim(size_t d) const {
-        if (d < by_dim_.size()) {
-            return by_dim_[d];
-        }
-        return {};
-    }
-
-    size_t max_dim() const { return max_dim_; }
-
-    // Generates the d-th boundary operator matrix mapping d-chains to (d-1)-chains
-    std::expected<CSRMatrix, ComplexError> boundary_operator(size_t d) const {
-        if (d == 0) {
-            return CSRMatrix{ .row_ptr = {0}, .num_rows = 0, .num_cols = get_simplices_of_dim(0).size() };
-        }
-
-        auto current = get_simplices_of_dim(d);
-        auto lower = get_simplices_of_dim(d - 1);
-
-        if (current.empty()) {
-            return CSRMatrix{ .row_ptr = std::vector<size_t>(lower.size() + 1, 0), .num_rows = lower.size(), .num_cols = 0 };
-        }
-
-        // Establish spatial lookup map for index mapping
-        std::map<std::vector<int>, size_t> lower_lookup;
-        for (size_t i = 0; i < lower.size(); ++i) {
-            lower_lookup[lower[i].vertices] = i;
-        }
-
-        std::vector<MatrixTriplet> triplets;
-
-        // Populate elements using the alternating sum formula
-        for (size_t j = 0; j < current.size(); ++j) {
-            const auto& verts = current[j].vertices;
-            for (size_t k = 0; k < verts.size(); ++k) {
-                std::vector<int> face_verts;
-                face_verts.reserve(verts.size() - 1);
-                for (size_t idx = 0; idx < verts.size(); ++idx) {
-                    if (idx != k) face_verts.push_back(verts[idx]);
-                }
-
-                auto it = lower_lookup.find(face_verts);
-                if (it != lower_lookup.end()) {
-                    double sign = (k % 2 == 0) ? 1.0 : -1.0;
-                    triplets.push_back({ .row = it->second, .col = j, .value = sign });
-                }
+                                return std::unexpected(TopologyStatus::BudgetExceeded);
             }
         }
 
-        // Sort triplets to ensure orderly row accumulation
-        std::sort(triplets.begin(), triplets.end());
+        return SimplicialComplex(std::move(staging_tiers), calculated_max_dim);
+    }
 
-        CSRMatrix csr;
-        csr.num_rows = lower.size();
-        csr.num_cols = current.size();
+    std::span<const Simplex> get_tier(size_t d) const noexcept {
+        return (d < spatial_tiers_.size()) ? spatial_tiers_[d] : std::span<const Simplex>{};
+    }
+
+    // High-Performance Two-Pass Zero-Sort CSR Assembly Engine.
+    // Appending items in a sequential column-index execution sweep means column keys
+    // are automatically sorted inside each row by default. Eliminates triplet sorting arrays entirely.
+    std::expected<OksSparseCSR, TopologyStatus> boundary_operator(size_t d) const noexcept {
+        if (d == 0 || d > max_dim_) return std::unexpected(TopologyStatus::InvalidDimension);
+
+        auto current_cols = get_tier(d);
+        auto lower_rows   = get_tier(d - 1);
+
+                OksSparseCSR csr;
+        csr.num_rows = lower_rows.size();
+        csr.num_cols = current_cols.size();
         csr.row_ptr.assign(csr.num_rows + 1, 0);
-        csr.col_ind.reserve(triplets.size());
-        csr.values.reserve(triplets.size());
 
-        for (const auto& t : triplets) {
-            csr.col_ind.push_back(t.col);
-            csr.values.push_back(t.value);
-            csr.row_ptr[t.row + 1]++;
+        if (current_cols.empty()) return csr;
+
+        // Pass 1: Scan structural hierarchies to calculate exact non-zero distributions per row
+        for (size_t j = 0; j < current_cols.size(); ++j) {
+            const auto& upper_simplex = current_cols[j];
+            for (size_t k = 0; k < upper_simplex.vertices.size(); ++k) {
+                size_t i = find_face_index(lower_rows, upper_simplex, k);
+                if (i != std::string::npos) {
+                    csr.row_ptr[i + 1]++; // Track offsets shifted by one position
+                }
+            }
         }
 
-        // Compute cumulative offset arrays for CSR format mapping
-        for (size_t i = 0; i < csr.num_rows; ++i) {
+        // Generate cumulative row offset tracking pointers using a fast running prefix sum
+
+                for (size_t i = 0; i < csr.num_rows; ++i) {
             csr.row_ptr[i + 1] += csr.row_ptr[i];
+        }
+
+        // Sizing the tracking buffers to perfectly match calculated non-zero targets
+        size_t total_nnz = csr.row_ptr.back();
+        csr.col_ind.resize(total_nnz);
+        csr.values.resize(total_nnz);
+
+        // Mirror active offset blocks to safely trace localized cursor coordinates
+        std::vector<size_t> write_cursors = csr.row_ptr;
+
+        // Pass 2: Fill internal tracking buffers. Processing columns sequentially from
+        // 0 to num_cols-1 automatically orders column indices within row blocks.
+        for (size_t j = 0; j < current_cols.size(); ++j) {
+            const auto& upper_simplex = current_cols[j];
+            for (size_t k = 0; k < upper_simplex.vertices.size(); ++k) {
+                size_t i = find_face_index(lower_rows, upper_simplex, k);
+                if (i != std::string::npos) {
+
+                                        size_t write_pos = write_cursors[i]++;
+                    csr.col_ind[write_pos] = j;
+                    csr.values[write_pos]  = (k % 2 == 0) ? 1 : -1;
+                }
+            }
         }
 
         return csr;
@@ -270,61 +226,31 @@ public:
 };
 
 int main() {
-    // Define a 2-simplex (a solid triangle layout)
-    std::vector<std::vector<int>> facets = { {1, 2, 3} };
+    // Setting up a basic 2-simplex configuration tracking a topological triangle
+    std::vector<std::vector<int>> facets = { {10, 20, 30} };
 
-    std::cout << "Constructing complex for a filled triangle..." << std::endl;
-    auto complex_res = SimplicialComplex::build(facets);
+    std::cout << "Assembling complex using unconstrained C++ optimization tactics...\n";
+    auto complex_result = SimplicialComplex::build(facets);
 
-    if (!complex_res) {
-        std::cerr << "Initialization Error: " << to_string(complex_res.error()) << std::endl;
+    if (!complex_result) {
+
+        std::cerr << "Initialization aborted: " << to_string(complex_result.error()) << "\n";
         return 1;
     }
 
-    const auto& comp = *complex_res;
+    const auto& complex = *complex_result;
+    std::cout << "0-Simplices cached: " << complex.get_tier(0).size() << "\n";
+    std::cout << "1-Simplices cached: " << complex.get_tier(1).size() << "\n";
+    std::cout << "2-Simplices cached: " << complex.get_tier(2).size() << "\n\n";
 
-    // Verify correct properties across spatial hierarchies
-    for (size_t d = 0; d <= comp.max_dim(); ++d) {
-        std::cout << "Dimension " << d << " simplex count: " << comp.get_simplices_of_dim(d).size() << "\n";
-    }
-    std::cout << "\n";
-
-    // Extract the 2-to-1 boundary operator matrix
-    auto d2_matrix_res = comp.boundary_operator(2);
-    if (!d2_matrix_res) return 1;
-    const auto& boundary_2 = *d2_matrix_res;
-    boundary_2.print();
-
-    // Demonstrate modern C++26 standard linear algebra using std::mdspan layout conversions
-    std::cout << "Converting to dense representation using C++26 std::mdspan & std::linalg...\n";
-
-    std::vector<double> dense_buffer(boundary_2.num_rows * boundary_2.num_cols, 0.0);
-    // Bind flat buffer layout into dynamic 2D grid matrix
-    std::mdspan dense_matrix(dense_buffer.data(), boundary_2.num_rows, boundary_2.num_cols);
-
-    // Inflate CSR configuration entries into the dense view layout structure
-    for (size_t r = 0; r < boundary_2.num_rows; ++r) {
-        for (size_t idx = boundary_2.row_ptr[r]; idx < boundary_2.row_ptr[r + 1]; ++idx) {
-            size_t c = boundary_2.col_ind[idx];
-            dense_matrix[r, c] = boundary_2.values[idx];
-        }
-    }
-
-    // Set up chain inputs for evaluation
-    std::vector<double> input_chain_vector = { 1.0 }; // Exactly one 2-simplex active
-    std::vector<double> output_boundary_vector(boundary_2.num_rows, 0.0);
-
-    // Instantiate 1D structural views via standard type deductions
-    std::mdspan x_view(input_chain_vector.data(), boundary_2.num_cols);
-    std::mdspan y_view(output_boundary_vector.data(), boundary_2.num_rows);
-
-    // Invoke the C++26 matrix-vector compiler-optimized pipeline tool directly
-    std::linalg::matrix_vector_product(dense_matrix, x_view, y_view);
-
-    std::cout << "Resulting Boundary 1-Chain coordinates:\n";
-    for (size_t i = 0; i < output_boundary_vector.size(); ++i) {
-        std::cout << "  Face Index [" << i << "]: coefficient = " << y_view[i] << "\n";
+    // Extracting our boundary operator layout matrix
+    auto boundary_op_2 = complex.boundary_operator(2);
+    if (boundary_op_2) {
+        boundary_op_2->print();
     }
 
     return 0;
 }
+
+
+
