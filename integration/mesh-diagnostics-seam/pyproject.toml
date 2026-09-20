@@ -13,16 +13,19 @@ keywords = ["gradio-custom-component"]
 
 [project.optional-dependencies]
 gradio = ["gradio>=6,<7"]
-test = ["pytest>=8"]
+test = ["pytest>=8", "build>=1", "hatchling>=1.27"]
 
 [tool.hatch.build]
 artifacts = ["/backend/gradio_meshdiagnostics/templates"]
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["python/cad_mesh_inspector", "backend/gradio_meshdiagnostics"]
 
 [tool.hatch.build.targets.sdist]
-include = ["python", "backend", "src", "tests", "examples", "scripts", "*.svelte", "*.ts", "*.js", "*.json", "*.md", "*.toml", "index.html"]
+include = ["python", "backend", "src", "tests", "examples", "scripts", "*.svelte", "*.ts", "*.js", "*.json", "*.md", "*.toml", "hatch_build.py", "index.html"]
 exclude = ["node_modules", ".core-build", "dist", "test-results"]
 
 [tool.pytest.ini_options]

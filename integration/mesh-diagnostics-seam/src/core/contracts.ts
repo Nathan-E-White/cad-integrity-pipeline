@@ -32,11 +32,14 @@ function object(x: unknown, at: string): RecordValue {
   if (!x || typeof x !== "object" || Array.isArray(x)) fail(`${at}: expected object`);
   return x as RecordValue;
 }
-function text(x: unknown, at: string, max = 1024): string {
-  if (typeof x !== "string" || x.length === 0 || x.length > max) fail(`${at}: invalid string`);
+function text(x: unknown, at: string, max = 1024, min = 1): string {
+  if (typeof x !== "string" || x.length < min || x.length > max * 2) fail(`${at}: invalid string`);
+  // Python limits count Unicode code points, not UTF-16 code units.
+  let length = 0;
+  for (const _ of x) if (++length > max) fail(`${at}: invalid string`);
   return x;
 }
-function nullableText(x: unknown, at: string): string | null { return x == null ? null : text(x, at); }
+function nullableText(x: unknown, at: string, max = 1024, min = 0): string | null { return x == null ? null : text(x, at, max, min); }
 function finite(x: unknown, at: string): number {
   if (typeof x !== "number" || !Number.isFinite(x)) fail(`${at}: expected finite number`);
   return x;
@@ -66,9 +69,29 @@ function keys(x: RecordValue, allowed: string[], at: string): void {
   for (const key of Object.keys(x)) if (!allowed.includes(key)) fail(`${at}: unexpected key ${key}`);
 }
 
+function checkAggregateBudgets(o: RecordValue): void {
+  // Inspect lengths only: no numeric array has been copied at this point.
+  for (const [name, columns, itemLimit, totalLimit, message] of [
+    ["paths", ["points"], 10_000, MAX_PATH_POINTS * 3, "Total path point budget exceeded"],
+    ["selections", ["face_ids", "edge_pairs", "segments"], 256, 8_000_000, "Selection data budget exceeded"],
+  ] as const) {
+    const items = list(o[name] ?? [], name, itemLimit);
+    let total = 0;
+    for (const item of items) {
+      const record = object(item, name);
+      for (const column of columns) {
+        const values = record[column];
+        if (Array.isArray(values)) total += values.length;
+        if (total > totalLimit) fail(message);
+      }
+    }
+  }
+}
+
 function parseMesh(value: unknown, index: number): MeshPayload {
   const at = `meshes[${index}]`, o = object(value, at);
   keys(o, ["id", "revision", "label", "frame_id", "length_unit", "positions", "triangles", "triangle_source_faces", "fields", "selections", "metrics", "paths", "provenance"], at);
+  checkAggregateBudgets(o);
   const positions = numbers(o.positions, `${at}.positions`, 3, MAX_V * 3);
   const triangles = numbers(o.triangles, `${at}.triangles`, 3, MAX_F * 3, true);
   const nv = positions.length / 3, nf = triangles.length / 3;
@@ -91,10 +114,9 @@ function parseMesh(value: unknown, index: number): MeshPayload {
     if (points.length < 6) fail("Paths need at least two points");
     return { id: text(p.id, "path.id", 128), label: text(p.label, "path.label", 256), points,
       status: choice(p.status ?? "unknown", ["active", "terminated", "cycle_detected", "iteration_limit", "unknown"], "path.status"),
-      termination_reason: nullableText(p.termination_reason, "termination_reason"),
+      termination_reason: nullableText(p.termination_reason, "termination_reason", 512),
       provenance: choice(p.provenance ?? "imported", ["computed", "imported", "synthetic_fixture"], "provenance") };
   }), "paths");
-  if (paths.reduce((n, p) => n + p.points.length, 0) > MAX_PATH_POINTS * 3) fail("Total path point budget exceeded");
   const pathIds = new Set(paths.map(p => p.id));
   const selections = unique(list(o.selections ?? [], "selections", 256).map(v => {
     const s = object(v, "selection");
@@ -107,25 +129,23 @@ function parseMesh(value: unknown, index: number): MeshPayload {
     if (edge_pairs.some(i => i >= nv) || path_ids.some(id => !pathIds.has(id))) fail("Invalid selection edge/path reference");
     return { id: text(s.id, "selection.id", 128), label: text(s.label, "selection.label", 256), face_ids, edge_pairs, segments, path_ids };
   }), "selections");
-  // A second aggregate budget prevents small per-item limits multiplying into GB.
-  if (selections.reduce((n, s) => n + s.face_ids.length + s.edge_pairs.length + s.segments.length, 0) > 8_000_000) fail("Selection data budget exceeded");
   const selectionIds = new Set(selections.map(s => s.id));
   const metrics = unique(list(o.metrics ?? [], "metrics", 256).map(v => {
     const m = object(v, "metric");
     keys(m, ["id", "label", "value", "status", "selection_id", "scope"], "metric");
-    const selection_id = nullableText(m.selection_id, "selection_id");
+    const selection_id = nullableText(m.selection_id, "selection_id", 128, 1);
     if (selection_id && !selectionIds.has(selection_id)) fail("Metric references missing selection");
-    const val = m.value == null ? null : typeof m.value === "string" ? text(m.value, "metric.value") : finite(m.value, "metric.value");
+    const val = m.value == null ? null : typeof m.value === "string" ? text(m.value, "metric.value", 1024, 0) : finite(m.value, "metric.value");
     return { id: text(m.id, "metric.id", 128), label: text(m.label, "metric.label", 256), value: val,
       status: choice(m.status ?? "info", ["info", "pass", "warn", "fail", "unknown"], "metric.status"),
-      selection_id, scope: text(m.scope ?? "Display diagnostic; not solver/CAD certification", "scope") };
+      selection_id, scope: text(m.scope ?? "Display diagnostic; not solver/CAD certification", "scope", 1024, 0) };
   }), "metrics");
   const source = o.triangle_source_faces == null ? null : numbers(o.triangle_source_faces, "triangle_source_faces", 1, MAX_F, true);
   if (source && source.length !== nf) fail("Invalid triangle/source face mapping length");
   return { id: text(o.id, `${at}.id`, 128), revision: text(o.revision, "revision", 128), label: text(o.label, "label", 256),
-    frame_id: text(o.frame_id, "frame_id", 128), length_unit: nullableText(o.length_unit, "length_unit"),
+    frame_id: text(o.frame_id, "frame_id", 128), length_unit: nullableText(o.length_unit, "length_unit", 32),
     positions, triangles, triangle_source_faces: source, fields, selections, metrics, paths,
-    provenance: text(o.provenance ?? "Imported triangle display mesh", "provenance") };
+    provenance: text(o.provenance ?? "Imported triangle display mesh", "provenance", 1024, 0) };
 }
 
 export function parseDocument(value: unknown): InspectorDocument {

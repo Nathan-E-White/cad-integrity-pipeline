@@ -1,4 +1,6 @@
 import json
+from pathlib import Path
+from copy import deepcopy
 import numpy as np
 import pytest
 from pydantic import ValidationError
@@ -64,3 +66,47 @@ def test_legacy_crashed_path_not_cycle_or_collision_proof():
 def test_no_synthetic_paths_on_missing_input():
     p=upgrade_legacy_payload({"vertices":[],"faces":[]},mesh_id="m",revision="1",frame_id="world")
     assert p.paths==[] and p.metrics==[]
+
+
+@pytest.mark.parametrize("case", json.loads((Path(__file__).parent / "contract-cases.json").read_text()), ids=lambda c: c["name"])
+def test_shared_wire_contract_cases(case):
+    raw = json.loads((Path(__file__).parents[1] / "examples/torus-comparison.json").read_text())
+    raw["meshes"] = raw["meshes"][:1]
+    mesh = raw["meshes"][0]
+    mesh["triangle_source_faces"] = [0] * (len(mesh["triangles"]) // 3)
+    target = mesh
+    for key in case["path"][:-1]:
+        target = target[key]
+    value = case.get("text", "x") * case["repeat"] if "repeat" in case else deepcopy(case["value"])
+    if case["path"] == ["triangle_source_faces"]:
+        value = value * (len(mesh["triangles"]) // 3)
+    target[case["path"][-1]] = value
+    if case["accepted"]:
+        InspectorDocument.model_validate(raw)
+    else:
+        with pytest.raises(ValidationError):
+            InspectorDocument.model_validate(raw)
+
+
+@pytest.mark.parametrize("kind", ["paths", "selections"])
+def test_aggregate_budget_rejected_before_numeric_validation(kind):
+    raw = payload()
+    mesh = raw["meshes"][0]
+    if kind == "paths":
+        coordinates = ["invalid"] + [0.0] * 750_002
+        mesh[kind] = [{"id": f"p{i}", "label": "Path", "points": coordinates} for i in range(2)]
+    else:
+        coordinates = ["invalid"] + [0.0] * 31_253
+        mesh[kind] = [{"id": f"s{i}", "label": "Selection", "segments": coordinates} for i in range(256)]
+    with pytest.raises(ValidationError, match="budget exceeded") as error:
+        InspectorDocument.model_validate(raw)
+    assert len(error.value.errors()) == 1
+
+
+def test_existing_model_instance_cannot_bypass_aggregate_budget():
+    from cad_mesh_inspector import Trace
+    model = InspectorDocument.model_validate(payload()).meshes[0]
+    points = [0.0] * 750_003
+    model.paths = [Trace(id=f"p{i}", label="Path", points=points) for i in range(2)]
+    with pytest.raises(ValidationError, match="budget exceeded"):
+        InspectorDocument(meshes=[model])

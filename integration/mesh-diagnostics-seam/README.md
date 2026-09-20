@@ -72,7 +72,9 @@ python scripts/build_component.py
 
 The builder uses the installed Gradio preview tooling and checks that actual component
 assets were emitted before creating `dist/gradio_meshdiagnostics-0.1.0-py3-none-any.whl`.
-The wheel contains both Python import packages. The numeric/document API can be
+A standard wheel build now refuses missing/empty component or example assets with
+an actionable error. Editable wheels remain available for bootstrapping; source
+distributions retain the same build guard. The wheel contains both Python import packages. The numeric/document API can be
 imported without Gradio; importing `gradio_meshdiagnostics` requires the Gradio extra.
 
 Install that wheel in a separate runtime environment and run:
@@ -101,6 +103,18 @@ geometry additionally uses the contract's 500,000-vertex and 250,000-triangle bo
 Duplicate/encrypted members, inconsistent body sizes, oversized shapes and pickle
 payloads fail. Malformed ZIP containers retain `zipfile.BadZipFile`; invalid content
 raises `ValueError`. No archive member is extracted to disk.
+
+Python and TypeScript share bounds for descriptive text and exact source-face IDs.
+Optional descriptive text may be empty; metric text and scalar units are bounded at
+1,024 Unicode code points, length units at 32, and termination reasons at 512.
+Source-face IDs must lie in `[0, 2**53 - 1]`. Aggregate path/selection lengths are
+checked before nested array conversion or copying.
+
+View fitting and clipping bounds include explicit diagnostic segments as well as
+mesh positions and paths, including segment-only display documents.
+The standalone `triangle_quality` function raises `ValueError` if a nonzero area
+underflows to zero or overflows float64; it does not classify that representability
+failure as geometric degeneracy. Representable subnormal areas remain supported.
 
 IDs, revisions, frame, units and provenance are explicit caller metadata. This
 optional helper does not replace the parent application's restricted

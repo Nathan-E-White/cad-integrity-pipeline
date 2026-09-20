@@ -54,6 +54,7 @@ def triangle_quality(vertices: ArrayLike, triangles: ArrayLike, *, area_toleranc
     This is NOT the longest-edge/inradius aspect metric in cad_integrity.metrics.
     area_tolerance is explicit and has squared-coordinate units. No epsilon area
     is fabricated. Per-triangle scaling stabilizes dimensionless measurements.
+    Nonzero areas outside float64 range raise ValueError, not a degeneracy verdict.
     """
     if not np.isfinite(area_tolerance) or area_tolerance < 0:
         raise ValueError("area_tolerance must be finite and nonnegative")
@@ -63,10 +64,12 @@ def triangle_quality(vertices: ArrayLike, triangles: ArrayLike, *, area_toleranc
         e = np.stack((xyz[:, 1] - xyz[:, 0], xyz[:, 2] - xyz[:, 1], xyz[:, 0] - xyz[:, 2]), axis=1)
     scale = np.max(np.abs(e), axis=(1, 2), initial=0.0)
     normalized = np.divide(e, scale[:, None, None], out=np.zeros_like(e), where=scale[:, None, None] > 0)
-    lengths = np.linalg.norm(normalized, axis=2)
-    normalized_area = 0.5 * np.linalg.norm(np.cross(normalized[:, 0], -normalized[:, 2]), axis=1)
-    with np.errstate(over="raise", invalid="raise"):
+    lengths = np.hypot.reduce(normalized, axis=2)
+    normalized_area = 0.5 * np.hypot.reduce(np.cross(normalized[:, 0], -normalized[:, 2]), axis=1)
+    with np.errstate(over="ignore", under="ignore", invalid="ignore"):
         areas = (normalized_area * scale) * scale
+    if np.any(~np.isfinite(areas) | ((normalized_area > 0) & (areas == 0))):
+        raise ValueError("Triangle area is outside the representable float64 range")
     valid = (areas > area_tolerance) & (normalized_area > 0) & np.all(lengths > 0, axis=1)
     q = np.zeros(len(f), dtype=np.float64)
     ratio = np.full(len(f), np.inf)

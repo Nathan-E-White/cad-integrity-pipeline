@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import type { MeshPayload } from "../core/contracts.js";
-  import { boundsOf, type DisplayFrame } from "../core/math.js";
+  import { boundsFor, type DisplayFrame } from "../core/math.js";
   import { defaultState } from "../core/state.js";
   import { resolveTarget, type Target } from "../core/selection.js";
   import { Viewport } from "../render/Viewport.js";
@@ -18,7 +18,7 @@
   let state = defaultState();
   let pinned: Target | null = null;
   let preview: Target | null = null;
-  $: bounds = boundsOf(mesh.positions) ?? { min: [0, 0, 0] as [number, number, number], max: [0, 0, 0] as [number, number, number] };
+  $: bounds = boundsFor([mesh]) ?? { min: [0, 0, 0] as [number, number, number], max: [0, 0, 0] as [number, number, number] };
   $: target = preview ?? pinned;
   $: field = mesh.fields.find(f => f.id === state.fieldId);
   $: viewport?.applyState(state);

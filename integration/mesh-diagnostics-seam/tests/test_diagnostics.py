@@ -98,3 +98,34 @@ def test_no_mutation_and_tolerance_units():
 @pytest.mark.parametrize("threshold", [-1,1.1,np.nan,np.inf])
 def test_bad_threshold(threshold):
     with pytest.raises(ValueError): inspect_triangles(V,F,mesh_id="m",revision="1",frame_id="world",minimum_mean_ratio=threshold)
+
+
+@pytest.mark.parametrize("scale", [1e-170, 1e170])
+def test_unrepresentable_nonzero_area_is_not_reported_as_degeneracy(scale):
+    with pytest.raises(ValueError, match="area.*representable"):
+        triangle_quality([[0,0,0],[scale,0,0],[0,scale,0]], [[0,1,2]])
+
+
+def test_representable_subnormal_area_retains_shape_quality():
+    q = triangle_quality([[0,0,0],[1e-160,0,0],[0,1e-160,0]], [[0,1,2]])
+    assert q.areas[0] > 0
+    np.testing.assert_allclose(q.mean_ratios, [np.sqrt(3) / 2])
+    assert not q.degenerate_face_ids.size
+
+
+def test_genuine_zero_area_remains_degenerate_at_extreme_scale():
+    q = triangle_quality([[0,0,0],[1e170,0,0],[2e170,0,0]], [[0,1,2]])
+    assert q.areas.tolist() == [0.0]
+    assert q.degenerate_face_ids.tolist() == [0]
+
+
+def test_thin_triangle_with_unrepresentable_area_raises():
+    with pytest.raises(ValueError, match="area.*representable"):
+        triangle_quality([[0,0,0],[1e-100,0,0],[0,1e-270,0]], [[0,1,2]])
+
+
+def test_thin_triangle_with_representable_area_is_not_degenerate():
+    q = triangle_quality([[0,0,0],[1,0,0],[0,1e-170,0]], [[0,1,2]])
+    assert q.areas[0] == 5e-171
+    assert q.mean_ratios[0] > 0
+    assert not q.degenerate_face_ids.size

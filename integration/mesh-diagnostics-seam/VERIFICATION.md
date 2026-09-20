@@ -67,3 +67,25 @@ Incoming document replacement resets panes and local view state; interactions wi
 a document reuse its geometry. Separate diagnostic revision remains future schema
 work. Original delivery reports are retained in the unchanged archive and must not
 be confused with these local results.
+
+
+## Follow-up audit fixes
+
+The five subsequent audit findings are addressed: matching text/source-ID constraints,
+length preflight before aggregate numeric conversion, a wheel-build guard retained
+in source distributions, complete segment-aware display/clip bounds, and explicit
+float64 area representability failure instead of false degeneracy. Motorcycle
+import/display code and the separate tracing implementations are unchanged.
+
+Regression evidence includes shared Python/TypeScript JSON cases, over-budget inputs
+that must fail before invalid numeric elements are inspected, clean/editable/source
+builds, distant segment-only bounds, and tiny/huge and anisotropic area cases.
+
+Final local results: 91 package Python tests, 253 parent Python tests, 22 TypeScript
+tests, four production standalone browser tests, and two installed-wheel Gradio
+browser tests passed. Svelte checking reported zero errors and warnings; standalone
+and Gradio wheel builds passed. The standalone bundle-size warning remains.
+
+Standards review: zero actionable findings. Spec review: zero remaining findings;
+review caught intermediate norm underflow for thin triangles, now covered by two
+regressions and corrected with stable hypot norms. No hosted CI was run.
