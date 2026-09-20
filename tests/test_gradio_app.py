@@ -103,7 +103,7 @@ def test_build_app_exposes_mesh_lab_before_the_step_workbench() -> None:
     assert tab_groups[0]["props"]["selected"] == 0
 
 
-def test_main_launches_the_xkcd_theme(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_main_uses_gradio_default_theme(monkeypatch: pytest.MonkeyPatch) -> None:
     from cad_integrity import gradio_app
 
     launch_arguments: dict[str, object] = {}
@@ -119,7 +119,6 @@ def test_main_launches_the_xkcd_theme(monkeypatch: pytest.MonkeyPatch) -> None:
     assert launch_arguments == {
         "server_name": "127.0.0.1",
         "share": False,
-        "theme": "gstaff/xkcd",
     }
 
 
@@ -149,29 +148,30 @@ def test_build_app_uses_full_width_focused_diagnostic_tabs() -> None:
     ) == 2
 
 
-def test_mesh_lab_dashboard_omits_retained_forensics_but_keeps_verification(tmp_path: Path) -> None:
+def test_mesh_lab_projects_typed_audit_while_retained_brief_keeps_forensics(tmp_path: Path) -> None:
+    from gradio_topologicaldeltaaudit import TopologicalDeltaAuditData
+    from gradio_verificationgrid import VerificationGridData
     from cad_integrity.gradio_app import ArtifactStore, _polygonal_ui_projection, run_polygonal_fixture
 
     outcome = run_polygonal_fixture(
         "01_detached_reversed_cap", artifact_store=ArtifactStore(tmp_path / "artifacts")
     )
-    dashboard = _polygonal_ui_projection(outcome)[1]
+    audit, verification = _polygonal_ui_projection(outcome)[1:3]
     retained_brief = outcome.decision_brief.markdown
 
-    assert "## Before / after" in dashboard
-    assert "## What happened" in dashboard
-    assert "## Configured policy" in dashboard
-    assert "## Verification" in dashboard
-    assert "Polygonal-cell admission [PASSED]" in dashboard
+    assert isinstance(audit, TopologicalDeltaAuditData)
+    assert any(row.entity == "Boundary edges" and row.delta == "−128" for row in audit.rows)
+    assert isinstance(verification, VerificationGridData)
+    assert verification.summary == "3 / 3 pass"
     for heading in ("## Evidence", "## Limitations", "## Completion", "## Availability"):
-        assert heading not in dashboard
         assert heading in retained_brief
     assert "Input SHA-256" in retained_brief
     assert "Candidate canonical-array fingerprint" in retained_brief
     assert "Length unit" in retained_brief
 
 
-def test_mesh_lab_dashboard_keeps_failed_and_unavailable_checks_visible() -> None:
+def test_mesh_lab_verification_grid_keeps_failed_and_unavailable_checks_visible() -> None:
+    from gradio_verificationgrid import VerificationGridData
     from cad_integrity.gradio_app import _polygonal_ui_projection
     from cad_integrity.workbench_results import (
         CheckResult,
@@ -194,11 +194,14 @@ def test_mesh_lab_dashboard_keeps_failed_and_unavailable_checks_visible() -> Non
         None,
     )
 
-    dashboard = _polygonal_ui_projection(outcome)[1]
+    verification = _polygonal_ui_projection(outcome)[2]
 
-    assert "Verification: Needs review" in dashboard
-    assert "Polygonal-cell admission [FAILED] — Rejected cells" in dashboard
-    assert "Homology evaluation [UNAVAILABLE] — Budget exhausted" in dashboard
+    assert isinstance(verification, VerificationGridData)
+    checks = {check.name: check for group in verification.groups for check in group.checks}
+    assert checks["polygonal-cell_admission"].state == "failed"
+    assert checks["polygonal-cell_admission"].detail == "Rejected cells"
+    assert checks["homology_evaluation"].state == "inconclusive"
+    assert checks["homology_evaluation"].detail == "Budget exhausted"
 
 
 def test_mesh_lab_and_retained_brief_share_one_verification_ledger(tmp_path: Path) -> None:
@@ -210,11 +213,14 @@ def test_mesh_lab_and_retained_brief_share_one_verification_ledger(tmp_path: Pat
     )
     ledger = verification_markdown(outcome.checks)
 
-    assert ledger in _polygonal_ui_projection(outcome)[1]
+    verification = _polygonal_ui_projection(outcome)[2]
+    assert verification.summary == "0 / 1 pass"
     assert ledger in outcome.decision_brief.markdown
 
 
 def test_mesh_lab_example_and_upload_actions_share_one_result_projection(tmp_path: Path) -> None:
+    from gradio_topologicaldeltaaudit import TopologicalDeltaAuditData
+    from gradio_verificationgrid import VerificationGridData
     from cad_integrity.gradio_app import (
         ArtifactStore,
         _fixture_ui_action,
@@ -232,11 +238,31 @@ def test_mesh_lab_example_and_upload_actions_share_one_result_projection(tmp_pat
     )
 
     for source_name, result in (("Example: Detached reversed cap", example_result), ("Uploaded NPZ", upload_result)):
-        assert len(result) == 9
+        assert len(result) == 10
         assert source_name in result[0]
-        assert "## Decision" in result[1]
-        assert "## Verification" in result[1]
+        assert isinstance(result[1], TopologicalDeltaAuditData)
+        assert isinstance(result[2], VerificationGridData)
         assert all(isinstance(output, str) and Path(output).is_file() for output in result[-4:])
+
+
+def test_mesh_lab_projects_typed_delta_audit_and_verification_grid(tmp_path: Path) -> None:
+    """The live fixture action drives the two engineering projections, not Markdown."""
+    from gradio_topologicaldeltaaudit import TopologicalDeltaAuditData
+    from gradio_verificationgrid import VerificationGridData
+
+    from cad_integrity.gradio_app import ArtifactStore, _fixture_ui_action, build_app
+
+    result = _fixture_ui_action(
+        "01_detached_reversed_cap", artifact_store=ArtifactStore(tmp_path / "artifacts")
+    )
+    audit, verification = result[1:3]
+
+    assert isinstance(audit, TopologicalDeltaAuditData)
+    assert any(row.entity == "Boundary edges" and row.delta == "−128" for row in audit.rows)
+    assert isinstance(verification, VerificationGridData)
+    assert verification.summary == "3 / 3 pass"
+    component_types = {component["type"] for component in build_app().get_config_file()["components"]}
+    assert {"topologicaldeltaaudit", "verificationgrid"} <= component_types
 
 
 def test_mesh_figure_has_a_deterministic_diagnostic_presentation() -> None:
