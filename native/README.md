@@ -52,26 +52,79 @@ Malformed nonempty mappings are rejected at BVH construction.
 The library does not print results or define `main`. Tests are separate consumers
 of the public header, and their checks remain active under `NDEBUG`.
 
-## Build ownership
+## CMake build and test interface
 
-The parent composes the authoritative NURBS and Voronoi targets from their
-subtrees; sources are not re-declared. Each subtree remains buildable on its own.
-The parent registers all three native test executables. Assertion-based numerical
-tests remain enabled in Release; direct compilation with `NDEBUG` fails closed.
+Requires CMake 4.3+ and a compiler/standard library supporting the C++26 mode and
+`std::expected`. Presets use Ninja. No external C++ test framework is downloaded.
+The maintained native root is this directory; Python packaging remains separate.
 
-## Checks
-
-```sh
-cmake -S native -B /private/tmp/cad-native-build -DBUILD_TESTING=ON
-cmake --build /private/tmp/cad-native-build
-ctest --test-dir /private/tmp/cad-native-build --output-on-failure
-```
-
-A strict standalone topology check with sanitizers:
+From `native/`, configure, build, and run CTest in one command:
 
 ```sh
-xcrun clang++ -std=c++2c -Wall -Wextra -Werror -pedantic \
-  -fsanitize=address,undefined -I native native/SimplicialComplex.cpp \
-  native/tests/simplicial_tests.cpp -o /private/tmp/cad-simplicial-tests
-/private/tmp/cad-simplicial-tests
+cmake --workflow --preset release
+cmake --workflow --preset debug
+cmake --workflow --preset sanitizers
 ```
+
+Presets write to `build/native/<preset>` in the repository and export
+`compile_commands.json`. Individual steps and label filtering are also available:
+
+```sh
+cmake --preset release
+cmake --build --preset release
+ctest --preset release
+ctest --preset release -L integration
+```
+
+The five CTest executables cover F2 reduction, simplicial behavior, NURBS, finite Voronoi, and a
+consumer linking all three libraries. Labels are `native` and the module name (or
+`integration`); each test has a 120-second timeout. Assertions remain enabled in
+Release test executables. Sanitizer tests halt on ASan/UBSan errors.
+
+### Targets and options
+
+Link build-tree consumers against `cad::simplicial`, `cad::nurbs`, and
+`cad::voronoi`, plus `cad::f2` for bounded sparse reduction. Existing `simplicial`, `cad_mat_nurbs`, `cad_mat_voronoi`, and parent
+aliases `nurbs`/`voronoi` remain available. Public header file sets supply include
+paths; C++26 requirements propagate to consumers. Libraries use position-independent
+code for future binding linkage. Warning flags remain private to project targets.
+There is no installed package/export contract yet.
+
+| Option | Default | Meaning |
+|---|---|---|
+| `BUILD_TESTING` | ON for a standalone root | Build and register numerical/consumer tests; when embedded, the parent controls testing |
+| `CAD_NATIVE_WARNINGS_AS_ERRORS` | ON | Treat project warnings as errors; consumers can disable this without editing flags |
+| `CAD_NATIVE_SANITIZERS` | OFF | ASan + UBSan with frame pointers for GNU-style Clang/GCC; runtime link requirements propagate |
+| `CAD_NATIVE_CHECK_SCAFFOLDS` | OFF; ON in presets | Compile unfinished source declarations into an unlinked object target; this is not algorithm validation |
+
+Scaffolds never enter the implemented libraries or a Python extension. Their
+compile-only check catches declaration/include errors without advertising working
+algorithms. Archived prototypes are excluded. Sources are enumerated explicitly.
+
+Standalone NURBS and Voronoi builds remain supported through their existing
+CMakeLists. Both reuse the same target policy and CTest registration helper.
+Use `add_subdirectory(native)` for embedding; the parent must enable testing if it
+wants native tests. No global compiler flags or parent build type are overwritten.
+In-source builds are rejected. Keep local preset overrides in the ignored
+`CMakeUserPresets.json`.
+
+A generator-independent build without tests:
+
+```sh
+cmake -S native -B build/native/library-only -DBUILD_TESTING=OFF
+cmake --build build/native/library-only
+```
+
+The sanitizer preset is qualified locally on AppleClang. Other compiler/platform
+combinations require their own validation; unsupported sanitizer drivers fail
+configuration explicitly. Leak-sanitizer support is platform-dependent and is not
+promised by this preset.
+
+Preset structure follows the [CMake presets reference](https://cmake.org/cmake/help/latest/manual/cmake-presets.7.html).
+
+## Private Python binding
+
+Slices 0 and 1 activate F2 only. See [bindings/README.md](bindings/README.md) for
+owned arrays, evidence budgets, packaging requirements and measured costs. The
+Python extension and `cad::f2` compile the same numerical source; the extension
+is built by setuptools, while CMake validates the dependency-free CPU kernel.

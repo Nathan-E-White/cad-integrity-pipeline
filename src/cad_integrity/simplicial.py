@@ -145,8 +145,8 @@ class PersistentHomologyEngine:
         paired_births: set[int] = set()
         result = []
         evidence = F2ColumnReducer(self.budget).reduce(
-            tuple(index[face] for face in simplex.codimension_one_faces())
-            for simplex, _ in ordered
+            (tuple(index[face] for face in simplex.codimension_one_faces())
+             for simplex, _ in ordered), evidence="reduced_columns",
         )
         for j, ((simplex, death), reduced_column) in enumerate(
                 zip(ordered, evidence.reduced_columns, strict=True)):

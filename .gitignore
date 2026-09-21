@@ -23,3 +23,9 @@ node_modules/
 .core-build/
 .nitro/
 .output/
+
+# Developer-local CMake preset overrides
+CMakeUserPresets.json
+
+# Compiled private Python extensions
+*.so

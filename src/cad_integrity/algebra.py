@@ -100,7 +100,7 @@ def rank_f2(matrix: csr_matrix, budget: ReductionBudget = ReductionBudget()) -> 
             tuple(int(i) for i, value in zip(csc.indices[lo:hi], csc.data[lo:hi], strict=True)
                   if int(value) % 2)
         )
-    return F2ColumnReducer(budget).reduce(columns).rank
+    return F2ColumnReducer(budget).reduce(columns, evidence="rank_only").rank
 
 
 def smith_invariants(matrix: csr_matrix, budget: ReductionBudget = ReductionBudget()) -> tuple[int, ...]:
