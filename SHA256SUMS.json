@@ -405,7 +405,7 @@
   "native/CMakePresets.json": "60464e5daccd547fb6767df2adb84c6e87137e24cf79fba8bd9bf55e7c773215",
   "native/README.md": "25b071e75b6beb19307369d6153052ccd4baaa89be8dbc74152c0079de1af741",
   "native/SimplicialComplex.cpp": "d1012ad12b6ba8f0b6aaae8328acf6629e803ea0758875d384fd55d29ffee8e7",
-  "native/SimplicialComplex.hpp": "65f110b0f0644287b4ea61cea4d8632dd846c592f6dfad9ea6aebcb6e4ae2dc5",
+  "native/SimplicialComplex.hpp": "67781e9df481398cf611b77f0022c313879cb7dc2f6cfb78dbfb7107dd0465ad",
   "native/archive/simplicial-prototypes-2026-09-20/CMakeLists.txt": "de4e8e951afacecd4cffefc8d50c8aaf6744406468db936a0e2321512f0cd6ba",
   "native/archive/simplicial-prototypes-2026-09-20/README.md": "a6451184e331764c7cdf5cac1fdad6a4c4153332bd488aac43fd9e215abedc22",
   "native/archive/simplicial-prototypes-2026-09-20/SimpComp2.cpp": "ef053b537933ceade858fb8c730f5a8bf7aa231d464b8285edd68c4074778fcd",

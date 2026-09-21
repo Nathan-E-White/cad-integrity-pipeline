@@ -1,9 +1,9 @@
 #pragma once
 
+#include <cstdint>
 #include <array>
 #include <compare>
 #include <cstddef>
-#include <cstdint>
 #include <expected>
 #include <limits>
 #include <optional>
