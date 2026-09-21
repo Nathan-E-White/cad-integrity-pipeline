@@ -1,7 +1,7 @@
 # Native extension file inventory
 
-Created 2026-09-21 from the C++ handoff. **Slices 0 and 1 are implemented:**
-F2 reduction and the owned private NumPy binding are active. The other five
+Created 2026-09-21 from the C++ handoff. **Slices 0, 1 and 2 are implemented:**
+F2 reduction, polygonal facts/admission and the owned private NumPy binding are active. The other five
 extension pairs remain provisional declarations outside implemented targets.
 `CAD_NATIVE_CHECK_SCAFFOLDS` compiles only those unfinished declarations.
 See [the slice implementation record](reviews/native-f2/IMPLEMENTATION.md).

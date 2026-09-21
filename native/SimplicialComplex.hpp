@@ -7,6 +7,7 @@
 #include <expected>
 #include <limits>
 #include <optional>
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -48,6 +49,65 @@ struct SparseCSR {
   std::size_t num_rows = 0;
   std::size_t num_cols = 0;
 };
+
+// Owned host-precision input. The legacy float/int polygon model stays unchanged.
+struct PolygonalInput {
+  std::vector<std::array<double, 3>> vertices;
+  std::vector<std::array<std::int64_t, 2>> edges;
+  std::vector<std::int64_t> face_offsets;
+  std::vector<std::int64_t> face_coedges;
+  LengthUnit length_unit = LengthUnit::Millimeter;
+};
+struct PolygonalLimits {
+  std::uint64_t max_input_bytes = 256000000;
+  std::uint64_t max_owned_bytes = 512000000;
+  std::uint64_t max_work_steps = 50000000;
+  std::uint64_t max_output_bytes = 256000000;
+};
+enum class PolygonalError : std::uint8_t {
+  invalid_input, input_budget, storage_budget, work_budget, output_budget
+};
+struct PolygonalUsage {
+  std::uint64_t input_bytes = 0, owned_bytes = 0, work_steps = 0, output_bytes = 0;
+};
+struct PolygonalFacts {
+  std::vector<std::int64_t> boundary_edge_ids, nonmanifold_edge_ids;
+  std::vector<std::int64_t> inconsistent_orientation_edge_ids, nonmanifold_vertex_ids;
+  std::vector<std::int64_t> unused_vertex_ids, unused_edge_ids, invalid_face_ids;
+  std::vector<std::int64_t> duplicate_face_ids, collapsed_edge_ids;
+  // Signed face uses grouped by edge; order is first encountered edge order.
+  std::vector<std::int64_t> edge_offsets, edge_faces, edge_signs, edge_order;
+};
+struct PolygonalOrientation {
+  std::vector<std::int64_t> multipliers, conflicting_edge_ids;
+  std::optional<std::int64_t> nonmanifold_edge;
+};
+struct PolygonalStorage;
+class PolygonalAssessment;
+class AdmittedPolygonalCells {
+public:
+  // Degrees 1 and 2 only. References live as long as this owner.
+  [[nodiscard]] const SparseCSR& boundary(std::size_t degree) const;
+private:
+  explicit AdmittedPolygonalCells(std::shared_ptr<const PolygonalStorage> owner);
+  std::shared_ptr<const PolygonalStorage> owner_;
+  friend class PolygonalAssessment;
+};
+class PolygonalAssessment {
+public:
+  [[nodiscard]] const PolygonalFacts& facts() const noexcept;
+  [[nodiscard]] const PolygonalOrientation& orientation() const noexcept;
+  [[nodiscard]] const PolygonalUsage& usage() const noexcept;
+  [[nodiscard]] const std::optional<AdmittedPolygonalCells>& admitted_cells() const noexcept;
+private:
+  PolygonalAssessment(std::shared_ptr<const PolygonalStorage> owner, bool admitted);
+  std::shared_ptr<const PolygonalStorage> owner_;
+  std::optional<AdmittedPolygonalCells> admitted_;
+  friend std::expected<PolygonalAssessment, PolygonalError>
+  assess_polygonal(PolygonalInput, const PolygonalLimits&);
+};
+[[nodiscard]] std::expected<PolygonalAssessment, PolygonalError>
+assess_polygonal(PolygonalInput input, const PolygonalLimits& limits = {});
 
 struct TriangleMesh;
 class SimplicialComplex {

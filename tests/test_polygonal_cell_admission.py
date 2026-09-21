@@ -303,3 +303,37 @@ def test_generated_valid_cells_preserve_chain_identity_under_entity_renumbering(
         assert original_report.homology is not None
         assert renumbered_report.homology is not None
         assert original_report.homology.betti_numbers == renumbered_report.homology.betti_numbers
+
+
+def test_admitted_chain_retains_the_assessed_snapshot_after_raw_alias_mutation() -> None:
+    raw = disk()
+    cells = admit_polygonal_cells(raw).require_cells()
+    raw.face_coedges.setflags(write=True)
+    raw.face_coedges[0] *= -1
+    chain = cells.to_chain_complex()
+    assert chain.boundary(2).toarray().ravel().tolist() == [1, 1, 1, -1]
+
+
+def test_topology_resource_failure_is_not_reported_as_invalid_geometry() -> None:
+    from cad_integrity.errors import ResourceLimitExceeded
+    from cad_integrity.polygonal_cells import PolygonalLimits
+    from cad_integrity.topology import orientation_solution
+
+    limits = PolygonalLimits(max_work_steps=0)
+    with pytest.raises(ResourceLimitExceeded, match="work budget"):
+        admit_polygonal_cells(disk(), limits=limits)
+    with pytest.raises(ResourceLimitExceeded, match="work budget"):
+        BRepHomologyStitchAnalyzer(disk(), topology_limits=limits).evaluate_stitch_integrity()
+    with pytest.raises(ResourceLimitExceeded, match="work budget"):
+        orientation_solution(disk(), limits=limits)
+
+
+def test_orientation_preserves_nonmanifold_edge_exception() -> None:
+    from cad_integrity.errors import InvalidGeometry
+    from cad_integrity.topology import orientation_solution
+
+    raw = disk()
+    triple = replace(raw, face_offsets=np.array((0, 4, 8, 12), dtype=np.int64),
+                     face_coedges=np.tile(raw.face_coedges, 3))
+    with pytest.raises(InvalidGeometry, match="^Cannot orient nonmanifold edge 0$"):
+        orientation_solution(triple)

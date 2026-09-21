@@ -76,7 +76,7 @@ ctest --preset release
 ctest --preset release -L integration
 ```
 
-The five CTest executables cover F2 reduction, simplicial behavior, NURBS, finite Voronoi, and a
+The six qualified CTest executables cover polygonal assessment, F2 reduction, simplicial behavior, NURBS, finite Voronoi, and a
 consumer linking all three libraries. Labels are `native` and the module name (or
 `integration`); each test has a 120-second timeout. Assertions remain enabled in
 Release test executables. Sanitizer tests halt on ASan/UBSan errors.
@@ -124,7 +124,7 @@ Preset structure follows the [CMake presets reference](https://cmake.org/cmake/h
 
 ## Private Python binding
 
-Slices 0 and 1 activate F2 only. See [bindings/README.md](bindings/README.md) for
+Slices 0–2 activate F2 and polygonal facts/admission. See [bindings/README.md](bindings/README.md) for
 owned arrays, evidence budgets, packaging requirements and measured costs. The
 Python extension and `cad::f2` compile the same numerical source; the extension
 is built by setuptools, while CMake validates the dependency-free CPU kernel.

@@ -5,6 +5,8 @@
 #include <cmath>
 #include <future>
 #include <numeric>
+#include <map>
+#include <deque>
 #include <set>
 #include <stdexcept>
 #include <thread>
@@ -847,3 +849,278 @@ SimplicialComplex::build(const std::vector<std::vector<int>> &facets,
 }
 
 } // namespace cad::simplicial
+
+namespace cad::simplicial {
+struct PolygonalStorage {
+  PolygonalInput input;
+  PolygonalFacts facts;
+  PolygonalOrientation orientation;
+  PolygonalUsage usage;
+  SparseCSR d1, d2;
+};
+AdmittedPolygonalCells::AdmittedPolygonalCells(std::shared_ptr<const PolygonalStorage> owner)
+    : owner_(std::move(owner)) {}
+const SparseCSR& AdmittedPolygonalCells::boundary(std::size_t degree) const {
+  if (degree == 1) return owner_->d1;
+  if (degree == 2) return owner_->d2;
+  throw std::out_of_range("Polygonal incidence has degrees 1 and 2");
+}
+PolygonalAssessment::PolygonalAssessment(std::shared_ptr<const PolygonalStorage> owner, bool admitted)
+    : owner_(std::move(owner)) {
+  if (admitted) admitted_ = AdmittedPolygonalCells(owner_);
+}
+const PolygonalFacts& PolygonalAssessment::facts() const noexcept { return owner_->facts; }
+const PolygonalOrientation& PolygonalAssessment::orientation() const noexcept { return owner_->orientation; }
+const PolygonalUsage& PolygonalAssessment::usage() const noexcept { return owner_->usage; }
+const std::optional<AdmittedPolygonalCells>& PolygonalAssessment::admitted_cells() const noexcept { return admitted_; }
+namespace {
+struct PolygonalStop { PolygonalError error; };
+void charge(std::uint64_t& used, std::uint64_t count, std::uint64_t width,
+            std::uint64_t limit, PolygonalError error) {
+  if (used > limit || count > (limit-used)/width) throw PolygonalStop{error};
+  used += count*width;
+}
+struct WorkMeter {
+  PolygonalUsage& usage;
+  const PolygonalLimits& limits;
+  void step(std::size_t count = 1) {
+    charge(usage.work_steps, count, 1, limits.max_work_steps, PolygonalError::work_budget);
+  }
+};
+using CellId = std::int64_t;
+using FaceUse = std::pair<CellId, CellId>;
+std::size_t token_edge(CellId token) {
+  // Called only after rejecting INT64_MIN, zero and out-of-range tokens.
+  return static_cast<std::size_t>((token < 0 ? -token : token) - 1);
+}
+bool polygonal_layout(const PolygonalInput& input, WorkMeter& work) {
+  if (!valid_unit(input.length_unit) || input.face_offsets.empty() ||
+      input.face_offsets.front() != 0 || input.face_offsets.back() < 0 ||
+      static_cast<std::uint64_t>(input.face_offsets.back()) != input.face_coedges.size()) return false;
+  work.step(input.face_offsets.size());
+  work.step(input.vertices.size()); work.step(input.edges.size()); work.step(input.face_coedges.size());
+  for (std::size_t i = 1; i < input.face_offsets.size(); ++i)
+    if (input.face_offsets[i] < 0 || input.face_offsets[i-1] > input.face_offsets[i] ||
+        input.face_offsets[i] - input.face_offsets[i-1] < 3) return false;
+  for (const auto& point : input.vertices)
+    for (const auto x : point) if (!std::isfinite(x)) return false;
+  for (const auto& edge : input.edges)
+    for (const auto v : edge)
+      if (v < 0 || static_cast<std::uint64_t>(v) >= input.vertices.size()) return false;
+  for (const auto token : input.face_coedges)
+    if (token == 0 || token == std::numeric_limits<CellId>::min() ||
+        token_edge(token) >= input.edges.size()) return false;
+  return true;
+}
+std::vector<CellId> canonical_cycle(std::vector<CellId> vertices) {
+  std::rotate(vertices.begin(), std::min_element(vertices.begin(), vertices.end()), vertices.end());
+  auto reversed = vertices;
+  std::reverse(reversed.begin() + 1, reversed.end());
+  return std::min(vertices, reversed);
+}
+void classify_faces(PolygonalStorage& storage, WorkMeter& work) {
+  const auto& raw = storage.input;
+  auto& facts = storage.facts;
+  std::set<std::vector<CellId>> seen_faces;
+  std::vector<std::vector<std::pair<std::size_t, std::size_t>>> links(raw.vertices.size());
+  for (std::size_t face = 0; face + 1 < raw.face_offsets.size(); ++face) {
+    work.step();
+    const auto start = static_cast<std::size_t>(raw.face_offsets[face]);
+    const auto stop = static_cast<std::size_t>(raw.face_offsets[face+1]);
+    std::vector<CellId> vertices;
+    std::set<CellId> unique;
+    bool valid = true;
+    for (auto i = start; i < stop; ++i) {
+      work.step();
+      const auto token = raw.face_coedges[i];
+      const auto next = raw.face_coedges[i+1 == stop ? start : i+1];
+      const auto& edge = raw.edges[token_edge(token)];
+      const auto& other = raw.edges[token_edge(next)];
+      const auto vertex = edge[token > 0 ? 0 : 1];
+      valid &= edge[token > 0 ? 1 : 0] == other[next > 0 ? 0 : 1];
+      valid &= unique.insert(vertex).second;
+      vertices.push_back(vertex);
+    }
+    if (!valid) { facts.invalid_face_ids.push_back(static_cast<CellId>(face)); continue; }
+    work.step(vertices.size());
+    if (!seen_faces.insert(canonical_cycle(vertices)).second)
+      facts.duplicate_face_ids.push_back(static_cast<CellId>(face));
+    for (auto i = start; i < stop; ++i)
+      links[static_cast<std::size_t>(vertices[i-start])].emplace_back(
+          token_edge(raw.face_coedges[i == start ? stop-1 : i-1]), token_edge(raw.face_coedges[i]));
+  }
+  for (std::size_t vertex = 0; vertex < links.size(); ++vertex) {
+    work.step();
+    if (links[vertex].empty()) continue;
+    std::map<std::size_t, std::vector<std::size_t>> neighbors;
+    for (const auto& [a,b] : links[vertex]) { work.step(); neighbors[a].push_back(b); neighbors[b].push_back(a); }
+    std::size_t degree_one = 0;
+    bool path_or_cycle = true;
+    for (const auto& [edge, adjacent] : neighbors) {
+      work.step();
+      (void)edge;
+      degree_one += adjacent.size() == 1;
+      path_or_cycle &= adjacent.size() == 1 || adjacent.size() == 2;
+    }
+    path_or_cycle &= degree_one == 0 || degree_one == 2;
+    std::set<std::size_t> seen{neighbors.begin()->first};
+    std::vector<std::size_t> pending{neighbors.begin()->first};
+    while (!pending.empty()) {
+      const auto edge = pending.back(); pending.pop_back();
+      for (const auto other : neighbors.at(edge)) {
+        work.step();
+        if (seen.insert(other).second) pending.push_back(other);
+      }
+    }
+    if (!path_or_cycle || seen.size() != neighbors.size())
+      facts.nonmanifold_vertex_ids.push_back(static_cast<CellId>(vertex));
+  }
+}
+void orient_cells(PolygonalStorage& storage, const std::vector<std::vector<FaceUse>>& uses, WorkMeter& work) {
+  auto& result = storage.orientation;
+  struct Neighbor { std::size_t face; CellId relation, edge; };
+  std::vector<std::vector<Neighbor>> adjacent(storage.input.face_offsets.size()-1);
+  // First-use edge order matches the host's deterministic insertion/traversal order.
+  for (const auto edge : storage.facts.edge_order) {
+    work.step();
+    const auto& incidents = uses[static_cast<std::size_t>(edge)];
+    if (incidents.size() > 2) { result.nonmanifold_edge = edge; return; }
+    if (incidents.size() != 2) continue;
+    const auto [f,s] = incidents[0]; const auto [g,t] = incidents[1];
+    adjacent[static_cast<std::size_t>(f)].push_back({static_cast<std::size_t>(g), -s*t, edge});
+    adjacent[static_cast<std::size_t>(g)].push_back({static_cast<std::size_t>(f), -s*t, edge});
+  }
+  result.multipliers.resize(adjacent.size(), 0);
+  std::set<CellId> conflicts;
+  for (std::size_t seed = 0; seed < adjacent.size(); ++seed) {
+    work.step();
+    if (result.multipliers[seed]) continue;
+    result.multipliers[seed] = 1;
+    std::deque<std::size_t> pending{seed};
+    while (!pending.empty()) {
+      const auto face = pending.front(); pending.pop_front();
+      for (const auto& other : adjacent[face]) {
+        work.step();
+        const auto expected = result.multipliers[face] * other.relation;
+        if (!result.multipliers[other.face]) {
+          result.multipliers[other.face] = expected; pending.push_back(other.face);
+        } else if (result.multipliers[other.face] != expected) conflicts.insert(other.edge);
+      }
+    }
+  }
+  result.conflicting_edge_ids.assign(conflicts.begin(), conflicts.end());
+}
+void cellular_incidence(PolygonalStorage& storage, WorkMeter& work) {
+  work.step(storage.input.vertices.size());
+  work.step(storage.input.edges.size()); work.step(storage.input.edges.size());
+  work.step(storage.input.face_coedges.size());
+  const auto& input = storage.input;
+  const auto& facts = storage.facts;
+  auto& d1 = storage.d1;
+  auto& d2 = storage.d2;
+  d1.num_rows = input.vertices.size(); d1.num_cols = input.edges.size();
+  d1.row_ptr.resize(d1.num_rows + 1);
+  for (const auto& edge : input.edges)
+    for (const auto vertex : edge) ++d1.row_ptr[static_cast<std::size_t>(vertex) + 1];
+  std::partial_sum(d1.row_ptr.begin(), d1.row_ptr.end(), d1.row_ptr.begin());
+  d1.col_ind.resize(input.edges.size() * 2); d1.values.resize(d1.col_ind.size());
+  auto next = d1.row_ptr;
+  for (std::size_t edge = 0; edge < input.edges.size(); ++edge)
+    for (std::size_t end = 0; end < 2; ++end) {
+      const auto index = next[static_cast<std::size_t>(input.edges[edge][end])]++;
+      d1.col_ind[index] = edge; d1.values[index] = end == 0 ? -1 : 1;
+    }
+  d2.num_rows = input.edges.size(); d2.num_cols = input.face_offsets.size() - 1;
+  d2.row_ptr.assign(facts.edge_offsets.begin(), facts.edge_offsets.end());
+  d2.col_ind.assign(facts.edge_faces.begin(), facts.edge_faces.end());
+  d2.values.assign(facts.edge_signs.begin(), facts.edge_signs.end());
+}
+}
+std::expected<PolygonalAssessment, PolygonalError>
+assess_polygonal(PolygonalInput input, const PolygonalLimits& limits) {
+  try {
+  PolygonalUsage usage;
+  for (const auto count : {input.vertices.size(), input.edges.size(), input.face_offsets.size(), input.face_coedges.size()})
+    if (count > static_cast<std::uint64_t>(std::numeric_limits<CellId>::max()))
+      return std::unexpected(PolygonalError::invalid_input);
+  auto input_charge = [&](std::size_t count, std::uint64_t width) {
+    charge(usage.input_bytes, count, width, limits.max_input_bytes, PolygonalError::input_budget);
+  };
+  input_charge(input.vertices.size(), 24); input_charge(input.edges.size(), 16);
+  input_charge(input.face_offsets.size(), 8); input_charge(input.face_coedges.size(), 8);
+  WorkMeter admission_work{usage, limits};
+  if (!polygonal_layout(input, admission_work)) return std::unexpected(PolygonalError::invalid_input);
+  // Conservative logical workspace reservation, not allocator or RSS accounting.
+  charge(usage.owned_bytes, usage.input_bytes, 1, limits.max_owned_bytes, PolygonalError::storage_budget);
+  for (const auto count : {input.vertices.size(), input.edges.size(), input.face_coedges.size()})
+    charge(usage.owned_bytes, count, 256, limits.max_owned_bytes, PolygonalError::storage_budget);
+  charge(usage.owned_bytes, input.face_offsets.size()-1, 128, limits.max_owned_bytes, PolygonalError::storage_budget);
+  charge(usage.owned_bytes, 1, 64, limits.max_owned_bytes, PolygonalError::storage_budget);
+  // All subsequent vector dimensions are bounded by the reservation above.
+  if (usage.owned_bytes > std::numeric_limits<std::size_t>::max())
+    return std::unexpected(PolygonalError::storage_budget);
+  auto storage = std::make_shared<PolygonalStorage>();
+  storage->input = std::move(input);
+  storage->usage = usage;
+  WorkMeter work{storage->usage, limits};
+  const auto& raw = storage->input;
+  auto& facts = storage->facts;
+  std::vector<std::vector<FaceUse>> uses(raw.edges.size());
+  for (std::size_t face = 0; face + 1 < raw.face_offsets.size(); ++face)
+    for (auto i = raw.face_offsets[face]; i < raw.face_offsets[face+1]; ++i) {
+      work.step();
+      const auto token = raw.face_coedges[static_cast<std::size_t>(i)];
+      const auto edge = token_edge(token);
+      if (uses[edge].empty()) facts.edge_order.push_back(static_cast<CellId>(edge));
+      uses[edge].emplace_back(static_cast<CellId>(face), token > 0 ? 1 : -1);
+    }
+  std::vector<bool> active(raw.vertices.size(), false);
+  facts.edge_offsets.push_back(0);
+  for (std::size_t edge = 0; edge < uses.size(); ++edge) {
+    work.step();
+    if (uses[edge].size() == 1) facts.boundary_edge_ids.push_back(static_cast<CellId>(edge));
+    if (uses[edge].empty()) facts.unused_edge_ids.push_back(static_cast<CellId>(edge));
+    else for (const auto v : raw.edges[edge]) active[static_cast<std::size_t>(v)] = true;
+    if (uses[edge].size() > 2) facts.nonmanifold_edge_ids.push_back(static_cast<CellId>(edge));
+    if (uses[edge].size() == 2 && uses[edge][0].second == uses[edge][1].second)
+      facts.inconsistent_orientation_edge_ids.push_back(static_cast<CellId>(edge));
+    const auto& ends = raw.edges[edge];
+    if (ends[0] == ends[1] || raw.vertices[static_cast<std::size_t>(ends[0])] ==
+                            raw.vertices[static_cast<std::size_t>(ends[1])])
+      facts.collapsed_edge_ids.push_back(static_cast<CellId>(edge));
+    for (const auto& [face, sign] : uses[edge]) {
+      work.step();
+      facts.edge_faces.push_back(face); facts.edge_signs.push_back(sign);
+    }
+    facts.edge_offsets.push_back(static_cast<CellId>(facts.edge_faces.size()));
+  }
+  for (std::size_t v = 0; v < active.size(); ++v)
+    if (!active[v]) facts.unused_vertex_ids.push_back(static_cast<CellId>(v));
+  work.step(active.size());
+  classify_faces(*storage, work);
+  orient_cells(*storage, uses, work);
+  const bool admitted = raw.face_offsets.size() > 1 && facts.invalid_face_ids.empty() &&
+      facts.duplicate_face_ids.empty() && facts.collapsed_edge_ids.empty() &&
+      facts.nonmanifold_edge_ids.empty() && facts.nonmanifold_vertex_ids.empty() &&
+      facts.unused_vertex_ids.empty() && facts.unused_edge_ids.empty();
+  // Charge packed int64 outputs before incidence or binding output allocation.
+  auto output = [&](std::size_t count) {
+    charge(storage->usage.output_bytes, count, 8, limits.max_output_bytes, PolygonalError::output_budget);
+  };
+  for (const auto* values : {&facts.boundary_edge_ids, &facts.nonmanifold_edge_ids,
+      &facts.inconsistent_orientation_edge_ids, &facts.nonmanifold_vertex_ids,
+      &facts.unused_vertex_ids, &facts.unused_edge_ids, &facts.invalid_face_ids,
+      &facts.duplicate_face_ids, &facts.collapsed_edge_ids, &facts.edge_offsets,
+      &facts.edge_faces, &facts.edge_signs, &facts.edge_order,
+      &storage->orientation.multipliers, &storage->orientation.conflicting_edge_ids}) output(values->size());
+  if (admitted) {
+    output(raw.vertices.size()+1); output(raw.edges.size()+1);
+    for (int i = 0; i < 4; ++i) output(raw.edges.size());
+    output(raw.face_coedges.size()); output(raw.face_coedges.size());
+    output(4); // Two matrix shapes.
+    cellular_incidence(*storage, work);
+  }
+  return PolygonalAssessment(std::move(storage), admitted);
+  } catch (const PolygonalStop& stop) { return std::unexpected(stop.error); }
+}
+}

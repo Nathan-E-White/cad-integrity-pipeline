@@ -1,4 +1,4 @@
-# Private NumPy binding: F2 slices 0 and 1
+# Private NumPy binding: F2 and polygonal assessment
 
 `cad_integrity._native` is a required private extension, built by setuptools with
 pybind11 3.x and a C++26 compiler supporting `std::expected`. The qualified host is
@@ -14,7 +14,7 @@ python -m pip install dist/cad_integrity_lab-*.whl
 
 Build isolation installs setuptools and pybind11; NumPy headers are not a build
 dependency. NumPy remains a runtime dependency. The wheel contains the extension
-and its type stub. The sdist inventory includes both C++ sources and the header.
+and its type stub. The sdist inventory includes all three C++ sources and both headers.
 CMake's `cad::f2` target compiles the same source for independent native consumers.
 
 ## Ownership and representation
@@ -59,5 +59,50 @@ Native domain errors become `ValueError`; typed budget failures become private
 becomes `MemoryError`; vector `length_error` becomes `OverflowError`. The GIL is
 reacquired during unwinding before Python exception translation.
 
-No database, GPU, geometry binding, solver replacement or future extension is
-activated. See `docs/reviews/native-f2/IMPLEMENTATION.md` for checks and measurements.
+The F2 binding activates no database, GPU, solver replacement or future extension. See `docs/reviews/native-f2/IMPLEMENTATION.md` for checks and measurements.
+
+## Polygonal assessment: slice 2
+
+`assess_polygonal(vertices, edges, offsets, coedges, unit, limits...)` accepts
+C-contiguous native float64 `(V,3)` coordinates and native int64 `(E,2)` endpoints,
+`(F+1,)` offsets and `(C,)` signed one-based coedges. There is no narrowing or
+implicit normalization. Supported unit metadata is `mm`, `cm`, `m`, `in`; no
+conversion occurs. Input byte admission precedes copies under the GIL. Numerical
+work uses only owned copies with the GIL released. Independent simultaneous calls
+share no mutable assessment state. Mutating a NumPy buffer from an external native
+thread while it is being copied is unsupported.
+
+Invalid shapes, layouts, finite-coordinate checks and references produce input
+errors. Disconnected/repeated-vertex loops and other diagnosable defects produce
+complete facts without admitted incidence. Open edges and inconsistent orientation
+alone do not prevent cellular admission. Orientation multipliers preserve first-use
+edge traversal and ascending face seeds; nonmanifold orientation identifies the
+first offending edge in first-use order. Diagnosis lists retain host ordering.
+
+Returned arrays own their storage. Admitted results include D1/D2 tuples of int64
+`(row_offsets, column_indices, coefficients, shape)`. Unadmitted results omit them.
+The native admitted value retains the copied input and incidence through a shared
+immutable owner. Python retains independently owned incidence; its `raw` reference
+identifies the source but is never used to rebuild admitted matrices. ChainComplex
+still performs exact checked integer chain validation before homology conversion.
+
+| Limit | Default | Accounted quantity |
+|---|---:|---|
+| `max_input_bytes` | 256,000,000 | `24V + 16E + 8(F+1) + 8C` array payload bytes |
+| `max_owned_bytes` | 512,000,000 | Logical workspace reservation: input bytes + `256(V+E+C) + 128F + 64` |
+| `max_work_steps` | 50,000,000 | Deterministic admission scan, face-token, cycle-entry, vertex-link and orientation visits; incidence scan allowances |
+| `max_output_bytes` | 256,000,000 | All returned int64 array payloads, including matrix shape arrays |
+
+The workspace reservation bounds input-proportional structures before allocating
+them. It is not measured allocated memory, spare vector capacity, map-node overhead
+or process RSS. Work steps do not count allocator work or comparisons internal to
+standard containers and do not impose a wall-clock limit. Output bytes exclude
+scalar status/usage metadata, Python objects and transient conversion copies.
+Budget failure is all-or-nothing and follows the existing BudgetExceeded to
+ResourceLimitExceeded translation; it never becomes invalid geometry or admission.
+The four scalar usage counters expose these quantities. A disk uses 208 input
+bytes, 3,472 workspace units, 84 work steps and 480 packed output bytes.
+
+CMake `cad::simplicial` and setuptools compile the same SimplicialComplex.cpp.
+No triangulation, geometric certification, OCCT, surface, UV or tracing behavior is
+added by this binding. See `docs/reviews/native-polygonal/IMPLEMENTATION.md`.

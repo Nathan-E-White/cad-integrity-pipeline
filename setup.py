@@ -4,8 +4,8 @@ import pybind11
 
 setup(ext_modules=[Extension(
     "cad_integrity._native",
-    sources=["native/bindings/module.cpp", "native/f2_reduction.cpp"],
-    depends=["native/f2_reduction.hpp"],
+    sources=["native/bindings/module.cpp", "native/f2_reduction.cpp", "native/SimplicialComplex.cpp"],
+    depends=["native/f2_reduction.hpp", "native/SimplicialComplex.hpp"],
     include_dirs=[pybind11.get_include()],
     language="c++",
     extra_compile_args=["-std=c++2c", "-Wall", "-Wextra", "-Werror", "-pedantic"],
