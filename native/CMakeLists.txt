@@ -18,7 +18,10 @@ target_sources(simplicial PUBLIC FILE_SET HEADERS
 cad_native_library(simplicial)
 target_link_libraries(simplicial PRIVATE Threads::Threads)
 
-add_library(motorcycle STATIC motorcycle_graph_construction.cpp
+# TODO(This is not professional looking)
+add_library(motorcycle STATIC
+        motorcycle_graph_trig.cpp
+        motorcycle_graph_quad.c++
 )
 
 
