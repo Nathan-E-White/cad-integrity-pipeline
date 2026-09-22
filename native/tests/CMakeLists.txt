@@ -1,12 +1,18 @@
-add_executable(simplicial_tests simplicial_tests.cpp)
+add_executable(simplicial_tests simplicial_tests.cpp
+        ../Point3D.c++
+        ../Point3D.tcc)
 target_link_libraries(simplicial_tests PRIVATE cad::simplicial)
 cad_native_test(simplicial_tests simplicial)
 
 # A real consumer exercises include paths, namespace coexistence and static links.
-add_executable(native_consumer_tests native_consumer_tests.cpp)
+add_executable(native_consumer_tests native_consumer_tests.cpp
+        ../Point3D.c++
+        ../Point3D.tcc)
 target_link_libraries(native_consumer_tests PRIVATE cad::simplicial cad::nurbs cad::voronoi)
 cad_native_test(native_consumer_tests integration)
 
-add_executable(polygonal_tests polygonal_tests.cpp)
+add_executable(polygonal_tests polygonal_tests.cpp
+        ../Point3D.c++
+        ../Point3D.tcc)
 target_link_libraries(polygonal_tests PRIVATE cad::simplicial)
 cad_native_test(polygonal_tests polygonal)

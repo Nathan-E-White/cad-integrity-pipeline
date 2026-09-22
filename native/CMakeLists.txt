@@ -11,7 +11,9 @@ include(cmake/NativeChecks.cmake)
 find_package(Threads REQUIRED)
 include(f2.cmake)
 
-add_library(simplicial STATIC SimplicialComplex.cpp)
+add_library(simplicial STATIC SimplicialComplex.cpp
+        Point3D.c++
+        Point3D.tcc)
 add_library(cad::simplicial ALIAS simplicial)
 target_sources(simplicial PUBLIC FILE_SET HEADERS
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" FILES SimplicialComplex.hpp)
@@ -22,6 +24,8 @@ target_link_libraries(simplicial PRIVATE Threads::Threads)
 add_library(motorcycle STATIC
         motorcycle_graph_trig.cpp
         motorcycle_graph_quad.c++
+        Point3D.c++
+        Point3D.tcc
 )
 
 
