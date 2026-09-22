@@ -1,3 +1,4 @@
+#include "common.hpp"
 #include "../f2_reduction.hpp"
 #include "../SimplicialComplex.hpp"
 #include <pybind11/numpy.h>
@@ -8,7 +9,6 @@
 namespace py = pybind11;
 namespace {
 using Row = std::int64_t;
-struct BudgetExceeded : std::runtime_error { using std::runtime_error::runtime_error; };
 
 void check_array(const py::array& array) {
     if (!array.dtype().is(py::dtype::of<Row>()) || array.ndim() != 1 ||
@@ -172,6 +172,7 @@ PYBIND11_MODULE(_native, module) {
         try { if (pointer) std::rethrow_exception(pointer); }
         catch (const std::length_error& error) { PyErr_SetString(PyExc_OverflowError, error.what()); }
     });
+    bind_surface(module);
     module.def("assess_polygonal", &assess_polygonal,
                py::arg("vertices").noconvert(), py::arg("edges").noconvert(),
                py::arg("offsets").noconvert(), py::arg("coedges").noconvert(), py::arg("unit"),

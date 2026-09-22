@@ -76,7 +76,7 @@ ctest --preset release
 ctest --preset release -L integration
 ```
 
-The six qualified CTest executables cover polygonal assessment, F2 reduction, simplicial behavior, NURBS, finite Voronoi, and a
+The seven qualified CTest executables cover surface preparation, polygonal assessment, F2 reduction, simplicial behavior, NURBS, finite Voronoi, and a
 consumer linking all three libraries. Labels are `native` and the module name (or
 `integration`); each test has a 120-second timeout. Assertions remain enabled in
 Release test executables. Sanitizer tests halt on ASan/UBSan errors.
@@ -136,3 +136,20 @@ meshing into the existing inspection workspace. It adds no C++ algorithm or new
 OCCT binding. See [the implementation record](../docs/reviews/native-display/IMPLEMENTATION.md)
 for copy correspondence, V3 native-face delivery, scope/projection identity and
 qualification; polygonal V2 delivery remains unchanged.
+
+## Owned polygonal surface computation
+
+`cad::surface` supplies `prepare`, `assemble` and `qualify_chart` through
+`surface_preparation.hpp`. Preparation admits the selected oriented polygonal
+patch, retaining float64 XYZ, compact/source maps, projected triangulation and
+original-edge/inserted-diagonal correspondence. Operators and admitted charts
+retain that owner. No display mesh is promoted to a conforming native surface.
+
+The installed Python caller is `cad_integrity.surface.prepare_surface`; SciPy
+remains responsible for constrained harmonic solves. See
+[the slice design](../docs/reviews/native-surface/DESIGN.md) and
+[binding/accounting contract](bindings/README.md).
+
+Point3D dump files and unqualified motorcycle source files remain in the repository
+but are excluded from every active native library/test target and Python extension.
+Source lists are explicit. They are not compiled by scaffold checks either.

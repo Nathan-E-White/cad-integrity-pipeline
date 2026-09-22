@@ -11,23 +11,23 @@ include(cmake/NativeChecks.cmake)
 find_package(Threads REQUIRED)
 include(f2.cmake)
 
-add_library(simplicial STATIC SimplicialComplex.cpp
-        Point3D.c++
-        Point3D.tcc)
+add_library(simplicial STATIC SimplicialComplex.cpp)
 add_library(cad::simplicial ALIAS simplicial)
 target_sources(simplicial PUBLIC FILE_SET HEADERS
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" FILES SimplicialComplex.hpp)
 cad_native_library(simplicial)
 target_link_libraries(simplicial PRIVATE Threads::Threads)
 
-# TODO(This is not professional looking)
-add_library(motorcycle STATIC
-        motorcycle_graph_trig.cpp
-        motorcycle_graph_quad.c++
-        Point3D.c++
-        Point3D.tcc
-)
+# Scratch Point3D and unqualified motorcycle sources are deliberately excluded.
+# Only explicitly qualified sources enter libraries, tests or Python packaging.
 
+
+add_library(cad_surface STATIC surface_preparation.cpp)
+add_library(cad::surface ALIAS cad_surface)
+target_sources(cad_surface PUBLIC FILE_SET HEADERS
+  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" FILES surface_preparation.hpp)
+cad_native_library(cad_surface)
+target_link_libraries(cad_surface PUBLIC cad::simplicial)
 
 add_subdirectory(nurbs)
 add_subdirectory(voronoi)

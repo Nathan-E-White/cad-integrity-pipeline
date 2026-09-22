@@ -9,9 +9,7 @@ if(PROJECT_IS_TOP_LEVEL)
 endif()
 include("${CMAKE_CURRENT_LIST_DIR}/../cmake/NativeChecks.cmake")
 
-add_library(cad_mat_nurbs STATIC src/nurbs.cpp
-        ../Point3D.c++
-        ../Point3D.tcc)
+add_library(cad_mat_nurbs STATIC src/nurbs.cpp)
 add_library(cad::nurbs ALIAS cad_mat_nurbs)
 target_sources(cad_mat_nurbs PUBLIC FILE_SET HEADERS
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include"
@@ -19,9 +17,7 @@ target_sources(cad_mat_nurbs PUBLIC FILE_SET HEADERS
 cad_native_library(cad_mat_nurbs)
 
 if(BUILD_TESTING)
-  add_executable(cad_mat_nurbs_tests tests/nurbs_tests.cpp
-          ../Point3D.c++
-          ../Point3D.tcc)
+  add_executable(cad_mat_nurbs_tests tests/nurbs_tests.cpp)
   target_link_libraries(cad_mat_nurbs_tests PRIVATE cad::nurbs)
   cad_native_test(cad_mat_nurbs_tests nurbs)
 endif()

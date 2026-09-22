@@ -1,0 +1,40 @@
+{
+  "grid_side": 25,
+  "vertices": 625,
+  "faces": 576,
+  "triangles": 1152,
+  "repetitions": 7,
+  "median_ms": {
+    "profiled_initial_solve_excluding_chart": 1.271584,
+    "profiled_repeated_solve_excluding_chart": 1.2817089999999998,
+    "profiled_initial_solve_including_chart": 4.171875,
+    "operator_array_export_copy": 0.002250075340270996,
+    "binding_prepare_including_input_copy": 2.207291079685092,
+    "export_native_arrays_copy": 0.004584086127579212,
+    "immutable_python_projection_copy": 0.006624963134527206,
+    "host_prepare_including_projection": 2.2865409264340997,
+    "assembly_binding_including_csr_export": 0.6401659920811653,
+    "prepare_solver_including_assembly_factorization": 2.408374915830791,
+    "reused_solve_including_chart_qualification": 2.0863329991698265,
+    "chart_qualification_host": 1.3682920252904296,
+    "end_to_end": 6.880625034682453,
+    "reference_assembly": 85.52674995735288,
+    "reference_reused_solve": 85.65208304207772,
+    "reference_end_to_end": 179.7800000058487
+  },
+  "native_preparation_usage": {
+    "input_bytes": 61856,
+    "owned_bytes": 5409792,
+    "work_steps": 52374,
+    "output_bytes": 89936
+  },
+  "limits": "Local sequential microbenchmark, no process RSS cap or general speed guarantee.",
+  "native_standalone_median_ms": {
+    "owned_polygonal_input_copy_ms": 0.005208,
+    "native_prepare_excluding_input_copy_ms": 1.70771,
+    "native_assembly_ms": 0.690916,
+    "owned_uv_copy_ms": 0.001167,
+    "native_chart_qualification_excluding_uv_copy_ms": 0.031291
+  },
+  "measurement_notes": "Native timings exclude binding and use seven repetitions at -O2. Profiled solver timings include cProfile overhead and subtract measured qualify_chart cumulative time. Combined host timings overlap; do not add them. Native and Python timings are separate runs."
+}

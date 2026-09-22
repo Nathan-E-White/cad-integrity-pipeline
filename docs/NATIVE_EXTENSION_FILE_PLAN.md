@@ -1,7 +1,7 @@
 # Native extension file inventory
 
-Created 2026-09-21 from the C++ handoff. **Slices 0, 1 and 2 are implemented:**
-F2 reduction, polygonal facts/admission and the owned private NumPy binding are active. The other five
+Created 2026-09-21 from the C++ handoff. **Slices 0–4 are implemented:**
+F2 reduction, polygonal facts/admission and the owned private NumPy binding are active. Surface preparation/operators/chart qualification and native display identity are active. The other four
 extension pairs remain provisional declarations outside implemented targets.
 `CAD_NATIVE_CHECK_SCAFFOLDS` compiles only those unfinished declarations.
 See [the slice implementation record](reviews/native-f2/IMPLEMENTATION.md).
@@ -11,7 +11,7 @@ See [the slice implementation record](reviews/native-f2/IMPLEMENTATION.md).
 | Filename(s) | Purpose |
 |---|---|
 | `native/f2_reduction.hpp` / `native/f2_reduction.cpp` | Active bounded CPU reducer; `cad::f2` |
-| `native/surface_preparation.hpp` / `native/surface_preparation.cpp` | Declaration scaffold and implementation notes |
+| `native/surface_preparation.hpp` / `native/surface_preparation.cpp` | Active owned polygonal surface computation; `cad::surface` |
 | `native/uv_location.hpp` / `native/uv_location.cpp` | Declaration scaffold and implementation notes |
 | `native/brep_realization.hpp` / `native/brep_realization.cpp` | Declaration scaffold and implementation notes |
 | `native/voronoi/include/cad_mat/delaunay.hpp` / `native/voronoi/src/delaunay.cpp` | Declaration scaffold and implementation notes |
