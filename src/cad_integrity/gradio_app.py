@@ -30,9 +30,15 @@ from gradio_verificationgrid import (
     VerificationState,
 )
 
-from .adapters.ocp import ExportReport, KernelPolicy, KernelReport
+from .adapters.ocp import ExportReport, FaceTessellation, KernelPolicy, KernelReport
 from .errors import IntegrityError, MissingOptionalDependency
-from .inspection import encode_inspection, project_polygonal_inspection
+from .inspection import (
+    NativeInspectionSnapshot,
+    NativeMeshInspection,
+    encode_inspection,
+    project_native_inspection,
+    project_polygonal_inspection,
+)
 from .models import PolyhedralBRep
 from .pipeline import RepairPipeline, RepairPolicy, fingerprint
 from .repair import WeldPolicy
@@ -372,21 +378,33 @@ def project_step_refusal(before: KernelReport, policy: KernelPolicy, source_sha2
     return DecisionBrief("Repair rejected", False, markdown)
 
 
-def _native_figure(shape: Any, report: KernelReport, *, title: str) -> Any:
-    from .adapters.ocp import sample_edge_polylines, tessellate_for_display
+def _native_figure(shape: Any, report: KernelReport, *, title: str, display: FaceTessellation) -> Any:
+    from .adapters.ocp import sample_edge_polylines
 
     flagged_ids = tuple(sorted(set(report.free_edge_ids + report.nonmanifold_edge_ids)))
     lines = sample_edge_polylines(shape, flagged_ids) if flagged_ids else ()
-    display = tessellate_for_display(shape, max_triangles=250_000)
     color = "seagreen" if report.accepted_under_policy else "lightgray"
     return mesh_figure(display.mesh, title=title, color=color, edge_polylines=lines)
 
 
-def _render_native_figure(shape: Any, report: KernelReport, *, title: str) -> tuple[Any | None, str | None]:
+def _native_display(
+    shape: Any, report: KernelReport, *, stage: Literal["original", "candidate"],
+    revision: str, title: str, include_legacy_figures: bool,
+) -> tuple[NativeMeshInspection | None, Any | None, str | None]:
+    from .adapters.ocp import tessellate_for_display
+
     try:
-        return _native_figure(shape, report, title=title), None
-    except IntegrityError as exc:
-        return None, str(exc)
+        display = tessellate_for_display(shape, max_triangles=250_000)
+        inspection = project_native_inspection(display, stage=stage, revision=revision)
+    except (IntegrityError, ValueError, RuntimeError) as exc:
+        return None, None, str(exc)
+    figure = None
+    if include_legacy_figures:
+        try:
+            figure = _native_figure(shape, report, title=title, display=display)
+        except (IntegrityError, ValueError, RuntimeError) as exc:
+            return inspection, None, str(exc)
+    return inspection, figure, None
 
 
 def _with_display_notes(brief: DecisionBrief, notes: list[str]) -> DecisionBrief:
@@ -403,7 +421,8 @@ def _with_display_notes(brief: DecisionBrief, notes: list[str]) -> DecisionBrief
 
 
 def run_step_workbench(upload: str | Path, policy: KernelPolicy, *,
-                       artifact_store: ArtifactStore | None = None) -> WorkbenchOutcome:
+                       artifact_store: ArtifactStore | None = None,
+                       include_legacy_figures: bool = True) -> WorkbenchOutcome:
     """Execute one local STEP audit/repair request and retain honest artifacts."""
     from .adapters.ocp import audit_shape, read_step, run_step_pipeline
 
@@ -441,9 +460,11 @@ def run_step_workbench(upload: str | Path, policy: KernelPolicy, *,
             original_figure=None, candidate_figure=None,
             payload={"source_sha256": _sha256_file(source), "reason": str(exc)},
         )
-    original_figure, original_display_error = _render_native_figure(
-        document.shape, before, title="Original audit"
+    original_inspection, original_figure, original_display_error = _native_display(
+        document.shape, before, stage="original", revision=document.source_sha256,
+        title="Original audit", include_legacy_figures=include_legacy_figures,
     )
+    candidate_inspection = None
     target = request / "checked.step"
     candidate: RetainedArtifact | None
     completion: Completion
@@ -451,8 +472,10 @@ def run_step_workbench(upload: str | Path, policy: KernelPolicy, *,
         result = run_step_pipeline(source, target, policy)
         brief = project_step_evidence(result)
         candidate_document = read_step(target, max_bytes=policy.max_input_bytes)
-        candidate_figure, candidate_display_error = _render_native_figure(
-            candidate_document.shape, result["export"].after_roundtrip, title="Checked candidate"
+        candidate_inspection, candidate_figure, candidate_display_error = _native_display(
+            candidate_document.shape, result["export"].after_roundtrip, stage="candidate",
+            revision=candidate_document.source_sha256, title="Checked candidate",
+            include_legacy_figures=include_legacy_figures,
         )
         display_notes = [
             f"Original diagnostic view unavailable: {original_display_error}"
@@ -506,7 +529,7 @@ def run_step_workbench(upload: str | Path, policy: KernelPolicy, *,
         checks = (CheckResult("Configured native kernel checks", CheckState.FAILED, str(exc)),)
         diagnostics = (Diagnostic("native repair", str(exc)),)
         completion = Completion.FAILED
-    return _release_outcome(
+    outcome = _release_outcome(
         draft=draft,
         candidate=candidate,
         brief=brief,
@@ -517,6 +540,7 @@ def run_step_workbench(upload: str | Path, policy: KernelPolicy, *,
         candidate_figure=candidate_figure,
         payload=payload,
     )
+    return replace(outcome, inspection=NativeInspectionSnapshot(original_inspection, candidate_inspection))
 
 
 def _topology_cells(report: Any) -> tuple[str, ...]:
@@ -973,7 +997,8 @@ def build_app(*, inspection_enabled: bool = True) -> Any:
                 allow_face_count = gr.Checkbox(label="Allow face-count changes", value=False)
             step_run = gr.Button("Audit and attempt configured repair", variant="primary")
             step_brief = gr.Markdown(label="Decision brief")
-            with gr.Tabs():
+            step_inspector = InspectionWorkspace(visible=inspection_enabled)
+            with gr.Tabs(visible=not inspection_enabled):
                 with gr.Tab("Original"):
                     original_plot = gr.Plot(label="Original diagnostic view", min_width=320)
                 with gr.Tab("Candidate"):
@@ -990,7 +1015,7 @@ def build_app(*, inspection_enabled: bool = True) -> Any:
                         mesh_original_plot, mesh_candidate_plot, mesh_candidate_notice,
                         mesh_source, mesh_candidate, mesh_markdown, mesh_json]
         step_outputs = [step_brief, original_plot, candidate_plot, candidate_notice,
-                        step_source, checked_step, step_markdown, step_json]
+                        step_source, checked_step, step_markdown, step_json, step_inspector]
         all_outputs = [*mesh_outputs, inspector, *step_outputs, *starts]
 
         def execute(route: Literal["example", "upload", "step"], inputs: tuple[Any, ...], request: gr.Request) -> Iterator[tuple[Any, ...]]:
@@ -1001,6 +1026,7 @@ def build_app(*, inspection_enabled: bool = True) -> Any:
                     empty[1] = TopologicalDeltaAuditData("Topological & Geometric Delta Audit", ())
                     empty[2] = _verification_grid(())
                     empty[len(mesh_outputs)] = encode_inspection(None)
+                    empty[-1] = encode_inspection(None)
                     yield (*empty, *(gr.update(interactive=False) for _ in starts))
                     try:
                         if route == "example":
@@ -1012,12 +1038,18 @@ def build_app(*, inspection_enabled: bool = True) -> Any:
                         else:
                             if inputs[0] is None:
                                 raise ValueError("Choose a STEP file before analysis")
-                            outcome = run_step_workbench(inputs[0], kernel_policy_from_controls(*inputs[1:]), artifact_store=artifact_store)
+                            outcome = run_step_workbench(inputs[0], kernel_policy_from_controls(*inputs[1:]), artifact_store=artifact_store, include_legacy_figures=not inspection_enabled)
                     except Exception as exc:
                         outcome = failed_outcome("Computation", str(exc))
                     try:
                         if route == "step":
-                            values = [*empty[:len(mesh_outputs)+1], *_step_ui_projection(outcome)]
+                            projection = list(_step_ui_projection(outcome))
+                            try:
+                                inspection_value = encode_inspection(outcome.inspection)
+                            except Exception as exc:
+                                inspection_value = encode_inspection(None)
+                                projection[0] += f"\n\n### Inspection unavailable\n{exc}"
+                            values = [*empty[:len(mesh_outputs)+1], *projection, inspection_value]
                         else:
                             projection = list(_polygonal_ui_projection(outcome, source_name="Example" if route == "example" else "Uploaded NPZ"))
                             try:
@@ -1029,7 +1061,7 @@ def build_app(*, inspection_enabled: bool = True) -> Any:
                     except Exception as exc:
                         failure = failed_outcome("Result delivery", str(exc))
                         if route == "step":
-                            values = [*empty[:len(mesh_outputs)+1], *_step_ui_projection(failure)]
+                            values = [*empty[:len(mesh_outputs)+1], *_step_ui_projection(failure), encode_inspection(None)]
                         else:
                             values = [*_polygonal_ui_projection(failure, source_name="Polygonal input"),
                                       encode_inspection(None), *empty[len(mesh_outputs)+1:]]

@@ -1,6 +1,6 @@
-# Polygonal inspection
+# Geometry inspection
 
-Domain language for inspecting polygonal geometry and its diagnostic results.
+Domain language for inspecting polygonal and native geometry and diagnostic results.
 
 ## Language
 
@@ -11,10 +11,22 @@ when its interior cannot be rendered.
 _Avoid_: Render triangle as a synonym for polygonal face.
 
 **Display triangle**:
-A triangle representing part or all of one **polygonal face** for visualization.
-A polygonal face may have multiple display triangles or none when its interior
-cannot be rendered.
+A triangle representing part or all of one **polygonal face** or **native face**
+for visualization. A face may have multiple display triangles or none when its
+interior cannot be rendered. The source domain is explicit; native faces do not
+become polygonal cells through display tessellation.
 _Avoid_: Source face as a synonym for an individual display triangle.
+
+**Native face**:
+An OCCT face occurrence in a particular retained native shape snapshot. Its local
+ordinal follows that snapshot's indexed face map. Copy history associates display
+faces with this source map; ordinals alone do not establish correspondence between
+original and candidate shapes or between revisions.
+
+**Display projection**:
+An owned set of display geometry and source-face correspondence. Its identity
+scopes display triangle ordinals; a new tessellation cannot reuse old triangle
+references merely because the native shape is unchanged.
 
 ## Example dialogue
 

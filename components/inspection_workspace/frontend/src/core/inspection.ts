@@ -1,5 +1,5 @@
-/** V2 identities are source entities, never v1 display-triangle targets. */
-export type Kind = 'vertex' | 'edge' | 'polygonal_face';
+/** V2 polygonal and V3 native identities remain distinct source domains. */
+export type Kind = 'vertex' | 'edge' | 'polygonal_face' | 'native_face';
 export type Target = {
     meshId: string;
     revision: string;
@@ -20,6 +20,8 @@ export interface Mesh {
     id: string;
     revision: string;
     stage: 'original' | 'candidate';
+    face_kind: 'polygonal_face' | 'native_face';
+    projection_id: string | null;
     frame_id: string;
     length_unit: string;
     positions: number[];
@@ -37,10 +39,10 @@ export interface Mesh {
     }[];
 }
 export interface Document {
-    schema_version: 2;
+    schema_version: 2 | 3;
     meshes: Mesh[];
 }
-const kinds: Kind[] = ['vertex', 'edge', 'polygonal_face'];
+export function entityKinds(mesh: Mesh): Kind[] { return mesh.face_kind === 'native_face' ? ['native_face'] : ['vertex', 'edge', 'polygonal_face']; }
 const categoryKinds: Record<string, Kind> = { nonmanifold_vertices: 'vertex', unused_vertices: 'vertex',
     boundary_edges: 'edge', nonmanifold_edges: 'edge', winding_conflicts: 'edge', unused_edges: 'edge', collapsed_edges: 'edge',
     invalid_faces: 'polygonal_face', duplicate_faces: 'polygonal_face' };
@@ -73,7 +75,8 @@ export function parseInspection(value: unknown): Document {
         value = JSON.parse(value);
     }
     const doc = record(value);
-    require(doc.schema_version === 2, 'Unsupported inspection version');
+    require(doc.schema_version === 2 || doc.schema_version === 3, 'Unsupported inspection version');
+    const native = doc.schema_version === 3;
     const inputs = list(doc.meshes, 2);
     let aggregate = 0;
     for (const input of inputs) {
@@ -92,7 +95,11 @@ export function parseInspection(value: unknown): Document {
         const boundary_segments = numbers(m.boundary_segments, 2, 6000000, nv - 1);
         const boundary_source_faces = numbers(m.boundary_source_faces, 1, 3000000, face_count - 1);
         require(boundary_source_faces.length === boundary_segments.length / 2, 'Boundary owner length');
-        const counts = { vertex: nv, edge: edges.length / 2, polygonal_face: face_count };
+        const face_kind = native ? 'native_face' : 'polygonal_face';
+        const projection_id = native ? text(m.projection_id) : null;
+        require(!native || m.face_kind === 'native_face', 'Unknown native face domain');
+        require(!native || (edges.length === 0 && boundary_segments.length === 0 && list(m.categories, 0).length === 0), 'Native display vertices and segments are not source entities');
+        const counts = { vertex: nv, edge: edges.length / 2, polygonal_face: face_count, native_face: face_count };
         const categories: Category[] = list(m.categories, 9).map(raw => {
             const c = record(raw), id = text(c.id), kind = c.kind as Kind;
             require(categoryKinds[id] === kind, 'Unknown category or entity kind');
@@ -104,19 +111,19 @@ export function parseInspection(value: unknown): Document {
         const issues = list(m.issues, face_count).map(raw => { const i = record(raw); return Object.freeze({ face_id: integer(i.face_id, face_count - 1), code: text(i.code), detail: text(i.detail) }); });
         require(m.stage === 'original' || m.stage === 'candidate', 'Unknown stage');
         require(['mm', 'cm', 'm', 'in'].includes(m.length_unit), 'Unknown units');
-        return Object.freeze({ id: text(m.id), revision: text(m.revision), stage: m.stage, frame_id: text(m.frame_id), length_unit: m.length_unit,
+        return Object.freeze({ id: text(m.id), revision: text(m.revision), stage: m.stage, face_kind, projection_id, frame_id: text(m.frame_id), length_unit: m.length_unit,
             positions, edges, face_count, triangles, triangle_source_faces, boundary_segments, boundary_source_faces,
             categories: Object.freeze(categories) as unknown as Category[], issues: Object.freeze(issues) as unknown as Mesh["issues"] });
     });
     require(new Set(meshes.map(m => m.id)).size === meshes.length, 'Duplicate mesh identity');
     require(new Set(meshes.map(m => m.stage)).size === meshes.length, 'Duplicate stage');
-    if (meshes.length)
+    if (meshes.length && !native)
         require(meshes[0].stage === 'original', 'Original must be first');
     if (meshes.length === 2)
         require(meshes[0].frame_id === meshes[1].frame_id && meshes[0].length_unit === meshes[1].length_unit, 'Comparison frame mismatch');
-    return Object.freeze({ schema_version: 2, meshes: Object.freeze(meshes) as unknown as Mesh[] });
+    return Object.freeze({ schema_version: doc.schema_version, meshes: Object.freeze(meshes) as unknown as Mesh[] });
 }
-export function entityCount(mesh: Mesh, kind: Kind): number { return kind === 'vertex' ? mesh.positions.length / 3 : kind === 'edge' ? mesh.edges.length / 2 : mesh.face_count; }
+export function entityCount(mesh: Mesh, kind: Kind): number { if (!entityKinds(mesh).includes(kind)) return 0; return kind === 'vertex' ? mesh.positions.length / 3 : kind === 'edge' ? mesh.edges.length / 2 : mesh.face_count; }
 export function entityTarget(mesh: Mesh, kind: Kind, entityId: number): Target { return { meshId: mesh.id, revision: mesh.revision, type: 'entity', kind, entityId }; }
 export function resolveTarget(mesh: Mesh, target: Target | null): {
     kind: Kind;
@@ -135,16 +142,17 @@ export function resolveTarget(mesh: Mesh, target: Target | null): {
     }
     else {
         kind = target.kind;
-        if (!kinds.includes(kind) || !Number.isSafeInteger(target.entityId) || target.entityId < 0 || target.entityId >= entityCount(mesh, kind))
+        if (!entityKinds(mesh).includes(kind) || !Number.isSafeInteger(target.entityId) || target.entityId < 0 || target.entityId >= entityCount(mesh, kind))
             return null;
         ids = [target.entityId];
     }
     const selected = new Set(ids);
-    const triangleIds = kind === 'polygonal_face' ? mesh.triangle_source_faces.flatMap((f, t) => selected.has(f) ? [t] : []) : [];
+    const triangleIds = kind === mesh.face_kind ? mesh.triangle_source_faces.flatMap((f, t) => selected.has(f) ? [t] : []) : [];
     return { kind, ids, triangleIds };
 }
-export function targetFromTriangle(mesh: Mesh, triangle: number): Target | null {
+export function targetFromTriangle(mesh: Mesh, triangle: number, projectionId?: string): Target | null {
+    if (mesh.projection_id !== null && projectionId !== mesh.projection_id) return null;
     if (!Number.isSafeInteger(triangle) || triangle < 0 || triangle >= mesh.triangle_source_faces.length)
         return null;
-    return entityTarget(mesh, 'polygonal_face', mesh.triangle_source_faces[triangle]);
+    return entityTarget(mesh, mesh.face_kind, mesh.triangle_source_faces[triangle]);
 }

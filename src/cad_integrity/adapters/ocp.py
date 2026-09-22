@@ -23,7 +23,7 @@ from typing import Any
 
 import numpy as np
 
-from ..arrays import IntArray, positive, readonly
+from ..arrays import IntArray, positive
 from ..errors import (
     ExportRejected,
     KernelOperationFailed,
@@ -764,30 +764,53 @@ def run_step_pipeline(source: str | Path, destination: str | Path,
 class FaceTessellation:
     mesh: TriangleMesh
     triangle_face_ids: IntArray
+    source_face_count: int
+    missing_face_ids: tuple[int, ...] = ()
     scope: str = "display_only_vertices_are_duplicated_across_native_faces"
 
 
 def tessellate_for_display(shape: TopoDS_Shape, *, linear_deflection_mm: float = 0.05,
-                           angular_deflection: float = 0.3, max_triangles: int = 1_000_000
+                           angular_deflection: float = 0.3, max_triangles: int = 1_000_000,
+                           max_vertices: int = 250_000, max_faces: int = 500_000
                            ) -> FaceTessellation:
+    for limit in (max_triangles, max_vertices, max_faces):
+        if type(limit) is not int or limit < 1:
+            raise ValueError("Display limits must be positive integers")
     positive(linear_deflection_mm, "linear_deflection_mm")
     positive(angular_deflection, "angular_deflection")
     # Meshing caches triangulations on native shapes. Copy first to avoid mutation.
-    copy = BRepBuilderAPI_Copy(shape, True, False).Shape()
+    copier = BRepBuilderAPI_Copy(shape, True, False)
+    copy = copier.Shape()
+    source_faces = _shapes(shape, TopAbs_FACE)
+    if len(source_faces) > max_faces:
+        raise ResourceLimitExceeded("Display face budget exceeded")
+    copied_faces = _map(copy, TopAbs_FACE)
+    # Resolve through copy history, never by matching traversal positions.
+    mapped = [copier.ModifiedShape(face) for face in source_faces]
+    mapped_ids = [copied_faces.FindIndex(face) for face in mapped]
+    if (len(mapped_ids) != copied_faces.Extent()
+            or set(mapped_ids) != set(range(1, copied_faces.Extent() + 1))):
+        raise KernelOperationFailed("Display copy lost source face correspondence")
     mesher = BRepMesh_IncrementalMesh(copy, linear_deflection_mm, False, angular_deflection, False)
     if not mesher.IsDone():
         raise KernelOperationFailed("Native display tessellation failed")
     vertices: list[tuple[float, float, float]] = []
     triangles: list[tuple[int, int, int]] = []
     face_ids: list[int] = []
-    for face_id, face_shape in enumerate(_shapes(copy, TopAbs_FACE)):
+    missing: list[int] = []
+    for face_id, copied_id in enumerate(mapped_ids):
+        # Copy history identifies the face; the copied occurrence retains orientation.
+        face_shape = copied_faces.FindKey(copied_id)
         face = TopoDS.Face_s(face_shape)
         location = TopLoc_Location()
         triangulation = BRep_Tool.Triangulation_s(face, location)
-        if triangulation is None:
-            raise KernelOperationFailed(f"Face {face_id} has no triangulation")
+        if triangulation is None or triangulation.NbTriangles() == 0:
+            missing.append(face_id)
+            continue
         if len(triangles)+triangulation.NbTriangles() > max_triangles:
             raise ResourceLimitExceeded("Display tessellation exceeds the triangle budget")
+        if len(vertices) + triangulation.NbNodes() > max_vertices:
+            raise ResourceLimitExceeded("Display vertex budget exceeded")
         offset = len(vertices)
         transform = location.Transformation()
         for node in range(1, triangulation.NbNodes()+1):
@@ -801,7 +824,8 @@ def tessellate_for_display(shape: TopoDS_Shape, *, linear_deflection_mm: float =
             face_ids.append(face_id)
     mesh = TriangleMesh(np.asarray(vertices, dtype=float).reshape(-1, 3),
                         np.asarray(triangles, dtype=np.int64).reshape(-1, 3), "mm")
-    return FaceTessellation(mesh, readonly(np.asarray(face_ids, dtype=np.int64)))
+    owners = np.frombuffer(np.asarray(face_ids, dtype=np.int64).tobytes(), dtype=np.int64)
+    return FaceTessellation(mesh, owners, len(source_faces), tuple(missing))
 
 
 def sample_edge_polylines(shape: TopoDS_Shape, edge_ids: tuple[int, ...], *, samples: int = 32

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
+from uuid import uuid4
 
 import numpy as np
 
@@ -12,6 +13,9 @@ from .errors import InvalidGeometry, ResourceLimitExceeded
 from .models import PolyhedralBRep
 from .pipeline import RepairResult, fingerprint
 from .topology import TopologyReport
+
+if TYPE_CHECKING:
+    from .adapters.ocp import FaceTessellation
 
 EntityKind = Literal["vertex", "edge", "polygonal_face"]
 
@@ -340,7 +344,61 @@ def project_polygonal_inspection(
     )
 
 
-def encode_inspection(snapshot: InspectionSnapshot | None) -> dict[str, object]:
+@dataclass(frozen=True, slots=True)
+class NativeMeshInspection:
+    """Owned native-face display; tessellation vertices are not native entities."""
+
+    stage: Literal["original", "candidate"]
+    scope: MeshScope
+    projection_id: str
+    frame_id: str
+    length_unit: str
+    vertices: FloatArray
+    face_count: int
+    display: DisplayGeometry
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "vertices", _immutable(self.vertices))
+
+
+@dataclass(frozen=True, slots=True)
+class NativeInspectionSnapshot:
+    original: NativeMeshInspection | None
+    candidate: NativeMeshInspection | None
+
+
+def project_native_inspection(
+    display: FaceTessellation, *, stage: Literal["original", "candidate"], revision: str,
+    limits: ProjectionLimits = ProjectionLimits(),
+) -> NativeMeshInspection:
+    """Mint a snapshot-local scope; copy only checked display data, never shape handles."""
+    mesh = display.mesh
+    counts = (len(mesh.vertices), display.source_face_count, len(mesh.triangles))
+    if any(count > limit for count, limit in zip(counts, (
+        limits.max_vertices, limits.max_faces, limits.max_display_triangles,
+    ), strict=True)):
+        raise ResourceLimitExceeded("Native inspection geometry budget exceeded")
+    if (mesh.vertices.size + mesh.triangles.size + len(display.triangle_face_ids)
+            + display.source_face_count * 4) * 32 > limits.max_payload_bytes:
+        raise ResourceLimitExceeded("Native inspection payload budget exceeded")
+    owners = display.triangle_face_ids
+    if (owners.shape != (len(mesh.triangles),) or np.any(owners < 0)
+            or np.any(owners >= display.source_face_count)
+            or any(i < 0 or i >= display.source_face_count for i in display.missing_face_ids)):
+        raise InvalidGeometry("Native display face correspondence is invalid")
+    geometry = DisplayGeometry(
+        mesh.triangles, owners, np.empty((0, 2), dtype=np.int64),
+        np.empty(0, dtype=np.int64),
+        tuple(DisplayIssue(i, "missing_triangulation", "Native face interior unavailable")
+              for i in display.missing_face_ids),
+    )
+    return NativeMeshInspection(
+        stage, MeshScope(f"native-{uuid4().hex}", revision), uuid4().hex,
+        "source", mesh.length_unit, mesh.vertices, display.source_face_count, geometry,
+    )
+
+
+def encode_inspection(snapshot: InspectionSnapshot | NativeInspectionSnapshot | None) -> dict[str, object]:
     """Versioned browser delivery; v1 triangle targets keep their old meaning."""
     meshes = []
     if snapshot is not None:
@@ -355,15 +413,17 @@ def encode_inspection(snapshot: InspectionSnapshot | None) -> dict[str, object]:
                     "frame_id": mesh.frame_id,
                     "length_unit": mesh.length_unit,
                     "positions": mesh.vertices.ravel().tolist(),
-                    "edges": mesh.edges.ravel().tolist(),
-                    "face_count": len(mesh.face_offsets) - 1,
+                    "edges": [] if isinstance(mesh, NativeMeshInspection) else mesh.edges.ravel().tolist(),
+                    "face_count": mesh.face_count if isinstance(mesh, NativeMeshInspection) else len(mesh.face_offsets) - 1,
+                    **({"face_kind": "native_face", "projection_id": mesh.projection_id}
+                       if isinstance(mesh, NativeMeshInspection) else {}),
                     "triangles": mesh.display.triangles.ravel().tolist(),
                     "triangle_source_faces": mesh.display.triangle_source_faces.tolist(),
                     "boundary_segments": mesh.display.boundary_segments.ravel().tolist(),
                     "boundary_source_faces": mesh.display.boundary_source_faces.tolist(),
                     "categories": [
                         {"id": c.category, "kind": c.kind, "entity_ids": list(c.entity_ids)}
-                        for c in mesh.categories
+                        for c in (() if isinstance(mesh, NativeMeshInspection) else mesh.categories)
                     ],
                     "issues": [
                         {"face_id": i.face_id, "code": i.code, "detail": i.detail}
@@ -371,4 +431,4 @@ def encode_inspection(snapshot: InspectionSnapshot | None) -> dict[str, object]:
                     ],
                 }
             )
-    return {"schema_version": 2, "meshes": meshes}
+    return {"schema_version": 3 if isinstance(snapshot, NativeInspectionSnapshot) else 2, "meshes": meshes}

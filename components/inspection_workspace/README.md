@@ -1,11 +1,17 @@
-# Polygonal inspection workspace
+# Geometry inspection workspace
 
-Installed Gradio component for the parent-owned V2 polygonal inspection snapshot.
+Installed Gradio component for parent-owned V2 polygonal and V3 native-face
+inspection snapshots. V2 field meanings remain unchanged. V3 requires
+`face_kind: native_face` and a `projection_id` in each mesh record; native face
+rows retain original/candidate geometry scopes, revisions and local face IDs.
+Display triangle picks require the matching projection identity. Native display
+vertices and segments are not native vertices or edges, so V3 offers face-only
+picking. Faces without triangulation remain listed with an explicit issue.
 GeometryViewport, MetricTable and EntityTable implement the current topology-only
 workspace. Camera, clipping, selection, hover, filters and picking stay local.
 Original and Candidate keep independent revision-scoped identities.
 
-The existing report components remain separate. The installed workspace is the default polygonal display after local qualification.
+The existing report components remain separate. The installed workspace is the default polygonal and STEP display after local qualification.
 `build_app(inspection_enabled=False)` retains the legacy display path. Run the installed-parent
 preview with `.pixi/envs/default/bin/python scripts/run_inspection_preview.py`
 from the repository root; it binds only to `127.0.0.1:7863`.

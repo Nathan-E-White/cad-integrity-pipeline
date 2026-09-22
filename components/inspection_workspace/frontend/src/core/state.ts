@@ -18,7 +18,7 @@ export interface WorkspaceState {
     xray: boolean;
     hiddenCategories: string[];
 }
-export const initialState = (): WorkspaceState => ({ active: 'original', mode: 'polygonal_face', category: null, defectsOnly: true,
+export const initialState = (faceKind: 'polygonal_face' | 'native_face' = 'polygonal_face'): WorkspaceState => ({ active: 'original', mode: faceKind, category: null, defectsOnly: faceKind !== 'native_face',
     selections: { original: null, candidate: null }, hover: { original: null, candidate: null }, maximized: null, linkedClipping: true,
     clips: { original: { enabled: false, axis: 0, offset: 0 }, candidate: { enabled: false, axis: 0, offset: 0 } }, xray: false, hiddenCategories: [] });
 export type Action = {

@@ -1,6 +1,6 @@
 import * as T from 'three';
 import type { Mesh, Target, Kind } from '../core/inspection';
-import { resolveTarget, entityCount } from '../core/inspection';
+import { resolveTarget, entityCount, entityKinds } from '../core/inspection';
 import { ResourceScope } from '../../../../../integration/mesh-diagnostics-seam/src/render/ResourceScope';
 import type { WorkspaceState } from '../core/state';
 /** One preallocated overlay per entity kind; interaction changes emphasis only. */
@@ -18,6 +18,7 @@ export class InspectionOverlay {
     private emphasisKey: string | null = null;
     constructor(private mesh: Mesh, positions: Float32Array) {
         try {
+            if (mesh.face_kind === 'polygonal_face') {
             const pointIds = Array.from({ length: positions.length / 3 }, (_, i) => i);
             this.batch('vertex', positions, pointIds, 'points');
             const edgePositions = new Float32Array(mesh.edges.length * 3);
@@ -29,13 +30,14 @@ export class InspectionOverlay {
                 for (let k = 0; k < 3; k++)
                     centers[e * 3 + k] = (positions[mesh.edges[e * 2] * 3 + k] + positions[mesh.edges[e * 2 + 1] * 3 + k]) / 2;
             this.batch('edge', centers, Array.from({ length: mesh.edges.length / 2 }, (_, i) => i), 'points');
+            }
             const faces = new Float32Array(mesh.triangles.length * 3);
             mesh.triangles.forEach((v, i) => faces.set(positions.subarray(v * 3, v * 3 + 3), i * 3));
-            this.batch('polygonal_face', faces, mesh.triangles.map((_, i) => mesh.triangle_source_faces[Math.floor(i / 3)]), 'faces');
+            this.batch(mesh.face_kind, faces, mesh.triangles.map((_, i) => mesh.triangle_source_faces[Math.floor(i / 3)]), 'faces');
             // Unsupported faces still have selectable source segments.
             const boundary = new Float32Array(mesh.boundary_segments.length * 3);
             mesh.boundary_segments.forEach((v, i) => boundary.set(positions.subarray(v * 3, v * 3 + 3), i * 3));
-            this.batch('polygonal_face', boundary, mesh.boundary_segments.map((_, i) => mesh.boundary_source_faces[Math.floor(i / 2)]), 'lines');
+            this.batch(mesh.face_kind, boundary, mesh.boundary_segments.map((_, i) => mesh.boundary_source_faces[Math.floor(i / 2)]), 'lines');
         }
         catch (error) {
             this.dispose();
@@ -64,7 +66,7 @@ export class InspectionOverlay {
         if (visibilityKey !== this.visibilityKey) {
             this.visibilityKey = visibilityKey;
             this.baseline.clear();
-            for (const kind of ['vertex', 'edge', 'polygonal_face'] as const)
+            for (const kind of entityKinds(this.mesh))
                 this.baseline.set(kind, new Uint8Array(entityCount(this.mesh, kind)));
             for (const category of this.mesh.categories)
                 if (!state.hiddenCategories.includes(category.id)) {

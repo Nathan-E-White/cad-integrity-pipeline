@@ -51,6 +51,7 @@ export class GeometryViewport {
             const pointGeometry = this.scope.own(new T.BufferGeometry());
             pointGeometry.setAttribute('position', new T.BufferAttribute(this.positions, 3));
             this.points = new T.Points(pointGeometry, this.scope.own(new T.PointsMaterial({ size: 3, sizeAttenuation: false, color: '#475569' })));
+            this.points.visible = mesh.face_kind !== 'native_face';
             this.scene.add(this.points);
             const edges = this.scope.own(new T.BufferGeometry());
             edges.setAttribute('position', new T.BufferAttribute(this.positions, 3));
@@ -140,7 +141,7 @@ export class GeometryViewport {
                 indices.add(this.mesh.edges[id * 2]);
                 indices.add(this.mesh.edges[id * 2 + 1]);
             }
-        if (selected.kind === 'polygonal_face') {
+        if (selected.kind === this.mesh.face_kind) {
             for (const triangle of selected.triangleIds)
                 for (let k = 0; k < 3; k++)
                     indices.add(this.mesh.triangles[triangle * 3 + k]);
@@ -192,7 +193,7 @@ export class GeometryViewport {
         const object = this.state.mode === 'vertex' ? this.points : this.state.mode === 'edge' ? this.edges : this.surface;
         const p = this.plane();
         const hit = ray.intersectObject(object).find(h => p.x * h.point.x + p.y * h.point.y + p.z * h.point.z + p.w >= 0);
-        this.pick(!hit ? null : this.state.mode === 'polygonal_face' ? targetFromTriangle(this.mesh, hit.faceIndex!) : entityTarget(this.mesh, this.state.mode, this.state.mode === 'edge' ? Math.floor(hit.index! / 2) : hit.index!));
+        this.pick(!hit ? null : this.state.mode === this.mesh.face_kind ? targetFromTriangle(this.mesh, hit.faceIndex!, this.mesh.projection_id ?? undefined) : entityTarget(this.mesh, this.state.mode, this.state.mode === 'edge' ? Math.floor(hit.index! / 2) : hit.index!));
     };
     private lost = (event: Event) => { event.preventDefault(); this.lostContext = true; this.error('WebGL context lost'); };
     private restored = () => { this.lostContext = false; this.error(null); this.invalidate(); };

@@ -1,8 +1,8 @@
 <script lang="ts">
- import {entityCount,type Mesh,type Target} from '../../core/inspection';
+ import {entityCount,entityKinds,type Mesh,type Target} from '../../core/inspection';
  let {mesh,onselect,onhover,hidden,onvisibility}:{mesh:Mesh;onselect:(target:Target)=>void;onhover:(target:Target|null)=>void;hidden:string[];onvisibility:(id:string)=>void}=$props();
  const target=(id:string):Target=>({meshId:mesh.id,revision:mesh.revision,type:'category',categoryId:id});
- const unique=$derived.by(()=>{let count=0;for(const kind of ['vertex','edge','polygonal_face'] as const){const flags=new Uint8Array(entityCount(mesh,kind));for(const c of mesh.categories)if(c.kind===kind)for(const id of c.entity_ids)if(!flags[id]){flags[id]=1;count++;}}return count;});
+ const unique=$derived.by(()=>{let count=0;for(const kind of entityKinds(mesh)){const flags=new Uint8Array(entityCount(mesh,kind));for(const c of mesh.categories)if(c.kind===kind)for(const id of c.entity_ids)if(!flags[id]){flags[id]=1;count++;}}return count;});
 </script>
 <table aria-label={`${mesh.stage} metrics`}><caption>{mesh.stage==='original'?'Original':'Candidate'} · {mesh.length_unit} · {unique} affected entities</caption>
  <thead><tr><th>Category</th><th>Count</th><th>Overlay</th></tr></thead>

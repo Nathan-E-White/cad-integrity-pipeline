@@ -53,3 +53,32 @@ test('decoded snapshot owns and freezes nested collections', () => {
     expect(Object.isFrozen(parsed.meshes[0].issues)).toBe(true);
     expect(Object.isFrozen(parsed.meshes[0].categories)).toBe(true);
 });
+
+export const nativeSquare = () => ({ ...square(), face_kind: 'native_face', projection_id: 'p1', edges: [], boundary_segments: [], boundary_source_faces: [], categories: [] });
+test('v3 native triangles resolve to native faces and reject stale or foreign references', () => {
+    const m = parseInspection({ schema_version: 3, meshes: [nativeSquare()] }).meshes[0];
+    const target = targetFromTriangle(m, 1, 'p1');
+    expect(target).toEqual({ meshId: 'original', revision: 'r1', type: 'entity', kind: 'native_face', entityId: 0 });
+    expect(resolveTarget(m, target)?.triangleIds).toEqual([0, 1]);
+    expect(targetFromTriangle(m, 1, 'old-projection')).toBeNull();
+    expect(targetFromTriangle(m, 1)).toBeNull();
+    expect(resolveTarget(m, { ...target!, revision: 'old' })).toBeNull();
+    expect(resolveTarget(m, { ...target!, meshId: 'candidate' })).toBeNull();
+    expect(resolveTarget(m, { ...target!, type: 'entity', kind: 'polygonal_face', entityId: 0 })).toBeNull();
+    expect(resolveTarget(m, { ...target!, type: 'entity', kind: 'vertex', entityId: 0 })).toBeNull();
+});
+
+test('v3 validates ownership, projection identity and face-only domain', () => {
+    for (const change of [{ projection_id: undefined }, { face_kind: 'polygonal_face' },
+        { triangle_source_faces: [0, 2] }, { triangle_source_faces: [0] },
+        { edges: [0, 1] }, { positions: [0, Infinity, 1] }]) {
+        expect(() => parseInspection({ schema_version: 3, meshes: [{ ...nativeSquare(), ...change }] })).toThrow();
+    }
+    const missing = { ...nativeSquare(), face_count: 2, issues: [{ face_id: 1, code: 'missing_triangulation', detail: 'Interior unavailable' }] };
+    const m = parseInspection({ schema_version: 3, meshes: [missing] }).meshes[0];
+    expect(resolveTarget(m, { meshId: m.id, revision: m.revision, type: 'entity', kind: 'native_face', entityId: 1 }))
+        .toEqual({ kind: 'native_face', ids: [1], triangleIds: [] });
+    const remeshed = parseInspection({ schema_version: 3, meshes: [{ ...nativeSquare(), projection_id: 'p2', triangles: [0, 1, 3], triangle_source_faces: [0] }] }).meshes[0];
+    expect(targetFromTriangle(remeshed, 0, 'p1')).toBeNull();
+    expect(targetFromTriangle(remeshed, 0, 'p2')?.type).toBe('entity');
+});

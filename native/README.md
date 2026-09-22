@@ -128,3 +128,11 @@ Slices 0–2 activate F2 and polygonal facts/admission. See [bindings/README.md]
 owned arrays, evidence budgets, packaging requirements and measured costs. The
 Python extension and `cad::f2` compile the same numerical source; the extension
 is built by setuptools, while CMake validates the dependency-free CPU kernel.
+
+## Native face inspection
+
+Host integration slice 3 carries OCCT source face identity through private-copy
+meshing into the existing inspection workspace. It adds no C++ algorithm or new
+OCCT binding. See [the implementation record](../docs/reviews/native-display/IMPLEMENTATION.md)
+for copy correspondence, V3 native-face delivery, scope/projection identity and
+qualification; polygonal V2 delivery remains unchanged.

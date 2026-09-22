@@ -13,7 +13,7 @@ from OCP.BRepAdaptor import BRepAdaptor_Curve
 from OCP.BRepAlgoAPI import BRepAlgoAPI_Cut
 from OCP.BRepBuilderAPI import BRepBuilderAPI_Copy, BRepBuilderAPI_MakeFace, BRepBuilderAPI_MakeVertex
 from OCP.BRepPrimAPI import BRepPrimAPI_MakeBox, BRepPrimAPI_MakeCylinder, BRepPrimAPI_MakeSphere, BRepPrimAPI_MakeTorus
-from OCP.gp import gp_Pln, gp_Pnt
+from OCP.gp import gp_Dir, gp_Pln, gp_Pnt
 from OCP.TopAbs import TopAbs_EDGE, TopAbs_FACE, TopAbs_VERTEX
 from OCP.TopoDS import TopoDS, TopoDS_Compound, TopoDS_Shape
 
@@ -450,3 +450,48 @@ def test_overlapping_solids_fail_interference_gate():
     report = ocp.audit_shape(shape, ocp.KernelPolicy(expected_solids=2))
     assert not report.accepted_under_policy
     assert report.self_interference_check_passed is False
+
+
+def test_display_face_identity_uses_source_copy_correspondence():
+    # Two disjoint, asymmetric faces in deliberately non-spatial source order.
+    # Face 0 lies at z=7, face 1 at z=-3; reverse the second face's orientation.
+    upper = BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, 7), gp_Dir(0, 0, 1)), 0, 2, 0, 3).Face()
+    lower = BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, -3), gp_Dir(0, 0, 1)), 0, 5, 0, 1).Face()
+    from OCP.TopLoc import TopLoc_Location
+    from OCP.gp import gp_Trsf, gp_Vec
+
+    translation = gp_Trsf()
+    translation.SetTranslation(gp_Vec(3, 4, 4))
+    shape = compound([upper.Moved(TopLoc_Location(translation)), lower.Reversed()])
+    display = ocp.tessellate_for_display(shape)
+    assert display.source_face_count == 2
+    assert display.missing_face_ids == ()
+    points = display.mesh.vertices[display.mesh.triangles]
+    for face_id, z, orientation in [(0, 11, 1), (1, -3, -1)]:
+        triangles = points[display.triangle_face_ids == face_id]
+        assert len(triangles) == 2
+        assert np.all(triangles[:, :, 2] == z)
+        assert np.all(np.cross(triangles[:, 1]-triangles[:, 0], triangles[:, 2]-triangles[:, 0])[:, 2]*orientation > 0)
+    with pytest.raises(ValueError):
+        display.triangle_face_ids.setflags(write=True)
+
+
+def test_display_retains_unmeshed_native_face_and_does_not_mesh_source():
+    from OCP.BRep import BRep_Tool
+    from OCP.TopLoc import TopLoc_Location
+
+    plane = gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1))
+    bounded = BRepBuilderAPI_MakeFace(plane, 0, 2, 0, 3).Face()
+    unbounded = BRepBuilderAPI_MakeFace(plane).Face()
+    display = ocp.tessellate_for_display(compound([unbounded, bounded]))
+    assert display.source_face_count == 2
+    assert display.missing_face_ids == (0,)
+    assert display.triangle_face_ids.tolist() == [1, 1]
+    assert BRep_Tool.Triangulation_s(bounded, TopLoc_Location()) is None
+
+
+def test_native_display_refuses_face_and_vertex_budgets():
+    with pytest.raises(ResourceLimitExceeded, match="face budget"):
+        ocp.tessellate_for_display(box(), max_faces=5)
+    with pytest.raises(ResourceLimitExceeded, match="vertex budget"):
+        ocp.tessellate_for_display(box(), max_vertices=23)
