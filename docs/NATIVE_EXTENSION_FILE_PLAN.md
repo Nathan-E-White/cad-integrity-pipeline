@@ -1,10 +1,11 @@
 # Native extension file inventory
 
-Created 2026-09-21 from the C++ handoff. **Slices 0–6, 7a and 8 are implemented:**
+Created 2026-09-21 from the C++ handoff. **Slices 0–6, 7a, 7b and 8 are implemented:**
 F2 reduction, polygonal facts/admission and the owned private NumPy binding are active. Surface preparation/operators/chart qualification and native display identity are active. UV location and conforming BRep realization are active. Canonical quad tracing is active. Delaunay construction
-remains a provisional declaration outside implemented targets. NURBS host binding
+is active as an optional CGAL-backed native target; see
+reviews/native-delaunay/IMPLEMENTATION.md. NURBS host binding
 is active through the retained evaluator; see reviews/native-nurbs/IMPLEMENTATION.md.
-`CAD_NATIVE_CHECK_SCAFFOLDS` compiles only those unfinished declarations.
+No unfinished declaration currently remains in `CAD_NATIVE_CHECK_SCAFFOLDS`.
 See [the slice implementation record](reviews/native-f2/IMPLEMENTATION.md).
 
 ## Expected new files — created in this change
@@ -15,7 +16,7 @@ See [the slice implementation record](reviews/native-f2/IMPLEMENTATION.md).
 | `native/surface_preparation.hpp` / `native/surface_preparation.cpp` | Active owned polygonal surface computation; `cad::surface` |
 | `native/uv_location.hpp` / `native/uv_location.cpp` | Active owned all-candidate chart location; `cad::uv` |
 | `native/brep_realization.hpp` / `native/brep_realization.cpp` | Active owned correspondence/conformity qualification; `cad::brep`, OCP runtime extraction in `cad_integrity.brep` |
-| `native/voronoi/include/cad_mat/delaunay.hpp` / `native/voronoi/src/delaunay.cpp` | Declaration scaffold and implementation notes |
+| `native/voronoi/include/cad_mat/delaunay.hpp` / `native/voronoi/src/delaunay.cpp` | Active bounded CGAL construction seam; `cad::delaunay` |
 | `native/quad_tracing.hpp` / `native/quad_tracing.cpp` | Active owned canonical quad admission and tracing; `cad::quad` |
 | `native/bindings/module.cpp` | Active private owned NumPy binding |
 | `native/bindings/README.md` | Binding contract and build instructions |
@@ -47,8 +48,8 @@ See [the slice implementation record](reviews/native-f2/IMPLEMENTATION.md).
    callers, and only then link those files into implemented library/binding targets.
 2. Refine polygonal admission and native display identity in existing modules.
 3. Implement surface preparation with Python SciPy solve retained, then UV location.
-4. Qualify conforming OCCT realization. NURBS binding and Delaunay construction
-   can proceed as independent branches when their callers are ready.
+4. Qualify conforming OCCT realization. NURBS binding and optional Delaunay
+   construction are independent completed native slices.
 5. Qualify canonical quad tracing before any separately admitted chart mode.
 
 Prefer generalization, composition and appropriate polymorphic specialization of

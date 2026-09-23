@@ -1,7 +1,2 @@
-# Compile-only hygiene checks. No numerical implementation or binding is implied.
-add_library(cad_native_scaffold_checks OBJECT
-  voronoi/src/delaunay.cpp)
-target_include_directories(cad_native_scaffold_checks PRIVATE
-  "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/voronoi/include")
-target_compile_features(cad_native_scaffold_checks PRIVATE cxx_std_26)
-cad_native_strict(cad_native_scaffold_checks)
+# No declaration-only native sources remain. Keep this include as the stable
+# extension point for any future compile-only scaffolds.

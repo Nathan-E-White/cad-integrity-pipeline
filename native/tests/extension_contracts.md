@@ -4,7 +4,9 @@ F2 and its binding are now exercised by `f2_tests.cpp`,
 `tests/test_native_f2.py` and the existing algebra/math sea trials. Their executed
 results are recorded in `docs/reviews/native-f2/IMPLEMENTATION.md`. Quad tracing is exercised by `quad_tests.cpp` and `tests/test_native_quad.py`,
 including the bounded independent lattice oracle; see
-`docs/reviews/native-quad/IMPLEMENTATION.md`. Other rows are qualification
+`docs/reviews/native-quad/IMPLEMENTATION.md`. Delaunay construction and finite-dual
+composition are exercised by `delaunay_tests.cpp`; see
+`docs/reviews/native-delaunay/IMPLEMENTATION.md`. Other rows are qualification
 requirements; consult each implemented slice record for executed coverage. Extend tests as implementations
 land; no empty passing test executables are created.
 

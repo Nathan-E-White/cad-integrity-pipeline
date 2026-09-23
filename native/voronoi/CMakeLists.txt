@@ -16,8 +16,26 @@ target_sources(cad_mat_voronoi PUBLIC FILE_SET HEADERS
   FILES include/cad_mat/voronoi.hpp)
 cad_native_library(cad_mat_voronoi)
 
+option(CAD_MAT_ENABLE_DELAUNAY "Build the CGAL-backed Delaunay construction module" OFF)
+
+if(CAD_MAT_ENABLE_DELAUNAY)
+  find_package(CGAL 6.2 CONFIG REQUIRED)
+  add_library(cad_mat_delaunay STATIC src/delaunay.cpp)
+  add_library(cad::delaunay ALIAS cad_mat_delaunay)
+  target_sources(cad_mat_delaunay PUBLIC FILE_SET HEADERS
+    BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include"
+    FILES include/cad_mat/delaunay.hpp)
+  target_link_libraries(cad_mat_delaunay PUBLIC cad::voronoi PRIVATE CGAL::CGAL)
+  cad_native_library(cad_mat_delaunay)
+endif()
+
 if(BUILD_TESTING)
   add_executable(cad_mat_voronoi_tests tests/voronoi_tests.cpp)
   target_link_libraries(cad_mat_voronoi_tests PRIVATE cad::voronoi)
   cad_native_test(cad_mat_voronoi_tests voronoi)
+  if(CAD_MAT_ENABLE_DELAUNAY)
+    add_executable(cad_mat_delaunay_tests tests/delaunay_tests.cpp)
+    target_link_libraries(cad_mat_delaunay_tests PRIVATE cad::delaunay)
+    cad_native_test(cad_mat_delaunay_tests delaunay)
+  endif()
 endif()

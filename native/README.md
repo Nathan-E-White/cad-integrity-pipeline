@@ -76,15 +76,18 @@ ctest --preset release
 ctest --preset release -L integration
 ```
 
-The nine qualified CTest executables cover BRep realization, UV location, surface preparation, polygonal assessment, F2 reduction, simplicial behavior, NURBS, finite Voronoi, and a
-consumer linking all three libraries. Labels are `native` and the module name (or
+The ten default CTest executables cover BRep realization, UV location, surface preparation, polygonal assessment, F2 reduction, simplicial behavior, NURBS, finite Voronoi, quad tracing, and a
+consumer linking the dependency-free libraries. Enabling Delaunay adds an eleventh.
+Labels are `native` and the module name (or
 `integration`); each test has a 120-second timeout. Assertions remain enabled in
 Release test executables. Sanitizer tests halt on ASan/UBSan errors.
 
 ### Targets and options
 
 Link build-tree consumers against `cad::simplicial`, `cad::nurbs`, and
-`cad::voronoi`, plus `cad::f2` for bounded sparse reduction. Existing `simplicial`, `cad_mat_nurbs`, `cad_mat_voronoi`, and parent
+`cad::voronoi`, plus `cad::f2` for bounded sparse reduction. With
+`CAD_MAT_ENABLE_DELAUNAY=ON`, `cad::delaunay` adds CGAL-backed construction while
+`cad::voronoi` remains dependency-free. Existing `simplicial`, `cad_mat_nurbs`, `cad_mat_voronoi`, and parent
 aliases `nurbs`/`voronoi` remain available. Public header file sets supply include
 paths; C++26 requirements propagate to consumers. Libraries use position-independent
 code for future binding linkage. Warning flags remain private to project targets.
@@ -95,14 +98,16 @@ There is no installed package/export contract yet.
 | `BUILD_TESTING` | ON for a standalone root | Build and register numerical/consumer tests; when embedded, the parent controls testing |
 | `CAD_NATIVE_WARNINGS_AS_ERRORS` | ON | Treat project warnings as errors; consumers can disable this without editing flags |
 | `CAD_NATIVE_SANITIZERS` | OFF | ASan + UBSan with frame pointers for GNU-style Clang/GCC; runtime link requirements propagate |
+| `CAD_MAT_ENABLE_DELAUNAY` | OFF | Require CGAL 6.2 and build `cad_mat_delaunay` plus its public-contract tests |
 | `CAD_NATIVE_CHECK_SCAFFOLDS` | OFF; ON in presets | Compile unfinished source declarations into an unlinked object target; this is not algorithm validation |
 
-Scaffolds never enter the implemented libraries or a Python extension. Their
-compile-only check catches declaration/include errors without advertising working
-algorithms. Archived prototypes are excluded. Sources are enumerated explicitly.
+No declaration-only source currently remains in scaffold checks. Future scaffolds
+will not enter implemented libraries or the Python extension. Archived prototypes
+are excluded. Sources are enumerated explicitly.
 
 Standalone NURBS and Voronoi builds remain supported through their existing
-CMakeLists. Both reuse the same target policy and CTest registration helper.
+CMakeLists. The Voronoi build accepts `CAD_MAT_ENABLE_DELAUNAY=ON`; configuration
+then fails if a compatible CGAL package is unavailable. Both reuse the same target policy and CTest registration helper.
 Use `add_subdirectory(native)` for embedding; the parent must enable testing if it
 wants native tests. No global compiler flags or parent build type are overwritten.
 In-source builds are rejected. Keep local preset overrides in the ignored
