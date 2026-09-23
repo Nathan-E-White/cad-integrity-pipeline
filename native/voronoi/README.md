@@ -55,6 +55,9 @@ allocation, caller input, process RSS, and Python objects. Work charges one unit
 per admission visit, correspondence visit, insertion, emitted cell, and
 finite-finite cospherical predicate. It is a deterministic adapter budget, not a
 count or time bound for CGAL's internal exact-arithmetic operations.
+The input-sample limit is therefore the pre-construction control on CGAL's private
+work and storage; the cell and adapter-work limits do not retrospectively measure
+that dependency implementation.
 
 ## Build and focused checks
 

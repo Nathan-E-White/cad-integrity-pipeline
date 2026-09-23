@@ -39,8 +39,11 @@ build_delaunay(std::span<const Point3> samples,
   per constructed sample containing every corresponding original `SampleId`.
 - `ConstructionPolicy` freezes exact duplicate handling and the recorded disposition
   of valid cospherical inputs. It does not contain OCP verification or pruning policy.
-- `ConstructionLimits` separately bounds input samples, constructed samples, cells,
-  logical owned bytes, construction work, and output bytes.
+- `ConstructionLimits` separately bounds input samples, constructed samples,
+  emitted cells, adapter-owned logical bytes, deterministic adapter work, and
+  output bytes. These counters do not claim to measure CGAL-private allocation or
+  exact-arithmetic operations; the input-sample limit is the pre-construction
+  control on that dependency work.
 - `ConstructionEvidence` records input/constructed counts, duplicates, affine
   dimension, finite/infinite cell counts, degeneracy disposition, measured usage,
   dependency revision, and numeric conversions.
@@ -57,9 +60,12 @@ abstraction.
 ## Implementation sequence
 
 1. **Freeze admission and accounting.** Reject nonfinite coordinates, reserved or
-   unrepresentable sample counts, size-arithmetic overflow, and limits before CGAL
-   insertion. Canonically sort exact coordinate triples, deduplicate them, and build
-   the original-sample correspondence.
+   unrepresentable sample counts, size-arithmetic overflow, and every input-derived
+   limit before CGAL insertion. Canonically sort exact coordinate triples,
+   deduplicate them, and build the original-sample correspondence. Check
+   cell-dependent adapter limits after triangulation but before cell-handle or
+   snapshot allocation; do not present CGAL-private work or storage as measured
+   adapter usage.
 2. **Construct the triangulation.** Insert canonical samples with stable constructed
    IDs. Reject affine dimension below three. Record, rather than conceal, CGAL's
    deterministic triangulation of cospherical inputs.

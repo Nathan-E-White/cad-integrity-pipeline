@@ -49,6 +49,9 @@ owned bytes add explicit adapter staging and the cell-handle list. These figures
 exclude allocator overhead, CGAL-private storage, process RSS, and caller input.
 Construction work counts adapter visits, insertions, emitted cells, and explicit
 cospherical predicates; it is not a wall-time or CGAL-internal operation bound.
+The input-sample limit is the pre-construction control on CGAL-private work and
+storage. Cell-dependent limits are necessarily checked from the completed private
+triangulation, before any cell-handle or snapshot allocation by the adapter.
 
 ## Qualification
 
@@ -68,6 +71,8 @@ Executed local gates:
 - Direct Apple Clang C++26 compile with `-Wall -Wextra -Werror -pedantic`: passed.
 - Parent native Release suite with the option off: **10/10 passed**.
 - Parent native Release suite with the option on: **11/11 passed**.
+- Full root Python suite: **477 passed**, no skips, with 92% aggregate statement
+  coverage.
 - The option-off parent build also passed with scaffold checks enabled; no
   declaration-only Delaunay source remains.
 - A configure check with CGAL discovery explicitly disabled failed at the
@@ -108,6 +113,19 @@ cmake -S native -B /private/tmp/cad-native-7b-enabled \
   -DBUILD_TESTING=ON -DCAD_MAT_ENABLE_DELAUNAY=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build /private/tmp/cad-native-7b-enabled
 ctest --test-dir /private/tmp/cad-native-7b-enabled --output-on-failure
+
+cmake -S native -B /private/tmp/cad-native-7b-scaffold-default \
+  -DBUILD_TESTING=ON -DCAD_NATIVE_CHECK_SCAFFOLDS=ON \
+  -DCMAKE_BUILD_TYPE=Release
+cmake --build /private/tmp/cad-native-7b-scaffold-default
+ctest --test-dir /private/tmp/cad-native-7b-scaffold-default --output-on-failure
+
+if cmake -S native/voronoi -B /private/tmp/cad-voronoi-7b-missing-cgal \
+  -DCAD_MAT_ENABLE_DELAUNAY=ON -DCMAKE_DISABLE_FIND_PACKAGE_CGAL=TRUE; then
+  exit 1
+fi
+
+pixi run test
 
 git diff --check 9ed3b2e...HEAD -- docs/NATIVE_EXTENSION_FILE_PLAN.md \
   docs/NATIVE_SLICE_7B_IMPLEMENTATION_PLAN.md docs/reviews/native-delaunay \
