@@ -1,0 +1,7 @@
+{
+  "grid_side": 25,
+  "queries": 576,
+  "native_index_ms": 0.486167,
+  "owned_query_copy_ms": 0.000208,
+  "native_query_excluding_copy_ms": 0.146
+}

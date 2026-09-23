@@ -14,3 +14,7 @@ cad_native_test(polygonal_tests polygonal)
 add_executable(surface_tests surface_tests.cpp)
 target_link_libraries(surface_tests PRIVATE cad::surface)
 cad_native_test(surface_tests surface)
+
+add_executable(uv_tests uv_tests.cpp)
+target_link_libraries(uv_tests PRIVATE cad::uv)
+cad_native_test(uv_tests uv)

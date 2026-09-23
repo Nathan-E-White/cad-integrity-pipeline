@@ -160,3 +160,89 @@ and chart input/triangle visits. It is not an instruction count: associative
 container costs and allocation overhead are not measured CPU work. No wall-time,
 allocator-wide, process RSS or SciPy-memory cap is promised. Any exhausted native
 operation returns failure with no partially admitted surface, operator or chart.
+
+## UV location: slice 5
+
+`cad::uv::Locator` and `cad_integrity.uv.prepare_locator` retain an admitted chart.
+Only its native handle is authoritative. Index construction fixes barycentric and
+XYZ agreement tolerances. Queries return complete, triangle-ordered candidate
+sets; unique/agreeing queries also have an optional resolved XYZ. Agreement compares
+all candidates against the lowest triangle ordinal, matching the retained reference.
+A local chart or successful query does not establish global injectivity.
+
+The private binding accepts only native-endian C-contiguous float64 `(Q,2)` input.
+It checks input bytes before copying with `memcpy` into aligned vectors, then releases
+the GIL. Native code borrows those vectors only for that call. Independent calls
+share an immutable index; stacks, candidates and counters are local. Returned
+`UVLocations` retain their native chart, while array exports own independent copies.
+Host records use `None` for unresolved points; packed binding arrays use an explicit
+validity mask. Values in invalid packed slots have no geometric meaning.
+
+The host accepts array-like queries and normalizes them explicitly. Its conversion,
+result export and immutable projection copies are outside native logical limits.
+`sample` raises on any incomplete batch, outside point or ambiguous query and never
+silently chooses a triangle. The legacy integration package is unchanged.
+
+### Accounting
+
+Default index/query limits are 256,000,000 input bytes, 512,000,000 owned bytes,
+50,000,000 work steps and 256,000,000 output bytes. The query candidate cap is
+1,000,000 accepted triangles per query. The common limit carrier is operation-local;
+index construction does not use the candidate cap. Counts and products are checked
+before allocations. These are logical payload/reservation counters, not process
+RSS, vector spare capacities, allocator overhead or wall-clock bounds.
+
+Let V/T/F/B denote selected vertices/triangles/faces/boundary vertices, Q queries,
+C committed candidates, G the current staged group, and N actual index nodes.
+All `sizeof` terms refer to the qualified C++ build, not serialized wire layouts.
+
+- Index input: `48V + 56T + 8(F+B)` referenced chart payload, without another copy.
+- Index output reservation: `sizeof(Storage) + T * (sizeof(TriangleData)
+  + sizeof(size_t) + 2*sizeof(Node))`. The 2T node reservation includes unused leaf
+  capacity. Index owned reservation adds `T*sizeof(size_t)` for an explicit pending-node
+  construction stack, admitted before allocation. Tree construction and private
+  heapsort are iterative; sorting uses constant local scratch. Constant scalar/local
+  state is excluded. No recursive or third-party sorting workspace is hidden.
+- Query input: `16Q`; native input is borrowed synchronously. Binding input copying
+  checks the same input cap separately. Finiteness admission visits every query even
+  when its work budget is zero; admission, output initialization and final status
+  filling are bounded by admitted Q and excluded from the work counter.
+- Mandatory output: `M = Q*sizeof(Record) + 8*(Q+1)`. Failure to fit M in output or
+  owned limits returns a batch error before traversal and result allocation.
+- Query output reservation during staging: `M + (C+G)*sizeof(Candidate)`. Reported
+  output after completion/exhaustion is `M + C*sizeof(Candidate)`.
+- Query owned high-water reservation: mandatory/output reservation plus
+  `N*sizeof(size_t)` traversal stack and `G*sizeof(Candidate)` extra staged payload.
+  Thus the staged group is charged twice while it is copied into committed output.
+  Sorting is in place. Export arrays and Python records are outside this counter.
+- Index work: one per triangle preparation, source-vertex extent visit, created node,
+  node primitive-box accumulation and ordering comparison.
+- Query work: one per started query, popped node, leaf primitive-box test, barycentric
+  triangle test, accepted insertion, candidate ordering comparison and XYZ comparison.
+  Counter exhaustion precedes the counted operation. Private iterative heapsort fixes
+  ordering comparison counts; repeatability is scoped to the same numerical build.
+
+A resource stop discards the current group, retains completed earlier records and
+marks the current query and suffix budget-exceeded. `exhaustion` identifies the
+first unfinished query and resource; the suffix is not attempted. No partial
+candidate group or false outside result is returned. Invalid input/numerical range
+returns a typed batch error. Allocation failures retain existing exception
+translation rather than masquerading as a measured resource stop.
+
+### Conservative index arithmetic
+
+The predicate evaluates normalized edge inverse M in double precision. Index boxes
+are built from that actual rounded M, not from ideal exact edges. Outward-rounded
+interval arithmetic bounds its determinant and inverse. For K >= ||M^-1||_inf and
+L >= ||M||_inf, finite `16*epsilon*K*L <= 1/2` bounds the query-vector magnitude from
+accepted computed b1/b2. A rounded-dot-product error allowance expands their
+acceptance rectangle; interval M^-1 maps that rectangle back to UV, with subtraction,
+division, rescaling and subnormal absolute allowances. Ignoring b0's constraint
+only enlarges the box. Overflow, uncertified determinant or excessive condition
+produces an unbounded always-tested box. Such a triangle is never optimistically
+pruned. Arithmetic failure during its actual query produces a numerical-range error.
+
+This uses IEEE binary64, round-to-nearest, gradual underflow and no fast-math.
+Alternative floating-point modes are not qualified. The retained test evidence
+includes exhaustive candidate comparisons and Decimal oracles; it does not imply
+exact predicates for arbitrary real-number inputs. Extreme inputs may fail closed.

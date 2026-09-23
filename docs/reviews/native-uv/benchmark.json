@@ -1,0 +1,215 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "repetitions": 7,
+  "workloads": {
+    "grid_10": {
+      "vertices": 100,
+      "triangles": 162,
+      "queries": 400,
+      "candidates": 400,
+      "index_usage": {
+        "input_bytes": 14808,
+        "owned_bytes": 37744,
+        "work_steps": 8268,
+        "output_bytes": 36448
+      },
+      "query_usage": {
+        "input_bytes": 6400,
+        "owned_bytes": 49088,
+        "work_steps": 16154,
+        "output_bytes": 48008
+      },
+      "median_ms": {
+        "host_index_create": 0.046999892219901085,
+        "query_buffer_copy_numpy_proxy": 0.00037509016692638397,
+        "binding_query_including_input_copy": 0.08391705341637135,
+        "native_result_export_copy": 0.005708076059818268,
+        "immutable_array_projection_copy": 0.007291091606020927,
+        "host_locate_including_projection": 0.4401670303195715,
+        "index_plus_host_locate": 0.49000000581145287,
+        "exhaustive_all_candidate_reference": 8.650041883811355,
+        "host_sample": 0.5301248747855425,
+        "legacy_sample": 7.14537501335144
+      }
+    },
+    "grid_25": {
+      "vertices": 625,
+      "triangles": 1152,
+      "queries": 400,
+      "candidates": 400,
+      "index_usage": {
+        "input_bytes": 99888,
+        "owned_bytes": 267424,
+        "work_steps": 111324,
+        "output_bytes": 258208
+      },
+      "query_usage": {
+        "input_bytes": 6400,
+        "owned_bytes": 54208,
+        "work_steps": 18382,
+        "output_bytes": 48008
+      },
+      "median_ms": {
+        "host_index_create": 0.5217501893639565,
+        "query_buffer_copy_numpy_proxy": 0.00037509016692638397,
+        "binding_query_including_input_copy": 0.09816698729991913,
+        "native_result_export_copy": 0.005166977643966675,
+        "immutable_array_projection_copy": 0.006458954885601997,
+        "host_locate_including_projection": 0.45545795001089573,
+        "index_plus_host_locate": 0.9934580884873867,
+        "exhaustive_all_candidate_reference": 27.42020902223885,
+        "host_sample": 0.6587919779121876,
+        "legacy_sample": 27.74300007149577
+      }
+    },
+    "grid_25_one_query": {
+      "vertices": 625,
+      "triangles": 1152,
+      "queries": 1,
+      "candidates": 1,
+      "index_usage": {
+        "input_bytes": 99888,
+        "owned_bytes": 267424,
+        "work_steps": 111324,
+        "output_bytes": 258208
+      },
+      "query_usage": {
+        "input_bytes": 16,
+        "owned_bytes": 6328,
+        "work_steps": 55,
+        "output_bytes": 128
+      },
+      "median_ms": {
+        "host_index_create": 0.5405840929597616,
+        "query_buffer_copy_numpy_proxy": 0.00029103830456733704,
+        "binding_query_including_input_copy": 0.0010421499609947205,
+        "native_result_export_copy": 0.0031669624149799347,
+        "immutable_array_projection_copy": 0.005665933713316917,
+        "host_locate_including_projection": 0.014582881703972816,
+        "index_plus_host_locate": 0.5494998767971992,
+        "exhaustive_all_candidate_reference": 0.0765831209719181,
+        "host_sample": 0.015208031982183456,
+        "legacy_sample": 0.4375001881271601
+      }
+    },
+    "grid_25_near_edges": {
+      "vertices": 625,
+      "triangles": 1152,
+      "queries": 400,
+      "candidates": 2282,
+      "index_usage": {
+        "input_bytes": 99888,
+        "owned_bytes": 267424,
+        "work_steps": 111324,
+        "output_bytes": 258208
+      },
+      "query_usage": {
+        "input_bytes": 6400,
+        "owned_bytes": 174976,
+        "work_steps": 38858,
+        "output_bytes": 168456
+      },
+      "median_ms": {
+        "host_index_create": 0.5339169874787331,
+        "query_buffer_copy_numpy_proxy": 0.0004169996827840805,
+        "binding_query_including_input_copy": 0.264833215624094,
+        "native_result_export_copy": 0.01100008375942707,
+        "immutable_array_projection_copy": 0.009333016350865364,
+        "host_locate_including_projection": 0.6439590360969305,
+        "index_plus_host_locate": 1.2226670514792204,
+        "exhaustive_all_candidate_reference": 29.514750000089407,
+        "host_sample": 0.7068340200930834,
+        "legacy_sample": 57.29591613635421
+      }
+    },
+    "grid_50": {
+      "vertices": 2500,
+      "triangles": 4802,
+      "queries": 400,
+      "candidates": 400,
+      "index_usage": {
+        "input_bytes": 409688,
+        "owned_bytes": 1114224,
+        "work_steps": 677083,
+        "output_bytes": 1075808
+      },
+      "query_usage": {
+        "input_bytes": 6400,
+        "owned_bytes": 75744,
+        "work_steps": 22183,
+        "output_bytes": 48008
+      },
+      "median_ms": {
+        "host_index_create": 3.668959019705653,
+        "query_buffer_copy_numpy_proxy": 0.00037509016692638397,
+        "binding_query_including_input_copy": 0.13741711154580116,
+        "native_result_export_copy": 0.005249865353107452,
+        "immutable_array_projection_copy": 0.006250105798244476,
+        "host_locate_including_projection": 0.4795829299837351,
+        "index_plus_host_locate": 4.356875084340572,
+        "exhaustive_all_candidate_reference": 92.42958296090364,
+        "host_sample": 0.5914170760661364,
+        "legacy_sample": 92.30583300814033
+      }
+    },
+    "overlap_agreeing": {
+      "vertices": 96,
+      "triangles": 32,
+      "queries": 100,
+      "candidates": 3200,
+      "index_usage": {
+        "input_bytes": 7424,
+        "owned_bytes": 7584,
+        "work_steps": 780,
+        "output_bytes": 7328
+      },
+      "query_usage": {
+        "input_bytes": 1600,
+        "owned_bytes": 212576,
+        "work_steps": 37400,
+        "output_bytes": 210408
+      },
+      "median_ms": {
+        "host_index_create": 0.00795908272266388,
+        "query_buffer_copy_numpy_proxy": 0.000250060111284256,
+        "binding_query_including_input_copy": 0.16412511467933655,
+        "native_result_export_copy": 0.011707888916134834,
+        "immutable_array_projection_copy": 0.008833128958940506,
+        "host_locate_including_projection": 0.2727918326854706,
+        "index_plus_host_locate": 0.27916603721678257,
+        "exhaustive_all_candidate_reference": 2.0503748673945665,
+        "host_sample": 0.29591587372124195,
+        "legacy_sample": 2.4927500635385513
+      }
+    },
+    "overlap_conflicting": {
+      "vertices": 96,
+      "triangles": 32,
+      "queries": 100,
+      "candidates": 3200,
+      "index_usage": {
+        "input_bytes": 7424,
+        "owned_bytes": 7584,
+        "work_steps": 780,
+        "output_bytes": 7328
+      },
+      "query_usage": {
+        "input_bytes": 1600,
+        "owned_bytes": 212576,
+        "work_steps": 37400,
+        "output_bytes": 210408
+      },
+      "median_ms": {
+        "host_index_create": 0.00795908272266388,
+        "query_buffer_copy_numpy_proxy": 0.000250060111284256,
+        "binding_query_including_input_copy": 0.17083296552300453,
+        "native_result_export_copy": 0.011582858860492706,
+        "immutable_array_projection_copy": 0.008874805644154549,
+        "host_locate_including_projection": 0.25275000371038914,
+        "index_plus_host_locate": 0.2615409903228283,
+        "exhaustive_all_candidate_reference": 2.0405829418450594
+      }
+    }
+  },
+  "limits": "Sequential local measurements. Overlapping timing labels are not additive. NumPy copy is a proxy, not the binding memcpy cost. No RSS or universal speed claim."
+}

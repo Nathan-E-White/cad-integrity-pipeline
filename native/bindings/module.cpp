@@ -173,6 +173,7 @@ PYBIND11_MODULE(_native, module) {
         catch (const std::length_error& error) { PyErr_SetString(PyExc_OverflowError, error.what()); }
     });
     bind_surface(module);
+    bind_uv(module);
     module.def("assess_polygonal", &assess_polygonal,
                py::arg("vertices").noconvert(), py::arg("edges").noconvert(),
                py::arg("offsets").noconvert(), py::arg("coedges").noconvert(), py::arg("unit"),

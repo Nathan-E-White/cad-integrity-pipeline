@@ -29,6 +29,13 @@ target_sources(cad_surface PUBLIC FILE_SET HEADERS
 cad_native_library(cad_surface)
 target_link_libraries(cad_surface PUBLIC cad::simplicial)
 
+add_library(cad_uv STATIC uv_location.cpp)
+add_library(cad::uv ALIAS cad_uv)
+target_sources(cad_uv PUBLIC FILE_SET HEADERS
+  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" FILES uv_location.hpp)
+cad_native_library(cad_uv)
+target_link_libraries(cad_uv PUBLIC cad::surface)
+
 add_subdirectory(nurbs)
 add_subdirectory(voronoi)
 # Compatibility names retain the same implementation and never compile it twice.

@@ -76,7 +76,7 @@ ctest --preset release
 ctest --preset release -L integration
 ```
 
-The seven qualified CTest executables cover surface preparation, polygonal assessment, F2 reduction, simplicial behavior, NURBS, finite Voronoi, and a
+The eight qualified CTest executables cover UV location, surface preparation, polygonal assessment, F2 reduction, simplicial behavior, NURBS, finite Voronoi, and a
 consumer linking all three libraries. Labels are `native` and the module name (or
 `integration`); each test has a 120-second timeout. Assertions remain enabled in
 Release test executables. Sanitizer tests halt on ASan/UBSan errors.
@@ -153,3 +153,16 @@ remains responsible for constrained harmonic solves. See
 Point3D dump files and unqualified motorcycle source files remain in the repository
 but are excluded from every active native library/test target and Python extension.
 Source lists are explicit. They are not compiled by scaffold checks either.
+
+## Owned UV location
+
+`cad::uv` activates `uv_location.hpp`: `Locator::create` retains an admitted chart
+and `locate` returns complete ordered candidate evidence, with optional XYZ for
+unique or agreeing queries. The installed host interface is
+`cad_integrity.uv.prepare_locator`; `sample` refuses outside, ambiguous or unfinished
+queries. See [slice 5](../docs/reviews/native-uv/IMPLEMENTATION.md) and the
+[binding accounting contract](bindings/README.md#uv-location-slice-5).
+
+Point3D v5/v6 informed the median-split tree structure. Useful routines from the
+Point3D and motorcycle files may be extracted and qualified; their demonstration
+translation units are not enabled wholesale.
