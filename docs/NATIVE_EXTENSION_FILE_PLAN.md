@@ -1,7 +1,7 @@
 # Native extension file inventory
 
-Created 2026-09-21 from the C++ handoff. **Slices 0–5 are implemented:**
-F2 reduction, polygonal facts/admission and the owned private NumPy binding are active. Surface preparation/operators/chart qualification and native display identity are active. UV location is active. The other three
+Created 2026-09-21 from the C++ handoff. **Slices 0–6 are implemented:**
+F2 reduction, polygonal facts/admission and the owned private NumPy binding are active. Surface preparation/operators/chart qualification and native display identity are active. UV location and conforming BRep realization are active. The other two
 extension pairs remain provisional declarations outside implemented targets.
 `CAD_NATIVE_CHECK_SCAFFOLDS` compiles only those unfinished declarations.
 See [the slice implementation record](reviews/native-f2/IMPLEMENTATION.md).
@@ -13,7 +13,7 @@ See [the slice implementation record](reviews/native-f2/IMPLEMENTATION.md).
 | `native/f2_reduction.hpp` / `native/f2_reduction.cpp` | Active bounded CPU reducer; `cad::f2` |
 | `native/surface_preparation.hpp` / `native/surface_preparation.cpp` | Active owned polygonal surface computation; `cad::surface` |
 | `native/uv_location.hpp` / `native/uv_location.cpp` | Active owned all-candidate chart location; `cad::uv` |
-| `native/brep_realization.hpp` / `native/brep_realization.cpp` | Declaration scaffold and implementation notes |
+| `native/brep_realization.hpp` / `native/brep_realization.cpp` | Active owned correspondence/conformity qualification; `cad::brep`, OCP runtime extraction in `cad_integrity.brep` |
 | `native/voronoi/include/cad_mat/delaunay.hpp` / `native/voronoi/src/delaunay.cpp` | Declaration scaffold and implementation notes |
 | `native/quad_tracing.hpp` / `native/quad_tracing.cpp` | Declaration scaffold and implementation notes |
 | `native/bindings/module.cpp` | Active private owned NumPy binding |

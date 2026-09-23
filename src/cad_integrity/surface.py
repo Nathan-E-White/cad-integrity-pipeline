@@ -155,6 +155,7 @@ class Surface:
     length_unit: str
     usage: SurfaceUsage
     limits: SurfaceLimits
+    source_domain: str = "polygonal_face"
 
 
     def assemble(self, face_confidence: Mapping[int, float] | None = None,
@@ -215,12 +216,16 @@ def prepare_surface(
         raise ResourceLimitExceeded(str(exc)) from exc
     except ValueError as exc:
         raise InvalidGeometry(str(exc)) from exc
+    return _project_surface(handle, raw.length_unit, limits)
+
+
+def _project_surface(handle: _native.Surface, length_unit: str, limits: SurfaceLimits) -> Surface:
     data = handle.arrays()
     return Surface(handle, _immutable(data["vertices"]), _immutable(data["triangles"]),
                    _immutable(data["triangle_edges"]), _immutable(data["source_vertices"]),
                    _immutable(data["selected_faces"]), _immutable(data["triangle_faces"]),
-                   _immutable(data["boundary_vertices"]), data["source_face_count"], raw.length_unit,
-                   SurfaceUsage(**data["usage"]), limits)
+                   _immutable(data["boundary_vertices"]), data["source_face_count"], length_unit,
+                   SurfaceUsage(**data["usage"]), limits, data["source_domain"])
 
 
 UVMap = dict[int, tuple[float, float]]

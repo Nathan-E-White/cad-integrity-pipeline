@@ -36,6 +36,13 @@ target_sources(cad_uv PUBLIC FILE_SET HEADERS
 cad_native_library(cad_uv)
 target_link_libraries(cad_uv PUBLIC cad::surface)
 
+add_library(cad_brep STATIC brep_realization.cpp)
+add_library(cad::brep ALIAS cad_brep)
+target_sources(cad_brep PUBLIC FILE_SET HEADERS
+  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" FILES brep_realization.hpp)
+cad_native_library(cad_brep)
+target_link_libraries(cad_brep PUBLIC cad::surface)
+
 add_subdirectory(nurbs)
 add_subdirectory(voronoi)
 # Compatibility names retain the same implementation and never compile it twice.

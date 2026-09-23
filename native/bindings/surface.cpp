@@ -91,6 +91,7 @@ py::dict surface_arrays(const Discretization &s) {
   d["triangle_faces"] = array(s.triangle_faces());
   d["boundary_vertices"] = array(s.boundary_vertices());
   d["source_face_count"] = s.source_face_count();
+  d["source_domain"] = s.native_faces() ? "native_face" : "polygonal_face";
   d["usage"] = usage(s.usage());
   return d;
 }

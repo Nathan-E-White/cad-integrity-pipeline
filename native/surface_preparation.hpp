@@ -4,6 +4,7 @@
 #include <memory>
 #include <span>
 
+namespace cad::occt_adapter { class RealizationBuilder; }
 namespace cad::surface {
 using Id = std::int64_t;
 using Point = std::array<double, 3>;
@@ -55,12 +56,14 @@ public:
   [[nodiscard]] std::span<const Triangle> triangle_edges() const;
   [[nodiscard]] std::span<const Id> boundary_vertices() const; // source IDs
   [[nodiscard]] Id source_face_count() const;
+  [[nodiscard]] bool native_faces() const;
   [[nodiscard]] simplicial::LengthUnit length_unit() const;
   [[nodiscard]] const Usage &usage() const;
 
 private:
   explicit Discretization(std::shared_ptr<const SurfaceStorage> owner);
   std::shared_ptr<const SurfaceStorage> owner_;
+  friend class cad::occt_adapter::RealizationBuilder;
   friend std::expected<Discretization, SurfaceError>
       prepare(PreparationRequest);
 };

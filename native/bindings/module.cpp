@@ -174,6 +174,7 @@ PYBIND11_MODULE(_native, module) {
     });
     bind_surface(module);
     bind_uv(module);
+    bind_brep(module);
     module.def("assess_polygonal", &assess_polygonal,
                py::arg("vertices").noconvert(), py::arg("edges").noconvert(),
                py::arg("offsets").noconvert(), py::arg("coedges").noconvert(), py::arg("unit"),

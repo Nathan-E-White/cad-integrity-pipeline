@@ -1,4 +1,5 @@
 #include "surface_preparation.hpp"
+#include "surface_storage.hpp"
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -7,15 +8,6 @@
 #include <set>
 
 namespace cad::surface {
-struct SurfaceStorage {
-  std::vector<Point> vertices;
-  std::vector<Triangle> triangles, triangle_edges;
-  std::vector<Id> source_vertices, selected_faces, triangle_faces,
-      boundary_vertices;
-  Id source_face_count = 0;
-  simplicial::LengthUnit unit;
-  Usage usage;
-};
 Discretization::Discretization(std::shared_ptr<const SurfaceStorage> owner)
     : owner_(std::move(owner)) {}
 std::span<const Point> Discretization::vertices() const {
@@ -39,6 +31,7 @@ std::span<const Id> Discretization::triangle_faces() const {
 std::span<const Id> Discretization::boundary_vertices() const {
   return owner_->boundary_vertices;
 }
+bool Discretization::native_faces() const { return owner_->native_faces; }
 Id Discretization::source_face_count() const {
   return owner_->source_face_count;
 }

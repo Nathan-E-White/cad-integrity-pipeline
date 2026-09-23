@@ -1,0 +1,53 @@
+{
+  "scope": "Local OCP copy/mesh/extraction and binding qualification; total also includes numeric conversion and immutable host projection. No native-only timing or peak RSS measurement.",
+  "cases": {
+    "box": {
+      "nodes": 8,
+      "triangles": 12,
+      "seven_run_medians": {
+        "source_face_count": 6,
+        "source_edge_count": 12,
+        "source_vertex_count": 8,
+        "maximum_sampled_deviation_mm": 0.0,
+        "copy_seconds": 0.0004916249308735132,
+        "mesh_seconds": 0.00032958295196294785,
+        "extraction_seconds": 0.0013129161670804024,
+        "qualification_seconds": 3.316695801913738e-05,
+        "collapsed_pole_triangles": 0,
+        "total_seconds": 0.002252499805763364
+      }
+    },
+    "cylinder": {
+      "nodes": 84,
+      "triangles": 164,
+      "seven_run_medians": {
+        "source_face_count": 3,
+        "source_edge_count": 3,
+        "source_vertex_count": 2,
+        "maximum_sampled_deviation_mm": 0.005592405637639926,
+        "copy_seconds": 0.00020116707310080528,
+        "mesh_seconds": 0.0008909169118851423,
+        "extraction_seconds": 0.006437458097934723,
+        "qualification_seconds": 0.0002807502169162035,
+        "collapsed_pole_triangles": 0,
+        "total_seconds": 0.007992540951818228
+      }
+    },
+    "sphere": {
+      "nodes": 435,
+      "triangles": 866,
+      "seven_run_medians": {
+        "source_face_count": 1,
+        "source_edge_count": 3,
+        "source_vertex_count": 2,
+        "maximum_sampled_deviation_mm": 0.037556806661349515,
+        "copy_seconds": 0.0001265830360352993,
+        "mesh_seconds": 0.0018957089632749557,
+        "extraction_seconds": 0.027494542067870498,
+        "qualification_seconds": 0.0010772091336548328,
+        "collapsed_pole_triangles": 2,
+        "total_seconds": 0.030948041938245296
+      }
+    }
+  }
+}

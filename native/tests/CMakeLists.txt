@@ -18,3 +18,7 @@ cad_native_test(surface_tests surface)
 add_executable(uv_tests uv_tests.cpp)
 target_link_libraries(uv_tests PRIVATE cad::uv)
 cad_native_test(uv_tests uv)
+
+add_executable(brep_tests brep_tests.cpp)
+target_link_libraries(brep_tests PRIVATE cad::brep)
+cad_native_test(brep_tests brep)

@@ -246,3 +246,61 @@ This uses IEEE binary64, round-to-nearest, gradual underflow and no fast-math.
 Alternative floating-point modes are not qualified. The retained test evidence
 includes exhaustive candidate comparisons and Decimal oracles; it does not imply
 exact predicates for arbitrary real-number inputs. Extreme inputs may fail closed.
+
+## Conforming BRep realization (slice 6)
+
+The host entry point is `cad_integrity.brep.realize(shape, policy=..., limits=...)`.
+The input shape is interpreted in millimetres, as in the STEP adapter. OCP performs
+copying, meshing, copy-history mapping and geometry queries in its own runtime.
+The private `_native.realize_brep` binding accepts only copied contiguous native
+float64/int64 evidence. No TopoDS pointer, ABI cast, serialization dependency or
+additional OCCT linkage is introduced. Standalone `cad::brep` tests the same
+numerical qualification source. Direct native admission is relative to the supplied
+correspondence; only the OCP host operation establishes its source-kernel origin.
+
+Shared identity comes from native vertices or edge/sample ordinals after exact
+agreement of the OCCT curve-parameter sequences. Unequal sampling fails admission;
+there is no tolerance-based coordinate welding or automatic resampling. Periodic
+edge orientation selects the corresponding polygon branch. Only triangle sides
+explicitly supplied by degenerate native edges permit pole-triangle removal,
+reported as `collapsed_pole_triangles`. Ordinary collapsed triangles are refused.
+
+C++ checks shared-coordinate agreement, finite/nondegenerate triangles, native
+edge-use coverage, orientation and manifold vertex links. The resulting surface
+shares the existing immutable Discretization storage with operators/charts. Its
+`source_domain` is `native_face`; triangle face/edge IDs refer to native entities.
+`surface.source_vertices` and boundary IDs are derived mesh vertex ordinals;
+`RealizedSurface.native_vertex_ids` separately identifies native vertices (-1 for
+edge/interior samples). A fresh `source_snapshot_id` scopes that realization's
+correspondence; it is not cross-revision matching or the viewer's mesh identity.
+
+The caller must not mutate a shape while realization reads/copies it. The source's
+meshing cache is untouched and no kernel handles survive in the output. Array
+projections are copied onto immutable bytes. Numerical native work releases the GIL.
+OCP copy/mesher concurrency and cancellation guarantees are not added by this seam.
+
+Count limits bound retained extraction, not OCP maps/copy/mesher allocations or
+wall time. Native input bytes sum the six numeric arrays. Native logical workspace
+reserves input bytes plus 512 bytes per input node, 2048 per triangle, 256 per edge
+segment and 64 per source edge. These conservative per-item reservations cover
+algorithmic payloads; allocator overhead, container capacity growth and external
+kernel allocations are excluded. Output reservation is 48 bytes per input node
+plus 64 per input triangle, bounding numeric result arrays including native vertex
+IDs, boundary IDs and selected faces. Reservations may exceed actual retained data.
+
+Work counts each input node, triangle, segment and source edge, each consolidated
+triangle side, each vertex-link edge and each pending traversal pop. Ordered-map
+comparisons, allocation and binding conversion are outside this logical counter;
+it is not a CPU instruction or deadline bound. Mandatory checks reject budgets
+before corresponding bulk native work/output. Python extraction independently
+checks counts and numeric input reservation. Binding inputs are one additional
+copy; export arrays and immutable host projections each add an output-sized copy.
+Those copies and Python object overhead are not described as native workspace.
+
+Sampled deviation measures triangle-centroid distance to the supporting surface
+and edge node/midpoint distance to its curve. The supporting-surface projection
+avoids arbitrary UV averaging at poles. This is neither a continuous error bound
+nor proof of global injectivity, absence of self-intersection, element quality,
+exact trim coverage, CAD repair or simulation readiness. Face meshing comes from
+OCCT; holed, periodic, pole, translated and reversed fixtures qualify the exercised
+cases. Unowned native entities and repeated indexed face occurrences fail closed.

@@ -76,7 +76,7 @@ ctest --preset release
 ctest --preset release -L integration
 ```
 
-The eight qualified CTest executables cover UV location, surface preparation, polygonal assessment, F2 reduction, simplicial behavior, NURBS, finite Voronoi, and a
+The nine qualified CTest executables cover BRep realization, UV location, surface preparation, polygonal assessment, F2 reduction, simplicial behavior, NURBS, finite Voronoi, and a
 consumer linking all three libraries. Labels are `native` and the module name (or
 `integration`); each test has a 120-second timeout. Assertions remain enabled in
 Release test executables. Sanitizer tests halt on ASan/UBSan errors.
@@ -166,3 +166,12 @@ queries. See [slice 5](../docs/reviews/native-uv/IMPLEMENTATION.md) and the
 Point3D v5/v6 informed the median-split tree structure. Useful routines from the
 Point3D and motorcycle files may be extracted and qualified; their demonstration
 translation units are not enabled wholesale.
+
+## Conforming BRep realization
+
+`cad::brep` qualifies owned edge/face/vertex evidence extracted by the synchronous
+`cad_integrity.brep.realize` caller. OCP copies and meshes within its own runtime;
+no OCCT pointer crosses into the numerical binding. Admitted results reuse
+`cad::surface` storage and operators with explicit native correspondence. See
+[the slice design](../docs/reviews/native-brep/DESIGN.md) and
+[binding contract](bindings/README.md#conforming-brep-realization-slice-6).

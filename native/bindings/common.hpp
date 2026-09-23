@@ -7,3 +7,5 @@ struct BudgetExceeded : std::runtime_error {
 void bind_surface(pybind11::module_ &module);
 
 void bind_uv(pybind11::module_ &module);
+
+void bind_brep(pybind11::module_ &module);
