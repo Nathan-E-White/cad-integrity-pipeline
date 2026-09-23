@@ -22,3 +22,7 @@ cad_native_test(uv_tests uv)
 add_executable(brep_tests brep_tests.cpp)
 target_link_libraries(brep_tests PRIVATE cad::brep)
 cad_native_test(brep_tests brep)
+
+add_executable(quad_tests quad_tests.cpp)
+target_link_libraries(quad_tests PRIVATE cad::quad)
+cad_native_test(quad_tests quad)

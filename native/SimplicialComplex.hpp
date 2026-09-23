@@ -95,6 +95,7 @@ private:
 };
 class PolygonalAssessment {
 public:
+  [[nodiscard]] const PolygonalInput& input() const noexcept;
   [[nodiscard]] const PolygonalFacts& facts() const noexcept;
   [[nodiscard]] const PolygonalOrientation& orientation() const noexcept;
   [[nodiscard]] const PolygonalUsage& usage() const noexcept;

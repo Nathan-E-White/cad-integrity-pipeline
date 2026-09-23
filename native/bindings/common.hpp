@@ -9,3 +9,5 @@ void bind_surface(pybind11::module_ &module);
 void bind_uv(pybind11::module_ &module);
 
 void bind_brep(pybind11::module_ &module);
+
+void bind_quad(pybind11::module_ &module);

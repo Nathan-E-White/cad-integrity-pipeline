@@ -869,6 +869,7 @@ PolygonalAssessment::PolygonalAssessment(std::shared_ptr<const PolygonalStorage>
     : owner_(std::move(owner)) {
   if (admitted) admitted_ = AdmittedPolygonalCells(owner_);
 }
+const PolygonalInput& PolygonalAssessment::input() const noexcept { return owner_->input; }
 const PolygonalFacts& PolygonalAssessment::facts() const noexcept { return owner_->facts; }
 const PolygonalOrientation& PolygonalAssessment::orientation() const noexcept { return owner_->orientation; }
 const PolygonalUsage& PolygonalAssessment::usage() const noexcept { return owner_->usage; }

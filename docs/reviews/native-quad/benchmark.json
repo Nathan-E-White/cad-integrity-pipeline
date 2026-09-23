@@ -1,0 +1,60 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "python": "3.13.15",
+  "repeats": 7,
+  "warmups": 1,
+  "cases": [
+    {
+      "vertices": 21,
+      "faces": 12,
+      "seeds": 4,
+      "segments": 6,
+      "median_ms": {
+        "admission_and_projection_ms": 0.06891600787639618,
+        "binding_trace_ms": 0.005499925464391708,
+        "native_export_ms": 0.0015830155462026596,
+        "host_trace_ms": 0.02383394166827202
+      },
+      "trace_usage": {
+        "owned_bytes": 6784,
+        "work_steps": 2090,
+        "output_bytes": 752
+      }
+    },
+    {
+      "vertices": 833,
+      "faces": 768,
+      "seeds": 4,
+      "segments": 34,
+      "median_ms": {
+        "admission_and_projection_ms": 2.686500083655119,
+        "binding_trace_ms": 0.014584045857191086,
+        "native_export_ms": 0.006291083991527557,
+        "host_trace_ms": 0.10866695083677769
+      },
+      "trace_usage": {
+        "owned_bytes": 110720,
+        "work_steps": 10882,
+        "output_bytes": 3664
+      }
+    },
+    {
+      "vertices": 12545,
+      "faces": 12288,
+      "seeds": 4,
+      "segments": 130,
+      "median_ms": {
+        "admission_and_projection_ms": 44.36762514524162,
+        "binding_trace_ms": 0.398874981328845,
+        "native_export_ms": 0.02350006252527237,
+        "host_trace_ms": 0.8652920369058847
+      },
+      "trace_usage": {
+        "owned_bytes": 1609856,
+        "work_steps": 58882,
+        "output_bytes": 13648
+      }
+    }
+  ],
+  "limits": "Logical accounting, not measured RSS. No reference speedup or independent platform qualification."
+}

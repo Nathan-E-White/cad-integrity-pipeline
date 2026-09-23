@@ -43,6 +43,13 @@ target_sources(cad_brep PUBLIC FILE_SET HEADERS
 cad_native_library(cad_brep)
 target_link_libraries(cad_brep PUBLIC cad::surface)
 
+add_library(cad_quad STATIC quad_tracing.cpp)
+add_library(cad::quad ALIAS cad_quad)
+target_sources(cad_quad PUBLIC FILE_SET HEADERS
+  BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" FILES quad_tracing.hpp)
+cad_native_library(cad_quad)
+target_link_libraries(cad_quad PUBLIC cad::simplicial)
+
 add_subdirectory(nurbs)
 add_subdirectory(voronoi)
 # Compatibility names retain the same implementation and never compile it twice.

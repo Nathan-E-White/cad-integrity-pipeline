@@ -304,3 +304,45 @@ nor proof of global injectivity, absence of self-intersection, element quality,
 exact trim coverage, CAD repair or simulation readiness. Face meshing comes from
 OCCT; holed, periodic, pole, translated and reversed fixtures qualify the exercised
 cases. Unowned native entities and repeated indexed face occurrences fail closed.
+
+## Canonical quad tracing (slice 8)
+
+`cad_integrity.quad.prepare_quad_patch(mesh)` copies float64 XYZ and int64 signed
+coedges/offsets/edges into the existing polygonal assessment owner, then adds
+quad admission. `patch.trace()` uses the canonical launch set; explicit `Seed`
+records select a labelled seeded experiment under the same timing/tie rules.
+The module retains source ordinals, units and an immutable owned patch.
+
+Private arrays require native-endian float64/int64 C-contiguous declared layouts;
+no implicit casts occur there. Host seed normalization and immutable projection
+allocate outside native limits. Inputs are copied before GIL release; callers
+must not concurrently mutate inputs while that copy is in progress. Separate
+trace calls on one admitted patch use independent state. Native handles cannot
+be directly constructed by Python. Returned projections are backed by immutable
+bytes; no array borrows a C++ buffer.
+
+Admission uses `PolygonalLimits`. Input/output/assessment accounting is inherited;
+quad topology reserves an additional 128 bytes per vertex, 256 per edge and 256
+per coedge, including temporary ordered indexes, above assessment owned bytes.
+Its work allowance is the remainder after assessment. The displayed patch usage
+currently reports quad admission work/output and combined logical owned storage;
+assessment output remains part of the retained owner. Limits describe phases,
+not allocator capacity or process RSS. See the implementation record for measurements.
+
+Tracing has independent `TraceLimits`: workspace reserves 128 bytes per vertex
+and 1024 per seed; input seed copying is included in that logical reservation.
+The retained input patch is excluded because it is shared. Output reserves
+`sizeof(Seed)+sizeof(Id)` per seed (including unfinished IDs), and
+`sizeof(Segment)+sizeof(Event)` per committed participant. Output allocations
+are separate from workspace. Vector capacity, allocator overhead, Python objects
+and export copies are outside these logical counts. Initialization charges two
+work units per vertex and 128 per seed; each committed event participant charges
+256 units for scheduler/index work. These are deterministic accounting units,
+not CPU instructions or a wall-time guarantee. Admission charges its loop visits;
+ordered-container comparisons are not individually counted.
+
+Seed validation/initial reservation failures raise errors. Event, segment, work
+or output exhaustion during execution preserves only complete simultaneous groups,
+with `stop`, `unfinished`, and `last_committed_time2`. Terminal reasons differ from
+incompleteness. `segment_coordinates()` is a derived XYZ projection; edge/vertex
+identities and exact half-step times are authoritative.

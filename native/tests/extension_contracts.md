@@ -2,8 +2,10 @@
 
 F2 and its binding are now exercised by `f2_tests.cpp`,
 `tests/test_native_f2.py` and the existing algebra/math sea trials. Their executed
-results are recorded in `docs/reviews/native-f2/IMPLEMENTATION.md`. The remaining
-rows are planned cases, not executed coverage. Extend tests as implementations
+results are recorded in `docs/reviews/native-f2/IMPLEMENTATION.md`. Quad tracing is exercised by `quad_tests.cpp` and `tests/test_native_quad.py`,
+including the bounded independent lattice oracle; see
+`docs/reviews/native-quad/IMPLEMENTATION.md`. Other rows are qualification
+requirements; consult each implemented slice record for executed coverage. Extend tests as implementations
 land; no empty passing test executables are created.
 
 | Slice | Required distinguishing cases |

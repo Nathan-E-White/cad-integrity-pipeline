@@ -175,3 +175,13 @@ no OCCT pointer crosses into the numerical binding. Admitted results reuse
 `cad::surface` storage and operators with explicit native correspondence. See
 [the slice design](../docs/reviews/native-brep/DESIGN.md) and
 [binding contract](bindings/README.md#conforming-brep-realization-slice-6).
+
+## Canonical quad tracing
+
+`cad::quad` activates `quad_tracing.hpp`. It reuses the owned polygonal assessment
+and adds pure-quad, oriented manifold admission and exact chronological edge
+tracing. `cad_integrity.quad.prepare_quad_patch(mesh).trace()` returns canonical
+launches, committed segments, collision evidence and explicit partial completion.
+Boundary edges remain available even on already structured meshes with no launches.
+See [the design](../docs/reviews/native-quad/DESIGN.md) and
+[binding accounting contract](bindings/README.md#canonical-quad-tracing-slice-8).
