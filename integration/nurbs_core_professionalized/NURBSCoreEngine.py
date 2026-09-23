@@ -317,6 +317,36 @@ class NURBSCoreEngine:
         ).as_tuple()
 
     @staticmethod
+    def evaluate_surface_native(
+        degree_u: int, degree_v: int, knots_u: ArrayLike, knots_v: ArrayLike,
+        control_points: ArrayLike, u_vec: ArrayLike, v_vec: ArrayLike,
+        *, batch_size: int = 64, singular_policy: Literal["mask", "raise"] = "mask",
+        regularity_tolerance: float = 1e-10,
+    ) -> SurfaceGeometry:
+        """Evaluate through the qualified cad-integrity CPU kernel.
+
+        ``batch_size`` is validated for compatibility; traversal is now private.
+        Full outputs are retained. Install cad-integrity-lab to use this caller.
+        The existing Python evaluator remains available for standalone consumers.
+        """
+        from cad_integrity.nurbs import evaluate_surface
+
+        _integer(batch_size, "batch_size", 1)
+        try:
+            result = evaluate_surface(
+                degree_u, degree_v, knots_u, knots_v, control_points, u_vec, v_vec,
+                singular_policy=singular_policy, regularity_tolerance=regularity_tolerance,
+            )
+        except ValueError as exc:
+            raise GeometryValidationError(str(exc)) from exc
+        except ArithmeticError as exc:
+            raise SurfaceEvaluationError(str(exc)) from exc
+        return SurfaceGeometry(
+            result.points, result.normals, result.principal_max, result.principal_min,
+            result.mean, result.gaussian, result.valid_mask,
+        )
+
+    @staticmethod
     def evaluate_surface(
         degree_u: int, degree_v: int, knots_u: ArrayLike, knots_v: ArrayLike,
         control_points: ArrayLike, u_vec: ArrayLike, v_vec: ArrayLike,

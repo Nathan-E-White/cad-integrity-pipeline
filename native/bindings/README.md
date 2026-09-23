@@ -346,3 +346,19 @@ or output exhaustion during execution preserves only complete simultaneous group
 with `stop`, `unfinished`, and `last_committed_time2`. Terminal reasons differ from
 incompleteness. `segment_coordinates()` is a derived XYZ projection; edge/vertex
 identities and exact half-step times are authoritative.
+
+## NURBS evaluation (slice 7a)
+
+`cad_integrity.nurbs.evaluate_surface` normalizes real arrays to float64 and calls
+`evaluate_nurbs`. The extension compiles the retained `cad::nurbs` implementation.
+`NURBSCoreEngine.evaluate_surface_native` is the explicit standalone-bundle
+adapter, available with the parent package on Python 3.13; its Python evaluator
+remains available for older standalone consumers and differential qualification.
+
+Input snapshots precede GIL release; every output array owns writable storage.
+The full Cartesian-grid output is retained, with bool validity, zero invalid
+normals and NaN invalid curvatures. No public tiling or streaming claim is added.
+`EvaluationLimits` admits logical input, owned payload, output and work dimensions
+before native copies. Python normalization and allocator/Python overhead are
+excluded. Exact formulas and error semantics are in
+[the design](../../docs/reviews/native-nurbs/DESIGN.md).

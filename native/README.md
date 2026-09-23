@@ -185,3 +185,12 @@ launches, committed segments, collision evidence and explicit partial completion
 Boundary edges remain available even on already structured meshes with no launches.
 See [the design](../docs/reviews/native-quad/DESIGN.md) and
 [binding accounting contract](bindings/README.md#canonical-quad-tracing-slice-8).
+
+## Qualified NURBS host evaluation
+
+Slice 7a binds the retained `cad::nurbs` evaluator through
+`cad_integrity.nurbs.evaluate_surface`, with owned float64 snapshots, independent
+NumPy outputs and explicit allocation/work admission. The standalone bundle has
+an explicit `evaluate_surface_native` adapter preserving its result/error types.
+See [the design](../docs/reviews/native-nurbs/DESIGN.md) and
+[qualification record](../docs/reviews/native-nurbs/IMPLEMENTATION.md).

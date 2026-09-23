@@ -1,9 +1,9 @@
 # Native extension file inventory
 
-Created 2026-09-21 from the C++ handoff. **Slices 0–6 and 8 are implemented:**
+Created 2026-09-21 from the C++ handoff. **Slices 0–6, 7a and 8 are implemented:**
 F2 reduction, polygonal facts/admission and the owned private NumPy binding are active. Surface preparation/operators/chart qualification and native display identity are active. UV location and conforming BRep realization are active. Canonical quad tracing is active. Delaunay construction
-remains a provisional declaration outside implemented targets; NURBS host binding
-remains an independent unfinished branch.
+remains a provisional declaration outside implemented targets. NURBS host binding
+is active through the retained evaluator; see reviews/native-nurbs/IMPLEMENTATION.md.
 `CAD_NATIVE_CHECK_SCAFFOLDS` compiles only those unfinished declarations.
 See [the slice implementation record](reviews/native-f2/IMPLEMENTATION.md).
 

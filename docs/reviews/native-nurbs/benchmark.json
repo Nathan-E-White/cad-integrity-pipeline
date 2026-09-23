@@ -1,0 +1,29 @@
+{
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "python": "3.13.15",
+  "repeats": 7,
+  "warmups": 1,
+  "measurements": [
+    {
+      "grid_side": 16,
+      "logical_output_bytes": 20736,
+      "native_host_ms": 0.03750016912817955,
+      "binding_including_snapshot_kernel_export_ms": 0.03287498839199543,
+      "python_reference_ms": 0.5033749621361494
+    },
+    {
+      "grid_side": 128,
+      "logical_output_bytes": 1327104,
+      "native_host_ms": 1.5320838429033756,
+      "binding_including_snapshot_kernel_export_ms": 1.5801249537616968,
+      "python_reference_ms": 7.294957991689444
+    },
+    {
+      "grid_side": 256,
+      "logical_output_bytes": 5308416,
+      "native_host_ms": 6.503416923806071,
+      "binding_including_snapshot_kernel_export_ms": 6.479040952399373,
+      "python_reference_ms": 28.121666982769966
+    }
+  ]
+}

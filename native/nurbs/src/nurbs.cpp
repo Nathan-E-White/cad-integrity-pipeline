@@ -192,7 +192,10 @@ basis_derivatives(std::uint32_t degree, std::span<const double> knots,
   const auto supported_derivative = std::min(degree, max_derivative);
   for (std::uint32_t sample = 0; sample < result.sample_count_; ++sample) {
     const double parameter = parameters[sample];
-    const auto upper = std::upper_bound(knots.begin(), knots.end(), parameter);
+    // Closed upper endpoint selects the last nonempty piece on its left.
+    const auto upper = parameter == domain->last
+        ? std::lower_bound(knots.begin(), knots.end(), parameter)
+        : std::upper_bound(knots.begin(), knots.end(), parameter);
     const auto raw_span =
         static_cast<std::uint32_t>(std::distance(knots.begin(), upper) - 1);
     const auto span = std::clamp(raw_span, degree, domain->final_control_index);

@@ -163,3 +163,23 @@ def test_translated_plane_does_not_acquire_spurious_curvature():
     assert result.valid_mask.all()
     np.testing.assert_allclose(result.mean, 0, atol=1e-15)
     np.testing.assert_allclose(result.normals[..., 2], 1, atol=1e-15)
+
+
+def test_explicit_native_caller_preserves_result_and_errors():
+    cp = np.array([[[0, 0, 0], [0, 4, 0]], [[3, 0, 0], [3, 4, 0]]], dtype=float)
+    args = (1, 1, [0, 0, 1, 1], [0, 0, 1, 1], cp, [0, 1], [.5, 1])
+    native = NURBSCoreEngine.evaluate_surface_native(*args)
+    expected = NURBSCoreEngine.evaluate_surface(*args)
+    np.testing.assert_allclose(native.as_tuple()[0], expected.as_tuple()[0])
+    assert native.curvatures.keys() == expected.curvatures.keys()
+    with pytest.raises(GeometryValidationError):
+        NURBSCoreEngine.evaluate_surface_native(*args, batch_size=0)
+    with pytest.raises(GeometryValidationError):
+        NURBSCoreEngine.evaluate_surface_native(*args, singular_policy="guess")
+    invalid = list(args)
+    invalid[4] = object()
+    with pytest.raises(GeometryValidationError):
+        NURBSCoreEngine.evaluate_surface_native(*invalid)
+    cp[:] = 0
+    with pytest.raises(SurfaceEvaluationError):
+        NURBSCoreEngine.evaluate_surface_native(*args, singular_policy="raise")

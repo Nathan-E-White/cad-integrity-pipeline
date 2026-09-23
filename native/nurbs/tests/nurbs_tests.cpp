@@ -237,6 +237,18 @@ void rejects_a_degree_beyond_the_signed_recurrence_range() {
   assert(result.error().code == cad::nurbs::SurfaceErrorCode::invalid_degree);
 }
 
+void selects_last_nonempty_span_at_a_repeated_upper_endpoint() {
+  const std::vector<double> knots{0, 1, 2, 3, 3, 3, 4, 5};
+  const std::vector<double> parameters{3};
+
+  const auto basis = cad::nurbs::basis_derivatives(2, knots, parameters, 2);
+
+  assert(basis && basis->spans()[0] == 2);
+  assert(basis->derivative(0, 0, 2) == 1);
+  assert(basis->derivative(1, 0, 1) == -2);
+  assert(basis->derivative(2, 0, 0) == 1);
+}
+
 } // namespace
 
 int main() {
@@ -249,4 +261,5 @@ int main() {
   selects_the_right_hand_piece_at_an_interior_repeated_knot();
   rejects_an_unrepresentable_derivative_order();
   rejects_a_degree_beyond_the_signed_recurrence_range();
+  selects_last_nonempty_span_at_a_repeated_upper_endpoint();
 }

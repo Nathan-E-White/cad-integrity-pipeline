@@ -374,3 +374,19 @@ See [MIGRATION.md](MIGRATION.md) for behavior changes and
   <https://github.com/CadQuery/OCP>
 - Library of Congress binary STL description:
   <https://www.loc.gov/preservation/digital/formats/fdd/fdd000505.shtml>
+
+### Explicit native evaluation
+
+On Python 3.13 with `cad-integrity-lab` installed, call
+`NURBSCoreEngine.evaluate_surface_native(...)` with the same surface arguments
+as `evaluate_surface`. It returns the same `SurfaceGeometry` and preserves the
+bundle's geometry/evaluation exception classes. It uses the qualified retained
+C++ evaluator; missing native installation is an import error, never silent
+fallback. Install the parent checkout first (`pip install ../..` from this
+bundle), then this bundle if needed. The `native` extra declares that optional
+parent dependency on supported Python versions.
+
+`batch_size` remains accepted and validated but does not control native traversal.
+Full output arrays are retained. For explicit logical payload/work limits use
+`cad_integrity.nurbs.evaluate_surface(..., limits=EvaluationLimits(...))`.
+The existing Python evaluator remains the standalone default and parity reference.

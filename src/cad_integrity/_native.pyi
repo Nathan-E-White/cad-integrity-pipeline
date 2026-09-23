@@ -59,3 +59,8 @@ def prepare_quad_patch(vertices: npt.NDArray[np.float64], edges: npt.NDArray[np.
                        offsets: npt.NDArray[np.int64], coedges: npt.NDArray[np.int64],
                        unit: str, input_bytes: int, owned_bytes: int, steps: int,
                        output_bytes: int) -> QuadPatch: ...
+
+def evaluate_nurbs(degree_u: int, degree_v: int, knots_u: Any, knots_v: Any,
+                   control_points: Any, u: Any, v: Any, tolerance: float, reject: bool,
+                   max_input_bytes: int, max_owned_bytes: int, max_output_bytes: int,
+                   max_work_steps: int) -> dict[str, Any]: ...
