@@ -81,7 +81,7 @@ struct IndexedPoint {
 
 [[nodiscard]] std::expected<double, ConstructionError> checked_double(const Kernel::FT& value) {
     const double converted = CGAL::to_double(value);
-    if (!std::isfinite(converted)) {
+    if (!std::isfinite(converted) || (converted == 0.0 && value != Kernel::FT{0})) {
         return std::unexpected(
             ConstructionError{ConstructionErrorCode::numerical_conversion_failure});
     }
@@ -161,31 +161,22 @@ std::expected<ConstructionResult, ConstructionError> build_delaunay(
                 < std::tie(right.point.x, right.point.y, right.point.z, right.original_sample);
         });
 
-        std::vector<Point3> canonical_points;
-        canonical_points.reserve(indexed.size());
-        ConstructedSampleMap sample_map;
-        sample_map.offsets_.push_back(0);
-        for (const auto& item : indexed) {
-            if (canonical_points.empty()
-                || coordinates(canonical_points.back()) != coordinates(item.point)) {
-                if (!canonical_points.empty()) {
-                    sample_map.offsets_.push_back(sample_map.original_sample_ids_.size());
-                }
-                canonical_points.push_back(item.point);
+        std::uint64_t constructed_sample_count = 0;
+        for (std::size_t index = 0; index < indexed.size(); ++index) {
+            if (index == 0
+                || coordinates(indexed[index - 1].point) != coordinates(indexed[index].point)) {
+                ++constructed_sample_count;
             }
-            sample_map.original_sample_ids_.push_back(item.original_sample);
         }
-        if (!canonical_points.empty()) {
-            sample_map.offsets_.push_back(sample_map.original_sample_ids_.size());
-        }
-        if (canonical_points.size() > limits.constructed_samples) {
+        if (constructed_sample_count > limits.constructed_samples) {
             return std::unexpected(exceeded(ConstructionLimitKind::constructed_samples,
-                                            canonical_points.size(), limits.constructed_samples));
+                                            constructed_sample_count,
+                                            limits.constructed_samples));
         }
 
         const auto twice_input = checked_multiply(samples.size(), 2);
         const auto preconstruction_work = twice_input
-            ? checked_add(*twice_input, canonical_points.size())
+            ? checked_add(*twice_input, constructed_sample_count)
             : std::expected<std::uint64_t, ConstructionError>{std::unexpected(twice_input.error())};
         if (!preconstruction_work) {
             return std::unexpected(preconstruction_work.error());
@@ -195,12 +186,12 @@ std::expected<ConstructionResult, ConstructionError> build_delaunay(
                                             *preconstruction_work, limits.construction_work));
         }
 
-        const auto offset_count = checked_add(canonical_points.size(), 1);
+        const auto offset_count = checked_add(constructed_sample_count, 1);
         const auto offset_bytes = offset_count
             ? checked_multiply(*offset_count, sizeof(std::uint64_t))
             : std::expected<std::uint64_t, ConstructionError>{std::unexpected(
                   offset_count.error())};
-        const auto canonical_bytes = checked_multiply(canonical_points.size(), sizeof(Point3));
+        const auto canonical_bytes = checked_multiply(constructed_sample_count, sizeof(Point3));
         auto preconstruction_output = offset_bytes;
         if (preconstruction_output) {
             preconstruction_output = checked_add(*preconstruction_output, *initial_output);
@@ -231,6 +222,26 @@ std::expected<ConstructionResult, ConstructionError> build_delaunay(
                                             limits.logical_owned_bytes));
         }
 
+        std::vector<Point3> canonical_points;
+        canonical_points.reserve(static_cast<std::size_t>(constructed_sample_count));
+        ConstructedSampleMap sample_map;
+        sample_map.offsets_.reserve(static_cast<std::size_t>(*offset_count));
+        sample_map.original_sample_ids_.reserve(samples.size());
+        sample_map.offsets_.push_back(0);
+        for (const auto& item : indexed) {
+            if (canonical_points.empty()
+                || coordinates(canonical_points.back()) != coordinates(item.point)) {
+                if (!canonical_points.empty()) {
+                    sample_map.offsets_.push_back(sample_map.original_sample_ids_.size());
+                }
+                canonical_points.push_back(item.point);
+            }
+            sample_map.original_sample_ids_.push_back(item.original_sample);
+        }
+        if (!canonical_points.empty()) {
+            sample_map.offsets_.push_back(sample_map.original_sample_ids_.size());
+        }
+
         Triangulation triangulation;
         for (SampleId id = 0; id < canonical_points.size(); ++id) {
             const auto& point = canonical_points[static_cast<std::size_t>(id)];
@@ -244,50 +255,32 @@ std::expected<ConstructionResult, ConstructionError> build_delaunay(
                 ConstructionLimitKind::none, static_cast<std::uint64_t>(dimension)});
         }
 
-        std::vector<Triangulation::Cell_handle> cells;
-        for (auto cell = triangulation.all_cells_begin(); cell != triangulation.all_cells_end();
-             ++cell) {
-            cells.push_back(cell);
-        }
-        if (cells.size() > no_neighbor) {
+        const auto cell_count = triangulation.number_of_cells();
+        if (cell_count > no_neighbor) {
             return std::unexpected(
                 ConstructionError{ConstructionErrorCode::reserved_or_unrepresentable_cell_id});
         }
-        if (cells.size() > limits.cells) {
+        if (cell_count > limits.cells) {
             return std::unexpected(
-                exceeded(ConstructionLimitKind::cells, cells.size(), limits.cells));
-        }
-        std::sort(cells.begin(), cells.end(), [&](const auto& left, const auto& right) {
-            return cell_key(triangulation, left) < cell_key(triangulation, right);
-        });
-        for (CellId id = 0; id < cells.size(); ++id) {
-            cells[id]->info() = id;
+                exceeded(ConstructionLimitKind::cells, cell_count, limits.cells));
         }
 
-        bool has_cospherical_adjacency = false;
-        std::uint64_t degeneracy_checks = 0;
-        const auto sphere_side = Kernel{}.side_of_oriented_sphere_3_object();
-        for (const auto& cell : cells) {
+        std::uint64_t finite_adjacency_sides = 0;
+        for (auto cell = triangulation.all_cells_begin(); cell != triangulation.all_cells_end();
+             ++cell) {
             if (triangulation.is_infinite(cell)) {
                 continue;
             }
             for (int side = 0; side < 4; ++side) {
                 const auto neighbor = cell->neighbor(side);
-                if (triangulation.is_infinite(neighbor) || cell->info() >= neighbor->info()) {
-                    continue;
-                }
-                ++degeneracy_checks;
-                const int opposite = neighbor->index(cell);
-                if (sphere_side(cell->vertex(0)->point(), cell->vertex(1)->point(),
-                                cell->vertex(2)->point(), cell->vertex(3)->point(),
-                                neighbor->vertex(opposite)->point())
-                    == CGAL::ON_ORIENTED_BOUNDARY) {
-                    has_cospherical_adjacency = true;
+                if (!triangulation.is_infinite(neighbor)) {
+                    ++finite_adjacency_sides;
                 }
             }
         }
+        const std::uint64_t degeneracy_checks = finite_adjacency_sides / 2;
 
-        const auto work_with_cells = checked_add(*preconstruction_work, cells.size());
+        const auto work_with_cells = checked_add(*preconstruction_work, cell_count);
         const auto total_work = work_with_cells
             ? checked_add(*work_with_cells, degeneracy_checks)
             : std::expected<std::uint64_t, ConstructionError>{std::unexpected(
@@ -300,7 +293,7 @@ std::expected<ConstructionResult, ConstructionError> build_delaunay(
                                             limits.construction_work));
         }
 
-        const auto cell_bytes = checked_multiply(cells.size(), sizeof(DelaunayCell));
+        const auto cell_bytes = checked_multiply(cell_count, sizeof(DelaunayCell));
         auto output_bytes = cell_bytes;
         if (output_bytes) {
             output_bytes = checked_add(*output_bytes, *preconstruction_output);
@@ -314,7 +307,7 @@ std::expected<ConstructionResult, ConstructionError> build_delaunay(
                                             limits.output_bytes));
         }
 
-        const auto handle_bytes = checked_multiply(cells.size(), sizeof(Triangulation::Cell_handle));
+        const auto handle_bytes = checked_multiply(cell_count, sizeof(Triangulation::Cell_handle));
         auto owned_bytes = checked_add(*preconstruction_owned, *cell_bytes);
         if (owned_bytes && handle_bytes) {
             owned_bytes = checked_add(*owned_bytes, *handle_bytes);
@@ -326,6 +319,40 @@ std::expected<ConstructionResult, ConstructionError> build_delaunay(
         if (*owned_bytes > limits.logical_owned_bytes) {
             return std::unexpected(exceeded(ConstructionLimitKind::logical_owned_bytes, *owned_bytes,
                                             limits.logical_owned_bytes));
+        }
+
+        std::vector<Triangulation::Cell_handle> cells;
+        cells.reserve(static_cast<std::size_t>(cell_count));
+        for (auto cell = triangulation.all_cells_begin(); cell != triangulation.all_cells_end();
+             ++cell) {
+            cells.push_back(cell);
+        }
+        std::sort(cells.begin(), cells.end(), [&](const auto& left, const auto& right) {
+            return cell_key(triangulation, left) < cell_key(triangulation, right);
+        });
+        for (CellId id = 0; id < cells.size(); ++id) {
+            cells[id]->info() = id;
+        }
+
+        bool has_cospherical_adjacency = false;
+        const auto sphere_side = Kernel{}.side_of_oriented_sphere_3_object();
+        for (const auto& cell : cells) {
+            if (triangulation.is_infinite(cell)) {
+                continue;
+            }
+            for (int side = 0; side < 4; ++side) {
+                const auto neighbor = cell->neighbor(side);
+                if (triangulation.is_infinite(neighbor) || cell->info() >= neighbor->info()) {
+                    continue;
+                }
+                const int opposite = neighbor->index(cell);
+                if (sphere_side(cell->vertex(0)->point(), cell->vertex(1)->point(),
+                                cell->vertex(2)->point(), cell->vertex(3)->point(),
+                                neighbor->vertex(opposite)->point())
+                    == CGAL::ON_ORIENTED_BOUNDARY) {
+                    has_cospherical_adjacency = true;
+                }
+            }
         }
 
         ConstructionResult result;
@@ -361,11 +388,11 @@ std::expected<ConstructionResult, ConstructionError> build_delaunay(
         }
 
         result.evidence.input_sample_count = samples.size();
-        result.evidence.constructed_sample_count = canonical_points.size();
-        result.evidence.exact_duplicate_count = samples.size() - canonical_points.size();
+        result.evidence.constructed_sample_count = constructed_sample_count;
+        result.evidence.exact_duplicate_count = samples.size() - constructed_sample_count;
         result.evidence.affine_dimension = triangulation.dimension();
         result.evidence.finite_cell_count = triangulation.number_of_finite_cells();
-        result.evidence.infinite_cell_count = cells.size() - result.evidence.finite_cell_count;
+        result.evidence.infinite_cell_count = cell_count - result.evidence.finite_cell_count;
         result.evidence.degeneracy = has_cospherical_adjacency
             ? RecordedDegeneracyDisposition::cgal_symbolic_perturbation
             : RecordedDegeneracyDisposition::none;

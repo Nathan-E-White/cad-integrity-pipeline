@@ -17,3 +17,13 @@ before public hosting.
 `examples/pathological-mesh-fixtures/` contains locally supplied synthetic controls. They are
 not GenCAD or SGS output. Their construction, units, and hashes are retained in the fixture
 pack's provenance and manifest files.
+
+## Optional CGAL Delaunay construction
+
+The default native build remains independent of CGAL. Enabling
+`CAD_MAT_ENABLE_DELAUNAY` requires the CGAL 6.2 release series and uses its
+`Triangulation_3` implementation with the exact-predicates, exact-constructions
+kernel. CGAL's packages carry package-specific open-source terms; the locally
+qualified Homebrew formula classifies CGAL as GPL-3.0-or-later and depends on
+Boost, Eigen, GMP, and MPFR. Confirm the applicable CGAL package licenses and the
+intended distribution model before shipping a Delaunay-enabled binary.

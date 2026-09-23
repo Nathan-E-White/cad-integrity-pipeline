@@ -20,6 +20,9 @@ option(CAD_MAT_ENABLE_DELAUNAY "Build the CGAL-backed Delaunay construction modu
 
 if(CAD_MAT_ENABLE_DELAUNAY)
   find_package(CGAL 6.2 CONFIG REQUIRED)
+  if(NOT CGAL_VERSION VERSION_LESS 6.3)
+    message(FATAL_ERROR "CAD Delaunay construction is pinned to the CGAL 6.2 release series")
+  endif()
   add_library(cad_mat_delaunay STATIC src/delaunay.cpp)
   add_library(cad::delaunay ALIAS cad_mat_delaunay)
   target_sources(cad_mat_delaunay PUBLIC FILE_SET HEADERS

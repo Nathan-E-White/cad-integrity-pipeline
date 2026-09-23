@@ -38,6 +38,9 @@ CGAL revision; and numeric conversion count. Exact cospherical adjacency is
 tested with the kernel predicate and records CGAL symbolic perturbation rather
 than implying a unique tetrahedralization.
 
+Exact-to-double conversion rejects both overflow and underflow: a nonzero exact
+quantity may not become infinity or zero in the retained snapshot.
+
 Input and initial storage bounds are checked before adapter allocation.
 Canonical-sample and minimum work/output bounds are checked before CGAL
 insertion. Cell-dependent limits are checked before snapshot allocation. Logical
@@ -69,6 +72,48 @@ Executed local gates:
   declaration-only Delaunay source remains.
 - A configure check with CGAL discovery explicitly disabled failed at the
   required `find_package`, confirming that enablement cannot silently omit it.
+
+The exact verification commands were:
+
+```sh
+cmake -S native/voronoi -B /private/tmp/cad-voronoi-7b-debug \
+  -DBUILD_TESTING=ON -DCAD_MAT_ENABLE_DELAUNAY=ON -DCMAKE_BUILD_TYPE=Debug
+cmake --build /private/tmp/cad-voronoi-7b-debug
+ctest --test-dir /private/tmp/cad-voronoi-7b-debug --output-on-failure
+
+cmake -S native/voronoi -B /private/tmp/cad-voronoi-7b-release \
+  -DBUILD_TESTING=ON -DCAD_MAT_ENABLE_DELAUNAY=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build /private/tmp/cad-voronoi-7b-release
+ctest --test-dir /private/tmp/cad-voronoi-7b-release --output-on-failure
+
+cmake -S native/voronoi -B /private/tmp/cad-voronoi-7b-sanitizers \
+  -DBUILD_TESTING=ON -DCAD_MAT_ENABLE_DELAUNAY=ON \
+  -DCMAKE_BUILD_TYPE=Debug -DCAD_NATIVE_SANITIZERS=ON
+cmake --build /private/tmp/cad-voronoi-7b-sanitizers
+ctest --test-dir /private/tmp/cad-voronoi-7b-sanitizers --output-on-failure
+
+xcrun clang++ -std=c++2c -Wall -Wextra -Werror -pedantic \
+  -I native/voronoi/include -isystem /opt/homebrew/include \
+  native/voronoi/src/voronoi.cpp native/voronoi/src/delaunay.cpp \
+  native/voronoi/tests/delaunay_tests.cpp -L/opt/homebrew/lib -lgmp -lmpfr \
+  -o /private/tmp/cad-mat-delaunay-direct
+/private/tmp/cad-mat-delaunay-direct
+
+cmake -S native -B /private/tmp/cad-native-7b-default \
+  -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build /private/tmp/cad-native-7b-default
+ctest --test-dir /private/tmp/cad-native-7b-default --output-on-failure
+
+cmake -S native -B /private/tmp/cad-native-7b-enabled \
+  -DBUILD_TESTING=ON -DCAD_MAT_ENABLE_DELAUNAY=ON -DCMAKE_BUILD_TYPE=Release
+cmake --build /private/tmp/cad-native-7b-enabled
+ctest --test-dir /private/tmp/cad-native-7b-enabled --output-on-failure
+
+git diff --check 9ed3b2e...HEAD -- docs/NATIVE_EXTENSION_FILE_PLAN.md \
+  docs/NATIVE_SLICE_7B_IMPLEMENTATION_PLAN.md docs/reviews/native-delaunay \
+  native/README.md native/cmake/ScaffoldChecks.cmake \
+  native/tests/extension_contracts.md native/voronoi
+```
 
 The option-off run confirms that the base native build does not discover or link
 CGAL. The option-on run used installed Homebrew CGAL **6.2**, found from

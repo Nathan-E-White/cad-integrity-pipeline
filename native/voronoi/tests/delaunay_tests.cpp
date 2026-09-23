@@ -18,6 +18,7 @@ using cad::mat::ConstructionErrorCode;
 using cad::mat::ConstructionLimitKind;
 using cad::mat::ConstructionLimits;
 using cad::mat::ConstructionPolicy;
+using cad::mat::ExactDuplicateDisposition;
 using cad::mat::Point3;
 using cad::mat::RecordedDegeneracyDisposition;
 using cad::mat::build_delaunay;
@@ -55,7 +56,7 @@ void constructs_a_tetrahedron_with_owned_identity_and_finite_dual() {
     assert(result->evidence.finite_cell_count == 1);
     assert(result->evidence.infinite_cell_count == 4);
     assert(result->snapshot.cells.size() == 5);
-    assert(result->evidence.dependency_revision == "6.2");
+    assert(result->evidence.dependency_revision.starts_with("6.2"));
     for (const auto& cell : result->snapshot.cells) {
         const auto sentinel_count = static_cast<std::size_t>(
             std::count(cell.vertex_ids.begin(), cell.vertex_ids.end(), cad::mat::no_sample));
@@ -93,10 +94,20 @@ void rejects_nonfinite_coordinates_and_affinely_degenerate_samples() {
         Point3{0.0, 0.0, 0.0}, Point3{1.0, 0.0, 0.0},
         Point3{0.0, 1.0, 0.0}, Point3{1.0, 1.0, 0.0},
     };
-    assert(build_delaunay(collinear, ConstructionPolicy{}, ConstructionLimits{}).error().code
-           == ConstructionErrorCode::insufficient_affine_dimension);
-    assert(build_delaunay(coplanar, ConstructionPolicy{}, ConstructionLimits{}).error().code
-           == ConstructionErrorCode::insufficient_affine_dimension);
+    const auto line_result =
+        build_delaunay(collinear, ConstructionPolicy{}, ConstructionLimits{});
+    const auto plane_result =
+        build_delaunay(coplanar, ConstructionPolicy{}, ConstructionLimits{});
+    assert(!line_result.has_value());
+    assert(!plane_result.has_value());
+    assert(line_result.error().code == ConstructionErrorCode::insufficient_affine_dimension);
+    assert(plane_result.error().code == ConstructionErrorCode::insufficient_affine_dimension);
+
+    ConstructionPolicy unsupported;
+    unsupported.exact_duplicates = static_cast<ExactDuplicateDisposition>(42);
+    const auto unsupported_result = build_delaunay(tetrahedron, unsupported, ConstructionLimits{});
+    assert(!unsupported_result.has_value());
+    assert(unsupported_result.error().code == ConstructionErrorCode::unsupported_policy);
 }
 
 void merges_exact_duplicates_and_retains_every_original_sample() {
@@ -178,6 +189,16 @@ void rejects_an_unrepresentable_extreme_circumradius() {
     const auto result = build_delaunay(samples, ConstructionPolicy{}, ConstructionLimits{});
     assert(!result.has_value());
     assert(result.error().code == ConstructionErrorCode::numerical_conversion_failure);
+
+    constexpr double small = 1.0e-300;
+    constexpr std::array tiny_samples{
+        Point3{0.0, 0.0, 0.0}, Point3{small, 0.0, 0.0},
+        Point3{0.0, small, 0.0}, Point3{0.0, 0.0, small},
+    };
+    const auto tiny_result =
+        build_delaunay(tiny_samples, ConstructionPolicy{}, ConstructionLimits{});
+    assert(!tiny_result.has_value());
+    assert(tiny_result.error().code == ConstructionErrorCode::numerical_conversion_failure);
 }
 
 void reports_each_exact_limit_and_accepts_its_boundary() {
