@@ -121,8 +121,38 @@ def test_delivery_failure_restores_controls_and_clears_inspection(monkeypatch):
     next(stream)
     result = next(stream)
     assert result[10]["meshes"] == []
-    assert result[6] is not None and result[7] is not None
+    assert result[7] is not None
+    assert result[9] is not None
+    assert result[11] is not None
     assert "delivery failed" in result[0]
     assert all(not control["interactive"] for control in result[-3:])
     assert all(control["interactive"] for control in next(stream)[-3:])
     stream.close()
+
+
+def test_run_setup_collapses_only_when_a_result_reaches_the_shared_workspace():
+    import gradio as gr
+
+    from cad_integrity.gradio_app import build_app
+
+    app = build_app(inspection_enabled=True)
+    routes = {fn.api_name: fn.fn for fn in app.fns.values()}
+
+    example = routes["run_example"]("00_clean_boss", gr.Request(session_hash="success"))
+    assert "open" not in next(example)[-4]
+    assert next(example)[-4]["open"] is False
+    next(example)
+
+    rejected = routes["run_example"](
+        "02_pinched_vertex", gr.Request(session_hash="rejected")
+    )
+    assert "open" not in next(rejected)[-4]
+    assert next(rejected)[-4]["open"] is True
+    next(rejected)
+
+    upload = routes["run_upload"](
+        None, False, 0.01, 0.1, False, gr.Request(session_hash="failure")
+    )
+    assert "open" not in next(upload)[-4]
+    assert next(upload)[-4]["open"] is True
+    next(upload)

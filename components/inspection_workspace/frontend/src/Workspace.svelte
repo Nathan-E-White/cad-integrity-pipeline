@@ -62,8 +62,8 @@
     {#if parsed.error}<p role="alert">{parsed.error}</p>{/if}
     <header class="command-bar">
         <div class="identity">
-            <strong>CAD Integrity</strong>
-            <span>Inspection workspace</span>
+            <strong>Topology workbench</strong>
+            <span>{parsed.doc.schema_version === 3 ? 'Native inspection' : 'Polygonal inspection'}</span>
             <span class="revision">{active?.revision ?? `${ui.active} unavailable`}</span>
         </div>
         <div class="command-group">
@@ -229,7 +229,7 @@
     button:hover, button:focus-visible, button.engaged { border-color: var(--cyan); color: #e9f8ff; }
     button:disabled { cursor: default; opacity: .35; }
     label { display: flex; align-items: center; gap: 5px; color: var(--muted); }
-    .workspace-grid { display: grid; grid-template-columns: 210px minmax(420px, 1fr) 270px; grid-template-rows: minmax(470px, 66vh) minmax(190px, auto); grid-template-areas: "model viewport validation" "model instruments instruments"; min-height: 660px; }
+    .workspace-grid { display: grid; grid-template-columns: 210px minmax(420px, 1fr) 270px; grid-template-rows: minmax(430px, calc(100vh - 565px)) 160px; grid-template-areas: "model viewport validation" "model instruments instruments"; min-height: 590px; }
     .workspace-grid.compact { grid-template-columns: 48px minmax(420px, 1fr) 48px; }
     .model-dock, .validation-dock, .instrument-dock { background: var(--surface); }
     .model-dock { grid-area: model; border-right: 1px solid var(--line); }
@@ -261,13 +261,13 @@
     .pane-header { height: 30px; padding: 3px 6px; border-bottom: 1px solid var(--line); background: #0b111d; }
     .pane-header span { flex: 1; color: var(--muted); font: 10px "SFMono-Regular", Consolas, monospace; text-transform: uppercase; }
     .stage-button { border: 0; padding-inline: 2px; color: #dce8f1; }
-    .viewport-shell { position: relative; height: calc(100% - 30px); min-height: 420px; background: radial-gradient(circle at 52% 45%, #182638 0, #0e1826 43%, #070c14 100%); }
+    .viewport-shell { position: relative; height: calc(100% - 30px); min-height: 390px; background: radial-gradient(circle at 52% 45%, #182638 0, #0e1826 43%, #070c14 100%); }
     .view-hud { position: absolute; z-index: 2; top: 7px; right: 7px; padding: 4px; background: #080e18f2; border: 1px solid var(--line); flex-wrap: wrap; justify-content: flex-end; max-width: calc(100% - 14px); }
     .view-hud input[type=number] { width: 62px; }
     .gnomon-label { position: absolute; z-index: 2; right: 10px; bottom: 73px; color: #7890a4; font: 8px "SFMono-Regular", Consolas, monospace; text-transform: uppercase; }
     .view-telemetry { position: absolute; z-index: 2; right: 8px; bottom: 6px; padding: 3px 5px; color: #8fa4b5; background: #080e18eb; text-transform: uppercase; font-size: 9px; }
     .concealed { display: none; }
-    .vacant { height: calc(100% - 30px); min-height: 420px; display: grid; place-items: center; color: var(--muted); background: radial-gradient(circle at center, #101a28, #080d15 70%); text-transform: uppercase; letter-spacing: .08em; }
+    .vacant { height: calc(100% - 30px); min-height: 390px; display: grid; place-items: center; color: var(--muted); background: radial-gradient(circle at center, #101a28, #080d15 70%); text-transform: uppercase; letter-spacing: .08em; }
     .validation-dock > label { margin: 6px 0; }
     .validation-summary { display: grid; grid-template-columns: 1fr; gap: 4px; padding: 5px 0 8px; border-bottom: 1px solid var(--line); color: var(--muted); font: 9px "SFMono-Regular", Consolas, monospace; text-transform: uppercase; }
     .validation-summary span { display: flex; justify-content: space-between; }

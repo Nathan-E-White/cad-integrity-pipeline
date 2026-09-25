@@ -64,7 +64,7 @@ def test_step_decision_brief_projects_accepted_evidence_for_people(tmp_path: Pat
     assert "No manufacturing/structural certification" in brief.markdown
 
 
-def test_build_app_exposes_mesh_lab_before_the_step_workbench() -> None:
+def test_build_app_exposes_all_run_routes_in_the_setup_drawer() -> None:
     from cad_integrity.gradio_app import build_app
 
     app = build_app()
@@ -76,11 +76,9 @@ def test_build_app_exposes_mesh_lab_before_the_step_workbench() -> None:
         if component["type"] == "tabitem"
     ]
 
-    assert tab_labels[0] == "Mesh Lab"
-    assert tab_labels.index("Mesh Lab") < tab_labels.index("Local STEP workbench")
+    assert tab_labels[:3] == ["Examples", "Upload your NPZ", "Local STEP"]
     assert tab_labels.index("Examples") < tab_labels.index("Upload your NPZ")
-    assert "Local STEP workbench" in labels
-    assert "Mesh Lab" in labels
+    assert "Local STEP" in labels
     assert "Upload your NPZ" in labels
     assert "Examples" in labels
     assert "Choose an example" in labels
@@ -100,7 +98,7 @@ def test_build_app_exposes_mesh_lab_before_the_step_workbench() -> None:
         ("Pinched vertex", "02_pinched_vertex"),
     ]
     tab_groups = [component for component in components if component["type"] == "tabs"]
-    assert tab_groups[0]["props"]["selected"] == 0
+    assert tab_groups[0]["props"]["selected"] == "examples"
 
 
 def test_main_uses_gradio_default_theme(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -135,23 +133,55 @@ def test_build_app_uses_full_width_focused_diagnostic_tabs() -> None:
     }
 
     assert app.fill_width
-    assert plot_labels == {
-        "Original diagnostic view",
-        "Candidate diagnostic view",
-        "Original mesh view",
-        "Candidate mesh view",
-    }
+    assert plot_labels == {"Original diagnostic view", "Candidate diagnostic view"}
     assert sum(
         component.get("props", {}).get("value")
         == "## No candidate published\nThe audit did not publish a candidate for review or download."
         for component in config["components"]
-    ) == 2
+    ) == 1
+
+
+def test_build_app_composes_one_shared_inspection_shell() -> None:
+    from cad_integrity.gradio_app import build_app
+
+    config = build_app().get_config_file()
+    components = config["components"]
+
+    assert sum(component["type"] == "inspectionworkspace" for component in components) == 1
+    assert sum(component["type"] == "topologicaldeltaaudit" for component in components) == 1
+    assert sum(component["type"] == "verificationgrid" for component in components) == 1
+    assert any(
+        component["type"] == "accordion"
+        and component.get("props", {}).get("label") == "Run Setup"
+        and component.get("props", {}).get("open") is True
+        for component in components
+    )
+    assert {"Evidence", "Verification", "Artifacts"} <= {
+        component.get("props", {}).get("label")
+        for component in components
+        if component["type"] == "tabitem"
+    }
+    chrome = next(
+        component for component in components
+        if component["type"] == "html"
+        and "cad-application-chrome" in component.get("props", {}).get("elem_classes", [])
+    )
+    assert all(
+        f'>{label}</button>' in chrome["props"]["value"]
+        for label in ("File", "View", "Selection", "Fields", "Analysis")
+    )
+    assert "trigger(" not in chrome["props"]["js_on_load"]
 
 
 def test_mesh_lab_projects_typed_audit_while_retained_brief_keeps_forensics(tmp_path: Path) -> None:
     from gradio_topologicaldeltaaudit import TopologicalDeltaAuditData
     from gradio_verificationgrid import VerificationGridData
-    from cad_integrity.gradio_app import ArtifactStore, _polygonal_ui_projection, run_polygonal_fixture
+
+    from cad_integrity.gradio_app import (
+        ArtifactStore,
+        _polygonal_ui_projection,
+        run_polygonal_fixture,
+    )
 
     outcome = run_polygonal_fixture(
         "01_detached_reversed_cap", artifact_store=ArtifactStore(tmp_path / "artifacts")
@@ -172,6 +202,7 @@ def test_mesh_lab_projects_typed_audit_while_retained_brief_keeps_forensics(tmp_
 
 def test_mesh_lab_verification_grid_keeps_failed_and_unavailable_checks_visible() -> None:
     from gradio_verificationgrid import VerificationGridData
+
     from cad_integrity.gradio_app import _polygonal_ui_projection
     from cad_integrity.workbench_results import (
         CheckResult,
@@ -205,7 +236,11 @@ def test_mesh_lab_verification_grid_keeps_failed_and_unavailable_checks_visible(
 
 
 def test_mesh_lab_and_retained_brief_share_one_verification_ledger(tmp_path: Path) -> None:
-    from cad_integrity.gradio_app import ArtifactStore, _polygonal_ui_projection, run_polygonal_fixture
+    from cad_integrity.gradio_app import (
+        ArtifactStore,
+        _polygonal_ui_projection,
+        run_polygonal_fixture,
+    )
     from cad_integrity.workbench_results import verification_markdown
 
     outcome = run_polygonal_fixture(
@@ -221,6 +256,7 @@ def test_mesh_lab_and_retained_brief_share_one_verification_ledger(tmp_path: Pat
 def test_mesh_lab_example_and_upload_actions_share_one_result_projection(tmp_path: Path) -> None:
     from gradio_topologicaldeltaaudit import TopologicalDeltaAuditData
     from gradio_verificationgrid import VerificationGridData
+
     from cad_integrity.gradio_app import (
         ArtifactStore,
         _fixture_ui_action,

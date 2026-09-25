@@ -22,7 +22,7 @@ test('STEP workspace selects native faces in each scope and clears replacement',
     const errors: string[] = [];
     page.on('pageerror', e => errors.push(e.message));
     await page.goto('/');
-    await page.getByRole('tab', { name: 'Local STEP workbench', exact: true }).click();
+    await page.getByRole('tab', { name: 'Local STEP', exact: true }).click();
     await page.locator('input[type=file][accept*=".step"]').setInputFiles(source);
     const run = page.getByRole('button', { name: 'Audit and attempt configured repair', exact: true });
     await run.click();
@@ -46,6 +46,8 @@ test('STEP workspace selects native faces in each scope and clears replacement',
     await canvas.click({ position: { x: (await canvas.boundingBox())!.width / 2, y: 230 } });
     await expect(workspace.getByRole('status', { name: 'Selection' })).toContainText('Native face');
     await page.screenshot({ path: 'test-results/native-inspection.png', fullPage: true });
+    await page.getByRole('button', { name: /^Run Setup/ }).click();
+    await page.getByRole('tab', { name: 'Local STEP', exact: true }).click();
     await expect(run).toBeEnabled();
     await run.click();
     await expect(workspace.getByRole('status', { name: 'Selection' })).toHaveCount(0);
@@ -55,7 +57,7 @@ test('STEP workspace selects native faces in each scope and clears replacement',
 
 test('refused native candidate keeps face-only picking across the vacant pane', async ({ page }) => {
     await page.goto('/');
-    await page.getByRole('tab', { name: 'Local STEP workbench', exact: true }).click();
+    await page.getByRole('tab', { name: 'Local STEP', exact: true }).click();
     await page.locator('input[type=file][accept*=".step"]').setInputFiles(refusedSource);
     await page.getByRole('button', { name: 'Audit and attempt configured repair', exact: true }).click();
     const workspace = page.getByRole('region', { name: 'Native inspection', exact: true });

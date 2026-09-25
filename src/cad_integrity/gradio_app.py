@@ -13,7 +13,7 @@ import zipfile
 from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 import gradio as gr
 from gradio_inspectionworkspace import InspectionWorkspace
@@ -31,6 +31,7 @@ from gradio_verificationgrid import (
 )
 
 from .adapters.ocp import ExportReport, FaceTessellation, KernelPolicy, KernelReport
+from .app_shell import application_chrome
 from .errors import IntegrityError, MissingOptionalDependency
 from .inspection import (
     NativeInspectionSnapshot,
@@ -928,6 +929,69 @@ def candidate_display(figure: Any | None, *, candidate_available: bool = False) 
     )
 
 
+class ShellProjection(NamedTuple):
+    """Ordered Gradio outputs for the single installed inspection workspace."""
+
+    context: Any
+    audit: Any
+    verification: Any
+    dashboard: Any
+    original_plot: Any
+    candidate_plot: Any
+    candidate_notice: Any
+    source: Any
+    candidate: Any
+    markdown: Any
+    inspection: Any
+    evidence: Any
+
+
+def _shell_ui_projection(outcome: WorkbenchOutcome, *, source_name: str) -> ShellProjection:
+    """Project every controller result into the shared application shell."""
+    inspection_messages = [d.message for d in outcome.diagnostics if d.stage == "inspection"]
+    context = f"### {source_name} results"
+    if inspection_messages:
+        context += "\n\n### Inspection unavailable\n" + "\n".join(inspection_messages)
+    try:
+        inspection = encode_inspection(outcome.inspection)
+    except Exception as exc:
+        inspection = encode_inspection(None)
+        context += f"\n\n### Inspection unavailable\n{exc}"
+    dashboard = outcome.decision_brief.dashboard_markdown or outcome.decision_brief.markdown
+    audit = (
+        outcome.decision_brief.dashboard_data
+        if isinstance(outcome.decision_brief.dashboard_data, TopologicalDeltaAuditData)
+        else TopologicalDeltaAuditData("Topological & Geometric Delta Audit", ())
+    )
+    original_plot = outcome.original_figure
+    candidate_plot, candidate_notice = candidate_display(
+        outcome.candidate_figure, candidate_available=_candidate_available(outcome)
+    )
+    release = outcome.release
+    source = str(release.source.path) if release is not None else None
+    candidate = (
+        str(release.candidate.path)
+        if release is not None and release.candidate is not None
+        else None
+    )
+    markdown = _released_path(outcome, "decision-brief.md")
+    evidence = _released_path(outcome, "evidence.json")
+    return ShellProjection(
+        context,
+        audit,
+        _verification_grid(outcome.checks),
+        dashboard,
+        original_plot,
+        candidate_plot,
+        candidate_notice,
+        source,
+        candidate,
+        markdown,
+        inspection,
+        evidence,
+    )
+
+
 def build_app(*, inspection_enabled: bool = True) -> Any:
     """Build the local UI without starting a server or touching geometry."""
     try:
@@ -935,99 +999,124 @@ def build_app(*, inspection_enabled: bool = True) -> Any:
     except ImportError as exc:
         raise MissingOptionalDependency("Install cad-integrity-lab[ui] to use the Gradio app") from exc
     artifact_store = ArtifactStore()
-    with gr.Blocks(title="CAD Integrity Lab", fill_width=True) as app:
-        gr.Markdown(
-            "# CAD Integrity Lab\n"
-            "Local diagnostics and conservative repair experiments."
-        )
-        with gr.Tab("Mesh Lab"):
-            with gr.Tabs(selected=0):
-                with gr.Tab("Examples", id=0):
-                    gr.Markdown("Explore saved meshes that demonstrate common topology cases.")
-                    fixture_name = gr.Dropdown(
-                        label="Choose an example",
-                        choices=[(label, name) for name, label, _ in _FIXTURE_EXAMPLES],
-                        value="01_detached_reversed_cap",
-                    )
-                    fixture_description = gr.Markdown(_example_description("01_detached_reversed_cap"))
-                    fixture_run = gr.Button("Run this example", variant="primary")
-                with gr.Tab("Upload your NPZ", id=1):
-                    gr.Markdown(
-                        "Upload a triangle mesh with `vertices`, `triangles`, and `length_unit`; "
-                        "OBJ and GLB are not supported here yet."
-                    )
-                    polygonal_upload = gr.File(
-                        label="Restricted polygonal NPZ", file_types=[".npz"], type="filepath"
-                    )
-                    with gr.Accordion("Upload stitching policy", open=False):
-                        upload_welding = gr.Checkbox(label="Weld nearby boundary vertices", value=True)
-                        upload_weld_tolerance = gr.Number(
-                            label="Weld tolerance (mm)", value=0.001, minimum=1e-12
+    with gr.Blocks(title="CAD Integrity Lab", fill_width=True, fill_height=True) as app:
+        with gr.Column(elem_id="cad-app-shell"):
+            application_chrome()
+            with gr.Accordion("Run Setup", open=True, elem_id="cad-run-setup") as run_setup:
+                with gr.Tabs(selected="examples"):
+                    with gr.Tab("Examples", id="examples", elem_classes="cad-setup-panel"):
+                        gr.Markdown("Explore saved meshes that demonstrate common topology cases.")
+                        fixture_name = gr.Dropdown(
+                            label="Choose an example",
+                            choices=[(label, name) for name, label, _ in _FIXTURE_EXAMPLES],
+                            value="01_detached_reversed_cap",
                         )
-                        upload_max_displacement = gr.Number(
-                            label="Maximum vertex displacement (mm)", value=0.001, minimum=0
+                        fixture_description = gr.Markdown(_example_description("01_detached_reversed_cap"))
+                        fixture_run = gr.Button("Run this example", variant="primary")
+                    with gr.Tab("Upload your NPZ", id="upload", elem_classes="cad-setup-panel"):
+                        gr.Markdown(
+                            "Upload a triangle mesh with `vertices`, `triangles`, and `length_unit`; "
+                            "OBJ and GLB are not supported here yet."
                         )
-                        upload_orientation = gr.Checkbox(label="Synchronize face orientation", value=True)
-                    upload_run = gr.Button("Analyze mesh", variant="primary")
-            mesh_source_context = gr.Markdown()
-            mesh_audit = TopologicalDeltaAudit()
-            mesh_verification = VerificationGrid()
-            inspector = InspectionWorkspace(visible=inspection_enabled)
-            with gr.Tabs(visible=not inspection_enabled):
-                with gr.Tab("Original"):
-                    mesh_original_plot = gr.Plot(label="Original mesh view", min_width=320)
-                with gr.Tab("Candidate"):
-                    mesh_candidate_notice = gr.Markdown(_NO_CANDIDATE_NOTICE)
-                    mesh_candidate_plot = gr.Plot(label="Candidate mesh view", min_width=320, visible=False)
-            with gr.Row():
-                mesh_source = gr.File(label="Mesh source NPZ")
-                mesh_candidate = gr.File(label="Candidate mesh NPZ")
-                mesh_markdown = gr.File(label="Mesh decision brief download")
-                mesh_json = gr.File(label="Mesh raw JSON evidence")
-            fixture_name.change(_example_description, inputs=[fixture_name], outputs=[fixture_description])
-        with gr.Tab("Local STEP workbench"):
-            step_upload = gr.File(label="Local STEP file", file_types=[".step", ".stp"], type="filepath")
-            with gr.Accordion("Advanced repair policy", open=False):
-                precision = gr.Number(label="Precision (mm)", value=1e-6, minimum=1e-12)
-                maximum_tolerance = gr.Number(label="Maximum entity tolerance (mm)", value=1e-3, minimum=1e-12)
-                expected_solids = gr.Number(label="Expected solids", value=1, minimum=1, precision=0)
-                self_interference = gr.Checkbox(label="Run self-interference check", value=True)
-                area_change = gr.Number(label="Maximum relative area change", value=1e-4, minimum=0)
-                volume_change = gr.Number(label="Maximum relative volume change", value=1e-4, minimum=0)
-                allow_face_count = gr.Checkbox(label="Allow face-count changes", value=False)
-            step_run = gr.Button("Audit and attempt configured repair", variant="primary")
-            step_brief = gr.Markdown(label="Decision brief")
-            step_inspector = InspectionWorkspace(visible=inspection_enabled)
+                        polygonal_upload = gr.File(
+                            label="Restricted polygonal NPZ", file_types=[".npz"], type="filepath"
+                        )
+                        with gr.Accordion("Upload stitching policy", open=False):
+                            upload_welding = gr.Checkbox(label="Weld nearby boundary vertices", value=True)
+                            upload_weld_tolerance = gr.Number(
+                                label="Weld tolerance (mm)", value=0.001, minimum=1e-12
+                            )
+                            upload_max_displacement = gr.Number(
+                                label="Maximum vertex displacement (mm)", value=0.001, minimum=0
+                            )
+                            upload_orientation = gr.Checkbox(label="Synchronize face orientation", value=True)
+                        upload_run = gr.Button("Analyze mesh", variant="primary")
+                    with gr.Tab("Local STEP", id="step", elem_classes="cad-setup-panel"):
+                        step_upload = gr.File(
+                            label="Local STEP file", file_types=[".step", ".stp"], type="filepath"
+                        )
+                        with gr.Accordion("Advanced repair policy", open=False):
+                            precision = gr.Number(label="Precision (mm)", value=1e-6, minimum=1e-12)
+                            maximum_tolerance = gr.Number(
+                                label="Maximum entity tolerance (mm)", value=1e-3, minimum=1e-12
+                            )
+                            expected_solids = gr.Number(
+                                label="Expected solids", value=1, minimum=1, precision=0
+                            )
+                            self_interference = gr.Checkbox(
+                                label="Run self-interference check", value=True
+                            )
+                            area_change = gr.Number(
+                                label="Maximum relative area change", value=1e-4, minimum=0
+                            )
+                            volume_change = gr.Number(
+                                label="Maximum relative volume change", value=1e-4, minimum=0
+                            )
+                            allow_face_count = gr.Checkbox(
+                                label="Allow face-count changes", value=False
+                            )
+                        step_run = gr.Button(
+                            "Audit and attempt configured repair", variant="primary"
+                        )
+            inspector = InspectionWorkspace(
+                visible=inspection_enabled, elem_id="cad-main-workspace"
+            )
+            with gr.Tabs(elem_id="cad-evidence-dock", selected="evidence"):
+                with gr.Tab("Evidence", id="evidence"):
+                    result_context = gr.Markdown(elem_classes="cad-result-context")
+                    result_audit = TopologicalDeltaAudit()
+                    result_brief = gr.Markdown(elem_classes="cad-result-brief")
+                with gr.Tab("Verification", id="verification"):
+                    result_verification = VerificationGrid()
+                with gr.Tab("Artifacts", id="artifacts"):
+                    with gr.Row(elem_classes="cad-artifact-row"):
+                        result_source = gr.File(label="Original source")
+                        result_candidate = gr.File(label="Candidate")
+                        result_markdown = gr.File(label="Decision brief")
+                        result_json = gr.File(label="Raw JSON evidence")
             with gr.Tabs(visible=not inspection_enabled):
                 with gr.Tab("Original"):
                     original_plot = gr.Plot(label="Original diagnostic view", min_width=320)
                 with gr.Tab("Candidate"):
                     candidate_notice = gr.Markdown(_NO_CANDIDATE_NOTICE)
-                    candidate_plot = gr.Plot(label="Candidate diagnostic view", min_width=320, visible=False)
-            with gr.Row():
-                step_source = gr.File(label="Original STEP source")
-                checked_step = gr.File(label="Checked STEP download")
-                step_markdown = gr.File(label="Decision brief download")
-                step_json = gr.File(label="Raw JSON evidence")
+                    candidate_plot = gr.Plot(
+                        label="Candidate diagnostic view", min_width=320, visible=False
+                    )
+            fixture_name.change(
+                _example_description, inputs=[fixture_name], outputs=[fixture_description]
+            )
         admission = SessionAdmission()
         starts = [fixture_run, upload_run, step_run]
-        mesh_outputs = [mesh_source_context, mesh_audit, mesh_verification,
-                        mesh_original_plot, mesh_candidate_plot, mesh_candidate_notice,
-                        mesh_source, mesh_candidate, mesh_markdown, mesh_json]
-        step_outputs = [step_brief, original_plot, candidate_plot, candidate_notice,
-                        step_source, checked_step, step_markdown, step_json, step_inspector]
-        all_outputs = [*mesh_outputs, inspector, *step_outputs, *starts]
+        result_outputs = [
+            result_context,
+            result_audit,
+            result_verification,
+            result_brief,
+            original_plot,
+            candidate_plot,
+            candidate_notice,
+            result_source,
+            result_candidate,
+            result_markdown,
+            inspector,
+            result_json,
+        ]
+        all_outputs = [*result_outputs, run_setup, *starts]
 
         def execute(route: Literal["example", "upload", "step"], inputs: tuple[Any, ...], request: gr.Request) -> Iterator[tuple[Any, ...]]:
             try:
                 with admission.admit(request.session_hash or ""):
                     # Clearing is emitted only after acquiring the session guard.
-                    empty: list[Any] = [None] * (len(mesh_outputs) + 1 + len(step_outputs))
+                    empty: list[Any] = [None] * len(result_outputs)
                     empty[1] = TopologicalDeltaAuditData("Topological & Geometric Delta Audit", ())
                     empty[2] = _verification_grid(())
-                    empty[len(mesh_outputs)] = encode_inspection(None)
-                    empty[-1] = encode_inspection(None)
-                    yield (*empty, *(gr.update(interactive=False) for _ in starts))
+                    empty[6] = gr.Markdown(_NO_CANDIDATE_NOTICE, visible=True)
+                    empty[10] = encode_inspection(None)
+                    yield (
+                        *empty,
+                        gr.skip(),
+                        *(gr.update(interactive=False) for _ in starts),
+                    )
                     try:
                         if route == "example":
                             outcome = run_polygonal_fixture(inputs[0], artifact_store=artifact_store, include_legacy_figures=not inspection_enabled)
@@ -1042,34 +1131,34 @@ def build_app(*, inspection_enabled: bool = True) -> Any:
                     except Exception as exc:
                         outcome = failed_outcome("Computation", str(exc))
                     try:
-                        if route == "step":
-                            projection = list(_step_ui_projection(outcome))
-                            try:
-                                inspection_value = encode_inspection(outcome.inspection)
-                            except Exception as exc:
-                                inspection_value = encode_inspection(None)
-                                projection[0] += f"\n\n### Inspection unavailable\n{exc}"
-                            values = [*empty[:len(mesh_outputs)+1], *projection, inspection_value]
-                        else:
-                            projection = list(_polygonal_ui_projection(outcome, source_name="Example" if route == "example" else "Uploaded NPZ"))
-                            try:
-                                inspection_value = encode_inspection(outcome.inspection)
-                            except Exception as exc:
-                                inspection_value = encode_inspection(None)
-                                projection[0] = f"### Inspection unavailable\n{exc}"
-                            values = [*projection, inspection_value, *empty[len(mesh_outputs)+1:]]
+                        values = _shell_ui_projection(
+                            outcome,
+                            source_name=(
+                                "Example" if route == "example"
+                                else "Uploaded NPZ" if route == "upload"
+                                else "Local STEP"
+                            ),
+                        )
+                        completed = outcome.completion is Completion.COMPLETED
                     except Exception as exc:
                         failure = failed_outcome("Result delivery", str(exc))
-                        if route == "step":
-                            values = [*empty[:len(mesh_outputs)+1], *_step_ui_projection(failure), encode_inspection(None)]
-                        else:
-                            values = [*_polygonal_ui_projection(failure, source_name="Polygonal input"),
-                                      encode_inspection(None), *empty[len(mesh_outputs)+1:]]
-                    yield (*values, *(gr.update(interactive=False) for _ in starts))
+                        values = _shell_ui_projection(
+                            failure, source_name="Result delivery"
+                        )
+                        completed = False
+                    yield (
+                        *values,
+                        gr.update(open=not completed),
+                        *(gr.update(interactive=False) for _ in starts),
+                    )
                 # Release admission only after result delivery has advanced. The
                 # final generator frame changes controls alone, so Gradio cannot
                 # replay a large geometry value after a subsequent start.
-                yield (*(gr.skip() for _ in empty), *(gr.update(interactive=True) for _ in starts))
+                yield (
+                    *(gr.skip() for _ in result_outputs),
+                    gr.skip(),
+                    *(gr.update(interactive=True) for _ in starts),
+                )
             except (SessionBusy, ValueError) as exc:
                 raise gr.Error(str(exc)) from exc
 
