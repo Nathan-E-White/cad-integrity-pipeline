@@ -13,13 +13,16 @@ export interface WorkspaceState {
     selections: Record<Pane, Target | null>;
     hover: Record<Pane, Target | null>;
     maximized: Pane | null;
+    compactDocks: boolean;
+    restoreCompactDocks: boolean | null;
+    linkedCameras: boolean;
     linkedClipping: boolean;
     clips: Record<Pane, Clip>;
     xray: boolean;
     hiddenCategories: string[];
 }
-export const initialState = (faceKind: 'polygonal_face' | 'native_face' = 'polygonal_face'): WorkspaceState => ({ active: 'original', mode: faceKind, category: null, defectsOnly: faceKind !== 'native_face',
-    selections: { original: null, candidate: null }, hover: { original: null, candidate: null }, maximized: null, linkedClipping: true,
+export const initialState = (faceKind: 'polygonal_face' | 'native_face' = 'polygonal_face', compactDocks = false): WorkspaceState => ({ active: 'original', mode: faceKind, category: null, defectsOnly: faceKind !== 'native_face',
+    selections: { original: null, candidate: null }, hover: { original: null, candidate: null }, maximized: null, compactDocks, restoreCompactDocks: null, linkedCameras: true, linkedClipping: true,
     clips: { original: { enabled: false, axis: 0, offset: 0 }, candidate: { enabled: false, axis: 0, offset: 0 } }, xray: false, hiddenCategories: [] });
 export type Action = {
     type: 'select' | 'hover';
@@ -45,6 +48,12 @@ export type Action = {
     pane: Pane;
     clip: Clip;
 } | {
+    type: 'docks';
+    compact: boolean;
+} | {
+    type: 'cameraLink';
+    value: boolean;
+} | {
     type: 'link';
     value: boolean;
 } | {
@@ -62,7 +71,11 @@ export function transition(state: WorkspaceState, action: Action): WorkspaceStat
         case 'mode': return { ...state, mode: action.mode };
         case 'category': return { ...state, category: action.category };
         case 'defects': return { ...state, defectsOnly: action.value };
-        case 'maximize': return { ...state, maximized: action.pane };
+        case 'maximize': return action.pane === null
+            ? { ...state, maximized: null, compactDocks: state.restoreCompactDocks ?? state.compactDocks, restoreCompactDocks: null }
+            : { ...state, maximized: action.pane, compactDocks: false, restoreCompactDocks: state.compactDocks };
+        case 'docks': return { ...state, compactDocks: action.compact };
+        case 'cameraLink': return { ...state, linkedCameras: action.value };
         case 'xray': return { ...state, xray: action.value };
         case 'visibility': return { ...state, hiddenCategories: state.hiddenCategories.includes(action.category) ? state.hiddenCategories.filter(c => c !== action.category) : [...state.hiddenCategories, action.category] };
         case 'clip': return { ...state, clips: state.linkedClipping ? { original: action.clip, candidate: action.clip } : { ...state.clips, [action.pane]: action.clip } };

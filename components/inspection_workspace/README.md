@@ -11,6 +11,13 @@ GeometryViewport, MetricTable and EntityTable implement the current topology-onl
 workspace. Camera, clipping, selection, hover, filters and picking stay local.
 Original and Candidate keep independent revision-scoped identities.
 
+The installed layer-2 shell uses a dense model / viewport / validation / instrument
+layout. Camera coupling is explicit and browser-local; view HUD controls, matte
+depth treatment and a camera-following XYZ gnomon do not change the V2/V3 wire
+document. Diagnostic membership and display-issue summaries use only fields already
+present in that document. Scalar gauges, histogram envelopes and solver histories
+remain unimplemented until an authoritative versioned projection supplies them.
+
 The existing report components remain separate. The installed workspace is the default polygonal and STEP display after local qualification.
 `build_app(inspection_enabled=False)` retains the legacy display path. Run the installed-parent
 preview with `.pixi/envs/default/bin/python scripts/run_inspection_preview.py`

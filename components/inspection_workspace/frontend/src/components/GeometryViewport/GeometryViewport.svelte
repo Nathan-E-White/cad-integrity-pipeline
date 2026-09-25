@@ -11,4 +11,4 @@
 </script>
 <div class="viewport" bind:this={host}></div>
 {#if error}<p role="alert">{error}</p>{/if}
-<style>.viewport{height:460px;min-width:0;width:100%}p{color:#b42318}</style>
+<style>.viewport{height:100%;min-height:420px;min-width:0;width:100%}p{position:absolute;left:8px;bottom:8px;z-index:3;margin:0;color:#fb7185;background:#080e18ee;border:1px solid #7f1d36;padding:4px 6px}</style>

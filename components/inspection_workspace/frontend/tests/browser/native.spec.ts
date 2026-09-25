@@ -28,6 +28,8 @@ test('STEP workspace selects native faces in each scope and clears replacement',
     await run.click();
     const workspace = page.getByRole('region', { name: 'Native inspection', exact: true });
     await expect(workspace.getByRole('table', { name: 'Original entities' })).toBeVisible();
+    await workspace.getByRole('button', { name: 'Expand docks', exact: true }).click();
+    await expect(workspace.getByText('Display vertices', { exact: true })).toBeVisible();
     await expect(workspace.locator('canvas')).toHaveCount(2);
     await expect(workspace.getByLabel('Picking', { exact: true }).locator('option')).toHaveText(['Native face']);
     await workspace.getByRole('button', { name: 'Native face 0', exact: true }).click();
@@ -60,11 +62,12 @@ test('refused native candidate keeps face-only picking across the vacant pane', 
     await expect(workspace.getByRole('table', { name: 'Original entities' })).toBeVisible();
     await expect(workspace.locator('canvas')).toHaveCount(1);
     await workspace.getByRole('button', { name: 'Candidate', exact: true }).click();
+    await expect(workspace.getByRole('status', { name: 'Active geometry identity' })).toHaveText('candidate unavailable');
     await expect(workspace.getByLabel('Picking', { exact: true }).locator('option')).toHaveText(['Native face']);
     await expect(workspace.getByLabel('Defects only', { exact: true })).toHaveCount(0);
     await workspace.getByLabel('Picking', { exact: true }).selectOption('native_face');
     await workspace.getByRole('button', { name: 'Original', exact: true }).click();
     const canvas = workspace.locator('canvas').first();
-    await canvas.click({ position: { x: (await canvas.boundingBox())!.width / 2, y: 230 } });
+    await canvas.click();
     await expect(workspace.getByRole('status', { name: 'Selection' })).toContainText('Native face');
 });

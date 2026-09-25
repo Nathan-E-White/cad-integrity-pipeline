@@ -26,6 +26,24 @@ test('W09/W10: unlink is local and relink copies the active pane', () => {
     s = transition(s, { type: 'link', value: true });
     expect(s.clips.original).toEqual({ enabled: true, axis: 1, offset: 7 });
 });
+test('comparison camera coupling is explicit browser-local workspace state', () => {
+    let s = initialState();
+    expect(s.linkedCameras).toBe(true);
+    s = transition(s, { type: 'cameraLink', value: false });
+    expect(s.linkedCameras).toBe(false);
+    s = transition(s, { type: 'cameraLink', value: true });
+    expect(s.linkedCameras).toBe(true);
+});
+test('comparison dock density is explicit browser-local workspace state', () => {
+    let s = initialState('polygonal_face', true);
+    expect(s.compactDocks).toBe(true);
+    s = transition(s, { type: 'maximize', pane: 'original' });
+    expect(s.compactDocks).toBe(false);
+    s = transition(s, { type: 'maximize', pane: null });
+    expect(s.compactDocks).toBe(true);
+    s = transition(s, { type: 'docks', compact: false });
+    expect(s.compactDocks).toBe(false);
+});
 test('W21/W22/W26: replacing and clearing selection only changes its pane', () => {
     let s = initialState();
     s = transition(s, { type: 'select', pane: 'candidate', target: candidate });
