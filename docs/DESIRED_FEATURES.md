@@ -7,6 +7,7 @@ Related registers:
 
 - [Existing capabilities awaiting integration](UNINTEGRATED_CAPABILITIES.md)
 - [Unanswered design decisions](OPEN_DESIGN_DECISIONS.md)
+- [Active native Slice 7b completion plan](NATIVE_SLICE_7B_IMPLEMENTATION_PLAN.md)
 
 ## F-001 — Identity correspondence across mesh modifications
 
@@ -182,3 +183,145 @@ Choose key bindings and focus scope, including which viewport receives the mode
 change. Avoid intercepting text entry or conflicting with browser and accessibility
 commands. Define how users discover the shortcuts. No particular bindings have
 been selected.
+
+## Deferred computational capabilities from the maximal Slice 7 plan
+
+The following capabilities preserve the useful ambitions of the maximal Slice 7
+plan without placing them on the current native completion path. They are desired
+computational capabilities, not commitments to one combined programme, one shared
+dependency bundle, or simultaneous product integration. Each requires its own
+caller, admission contract, evidence, resource limits, and qualification slice.
+
+## F-007 — Shape-relative sampled medial evidence
+
+Status: desired computational capability; deferred beyond Delaunay construction.
+
+### Desired behavior
+
+Accept either a provenance-carrying boundary sample set or samples produced from an
+admitted closed OCP shape. Construct a finite sampled Voronoi graph, then retain
+inside/on/outside classification, closest-boundary/contact evidence, sampled-radius
+comparisons, source correspondence, units, policies, and resource use.
+
+The evidence must distinguish the raw finite Voronoi graph from any subset admitted
+by shape-relative verification. It must not describe the result as an exact medial
+axis, a complete Voronoi complex, a maximal-ball certificate, or repair authority.
+
+### Existing foundation and deferral
+
+The existing native finite-dual extractor and the separately planned Delaunay
+constructor supply the numerical foundation. Automatic OCP boundary sampling, a
+goal-specific workbench controller, pruning/significance policy, retained artifacts,
+and inspection projection remain deferred until a real shape-to-medial workflow is
+selected.
+
+## F-008 — Bounded STL feature and primitive reconstruction evidence
+
+Status: desired computational capability; deferred from the current native slice.
+
+### Desired behavior
+
+Admit bounded STL input with explicit units while retaining original bytes, facet and
+corner identities, dropped-facet disposition, and source-corner-to-deduplicated-point
+correspondence. Produce inspectable local-feature validity, deterministic primitive
+membership, fit residuals, source support, complete unassigned selections, and
+full-precision plane/cylinder geometry cards.
+
+The result is approximate reconstruction evidence. Planar hulls and cylindrical
+envelopes do not recover trim topology, prove a repaired shell, or turn unassigned
+regions into inferred NURBS surfaces.
+
+### Future design work
+
+Freeze total memory/work limits, dimension-aware tolerances, reproducible fitting
+policy, point/primitive inspection identity, and the host-owned result interface.
+Keep supplied-surface NURBS evaluation independent of this workflow.
+
+## F-009 — Qualified fitted-fragment STEP publication
+
+Status: desired computational capability; deferred until F-008 and shared translator
+coordination are qualified.
+
+### Desired behavior
+
+Construct bounded plane and cylinder fragments from qualified geometry cards and
+publish them as explicitly named derived STEP artifacts. Coordinate all OCCT
+translator settings through one process-wide owner, restore settings on failure,
+reimport each output, and record only successfully retained files.
+
+Fitted fragments remain approximations and never become an audited repair candidate
+or repaired solid. Publication is an explicitly requested operation until evidence
+supports a different product policy.
+
+### Future design work
+
+Define mixed-workflow concurrency, kernel round-trip acceptance, partial publication,
+unit conversion, and the relationship between card support, unassigned regions, and
+export eligibility.
+
+## F-010 — Qualified directional-field generation and audit
+
+Status: desired computational capability; deferred pending a field domain contract.
+
+### Desired behavior
+
+Admit an immutable oriented surface and either preserve an imported directional field
+or generate a new field from explicit constraints. Retain representation and basis,
+matching, transported effort, singularity indices, boundary and generator-loop
+coverage, feature-alignment residuals, undefined regions, provenance, and backend-
+specific admission decisions.
+
+Imported values must not be silently normalized, smoothed, or regenerated. A field
+may be displayable while remaining inadmissible for tracing or seamless integration.
+
+### Future design work
+
+Choose and pin a field backend only after its ownership, licensing, packaging, index
+conventions, global consistency checks, and actual caller are qualified. The earlier
+Directional investigation is evidence for this decision, not a dependency commitment.
+
+## F-011 — Fully integral seamless parameterization and IGM
+
+Status: desired computational capability; deferred as a separate research and
+implementation programme.
+
+### Desired behavior
+
+From an admitted surface and qualified field, build a deterministic cut, comb the
+field, integrate a sign-symmetric four-function, solve integer seam translations,
+and retain seam, singularity, residual, Jacobian, distortion, conditioning, solver,
+budget, and original-to-cut correspondence evidence.
+
+Infeasible, uncertain, or budget-exhausted runs must retain useful partial evidence
+without publishing a qualified parameterization. A relaxed smooth field or standalone
+integer length vector does not establish a seamless global parameterization.
+
+### Future design work
+
+Freeze topology and boundary admission, singularity policy, scale selection, integer
+solver behavior, interruption, dependency/license choices, and independent analytic
+fixtures before implementation begins.
+
+## F-012 — Chart-axis tracing and derived quad remeshing
+
+Status: desired computational capability; deferred until F-010 and F-011 are
+qualified.
+
+### Desired behavior
+
+Trace parameterized triangle-axis paths over an admitted chart with explicit seam
+transitions, collision participants, recurrence witnesses, uncertain ordering, and
+committed prefixes on exhaustion. Extract and stitch integer-isoline arrangements
+into a value-owned derived mesh with source-triangle/barycentric correspondence.
+
+Qualify finite coordinates, orientation, incidence, noncollapsed faces, surface
+deviation, self-intersection, and the declared pure-quad or quad-dominant mode before
+publication. Any quad result should be independently admitted by the existing
+polygonal and canonical-quad modules.
+
+### Future design work
+
+Define the chart event scheduler, exact-versus-filtered arithmetic, seam and periodic
+state identity, mesher acceptance, source selection behavior, and inspection payload.
+Raw cross-field streamlines remain a separately named capability and cannot substitute
+for chart-axis or IGM evidence.

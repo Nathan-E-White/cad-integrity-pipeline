@@ -36,7 +36,8 @@ target_sources(cad_uv PUBLIC FILE_SET HEADERS
 cad_native_library(cad_uv)
 target_link_libraries(cad_uv PUBLIC cad::surface)
 
-add_library(cad_brep STATIC brep_realization.cpp)
+add_library(cad_brep STATIC brep_realization.cpp
+        dev-09232026-3.c++)
 add_library(cad::brep ALIAS cad_brep)
 target_sources(cad_brep PUBLIC FILE_SET HEADERS
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" FILES brep_realization.hpp)
@@ -64,3 +65,10 @@ if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()
 
+add_library(geo OBJECT
+        dev-09232026-3.c++
+        include/Pnt3D.tcc
+        include/Face.tcc
+        include/SparseEntry.tcc
+        include/SparseMatrix.tcc
+)

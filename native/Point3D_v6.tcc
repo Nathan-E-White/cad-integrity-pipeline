@@ -147,8 +147,18 @@ struct AABB3D {
     Point3D<T> max_pt{std::numeric_limits<T>::lowest(), std::numeric_limits<T>::lowest(), std::numeric_limits<T>::lowest()};
 
     constexpr void grow(const Point3D<T>& p) noexcept {
-        min_pt.x = std::min(min_pt.x, p.x); min_pt.y = std::min(min_pt.y, p.y); min_pt.z = std::min(min_pt.z, p.z);
-        max_pt.x = std::max(max_pt.x, p.x); max_pt.y = std::max(max_pt.y, p.y); max_pt.z = std::max(max_pt.z, p.z);
+        min_pt.x = std::min(min_pt.x, p.x);
+        min_pt.y = std::min(min_pt.y, p.y);
+        min_pt.z = std::min(min_pt.z, p.z);
+
+        max_pt.x = std::max(max_pt.x, p.x);
+        max_pt.y = std::max(max_pt.y, p.y);
+        max_pt.z = std::max(max_pt.z, p.z);
+    }
+
+    static constexpr void grow(const Point3D<T>& p, const Point3D<T>& q) noexcept {
+        min_pt.x = std::min(p.x, q.x);
+
     }
 };
 
@@ -388,7 +398,8 @@ struct GDTReport {
 template<GeometricType T>
 class GDTInspector {
 public:
-    [[nodiscard]] static constexpr T calculate_bonus(MaterialModifier modifier, const FeatureSizeSpec<T>& size) noexcept {
+    [[nodiscard]] static constexpr T
+    calculate_bonus(MaterialModifier modifier, const FeatureSizeSpec<T>& size) noexcept {
         if (modifier == MaterialModifier::RFS) return T{0};
 
         T bonus = T{0};
