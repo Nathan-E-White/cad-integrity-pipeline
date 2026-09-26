@@ -1,3 +1,4 @@
+// Historical standalone prototype; not a product contract.
 #include <iostream>
 #include <vector>
 #include <cmath>
@@ -80,6 +81,7 @@ Segment2DIntersection intersect_segments_2d(const Vector2& p1, const Vector2& p2
     Segment2DIntersection result{false, 0.0, 0.0, Vector2(0, 0)};
 
     if (std::abs(det) < EPSILON) {
+        // Parallel or collinear segments
         return result;
     }
 
@@ -107,12 +109,12 @@ struct MeshEdge {
 
 struct MeshFace {
     int id;
-    std::vector<int> v;             // Vertices in counter-clockwise order (e.g. 4 for quad)
-    std::vector<int> e;             // Edges corresponding to (v0-v1), (v1-v2), ..., (vN-v0)
+    int v[3];             // Vertices in counter-clockwise order
+    int e[3];             // Edges corresponding to (v0-v1), (v1-v2), (v2-v0)
     Vector3 normal;
     
     // 2D flattened local coordinate layout for intrinsic geodesic unfolding
-    std::vector<Vector2> v_2d;
+    Vector2 v_2d[3];
 };
 
 struct MeshVertex {
@@ -122,7 +124,7 @@ struct MeshVertex {
     std::vector<int> incident_edges;
 };
 
-class PolygonalMesh {
+class TriangleMesh {
 public:
     std::vector<MeshVertex> vertices;
     std::vector<MeshEdge> edges;
@@ -168,55 +170,62 @@ public:
         return e.id;
     }
 
-    void add_face(const std::vector<int>& vert_indices) {
+    void add_face(int v0, int v1, int v2) {
         MeshFace f;
         f.id = static_cast<int>(faces.size());
-        f.v = vert_indices;
-        size_t n = vert_indices.size();
+        f.v[0] = v0;
+        f.v[1] = v1;
+        f.v[2] = v2;
 
-        // Calculate face normal using Newell's method for arbitrary quad / polygon
-        Vector3 normal(0, 0, 0);
-        for (size_t i = 0; i < n; ++i) {
-            const Vector3& current = vertices[vert_indices[i]].pos;
-            const Vector3& next = vertices[vert_indices[(i + 1) % n]].pos;
-            normal.x += (current.y - next.y) * (current.z + next.z);
-            normal.y += (current.z - next.z) * (current.x + next.x);
-            normal.z += (current.x - next.x) * (current.y + next.y);
-        }
-        f.normal = normal.normalized();
+        Vector3 p0 = vertices[v0].pos;
+        Vector3 p1 = vertices[v1].pos;
+        Vector3 p2 = vertices[v2].pos;
 
-        // Register edges
-        f.e.resize(n);
-        for (size_t i = 0; i < n; ++i) {
-            f.e[i] = get_or_create_edge(vert_indices[i], vert_indices[(i + 1) % n], f.id);
-        }
+        Vector3 n = (p1 - p0).cross(p2 - p0);
+        f.normal = n.normalized();
 
-        // Project 3D vertices onto local 2D tangent plane for intrinsic unfolding
-        Vector3 origin = vertices[vert_indices[0]].pos;
-        Vector3 u_axis = (vertices[vert_indices[1]].pos - origin).normalized();
-        Vector3 v_axis = f.normal.cross(u_axis).normalized();
+        f.e[0] = get_or_create_edge(v0, v1, f.id);
+        f.e[1] = get_or_create_edge(v1, v2, f.id);
+        f.e[2] = get_or_create_edge(v2, v0, f.id);
 
-        f.v_2d.resize(n);
-        for (size_t i = 0; i < n; ++i) {
-            Vector3 diff = vertices[vert_indices[i]].pos - origin;
-            f.v_2d[i] = Vector2(diff.dot(u_axis), diff.dot(v_axis));
-        }
+        // Precompute intrinsic 2D coordinates for triangle face unfolding
+        double l01 = (p1 - p0).norm();
+        double l12 = (p2 - p1).norm();
+        double l20 = (p0 - p2).norm();
+
+        f.v_2d[0] = Vector2(0, 0);
+        f.v_2d[1] = Vector2(l01, 0);
+
+        // Compute third vertex in 2D using law of cosines
+        double cos_theta = (l01 * l01 + l20 * l20 - l12 * l12) / (2.0 * l01 * l20);
+        cos_theta = std::clamp(cos_theta, -1.0, 1.0);
+        double sin_theta = std::sqrt(1.0 - cos_theta * cos_theta);
+
+        f.v_2d[2] = Vector2(l20 * cos_theta, l20 * sin_theta);
 
         faces.push_back(f);
 
-        for (int v_id : vert_indices) {
-            vertices[v_id].incident_faces.push_back(f.id);
-        }
+        vertices[v0].incident_faces.push_back(f.id);
+        vertices[v1].incident_faces.push_back(f.id);
+        vertices[v2].incident_faces.push_back(f.id);
     }
 
-    // Convert local 2D face point to global 3D space using local tangent basis
+    // Convert local 2D face point to global 3D space
     Vector3 map_2d_to_3d(int face_id, const Vector2& p2d) const {
         const MeshFace& f = faces[face_id];
-        Vector3 origin = vertices[f.v[0]].pos;
-        Vector3 u_axis = (vertices[f.v[1]].pos - origin).normalized();
-        Vector3 v_axis = f.normal.cross(u_axis).normalized();
+        const Vector2& a = f.v_2d[0];
+        const Vector2& b = f.v_2d[1];
+        const Vector2& c = f.v_2d[2];
 
-        return origin + u_axis * p2d.x + v_axis * p2d.y;
+        // Compute barycentric coordinates
+        double denom = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+        if (std::abs(denom) < EPSILON) return vertices[f.v[0]].pos;
+
+        double u = ((b.y - c.y) * (p2d.x - c.x) + (c.x - b.x) * (p2d.y - c.y)) / denom;
+        double v = ((c.y - a.y) * (p2d.x - c.x) + (a.x - c.x) * (p2d.y - c.y)) / denom;
+        double w = 1.0 - u - v;
+
+        return vertices[f.v[0]].pos * u + vertices[f.v[1]].pos * v + vertices[f.v[2]].pos * w;
     }
 
     // Get adjacent face across a shared edge
@@ -273,22 +282,24 @@ struct Event {
 
 class MotorcycleGraphBuilder {
 private:
-    const PolygonalMesh& mesh;
+    const TriangleMesh& mesh;
     std::vector<Motorcycle> motorcycles;
     std::vector<TrailSegment> all_trails;
-    std::map<int, std::vector<int>> face_trails;
+    std::map<int, std::vector<int>> face_trails; // face_id -> list of trail segment indices
     std::priority_queue<Event, std::vector<Event>, std::greater<Event>> event_queue;
 
 public:
-    MotorcycleGraphBuilder(const PolygonalMesh& m) : mesh(m) {}
+    MotorcycleGraphBuilder(const TriangleMesh& m) : mesh(m) {}
 
+    // Add seed motorcycle at specified vertex face with tangent angle
     int add_motorcycle(int start_vertex_id, int face_id, double angle_rad, double speed = 1.0) {
         const MeshFace& f = mesh.faces[face_id];
         
+        // Find vertex index inside face (0, 1, or 2)
         int local_idx = -1;
-        for (size_t i = 0; i < f.v.size(); ++i) {
+        for (int i = 0; i < 3; ++i) {
             if (f.v[i] == start_vertex_id) {
-                local_idx = static_cast<int>(i);
+                local_idx = i;
                 break;
             }
         }
@@ -299,18 +310,13 @@ public:
         mc.current_face = face_id;
         mc.pos_2d = f.v_2d[local_idx];
         
-        // Offset slightly inwards toward quad centroid
-        Vector2 center_2d(0, 0);
-        for (const auto& v2 : f.v_2d) {
-            center_2d = center_2d + v2;
-        }
-        center_2d = center_2d / static_cast<double>(f.v.size());
-
+        // Offset slightly inwards from vertex to prevent boundary singularity issues
+        Vector2 center_2d = (f.v_2d[0] + f.v_2d[1] + f.v_2d[2]) / 3.0;
         Vector2 inwards = (center_2d - mc.pos_2d).normalized() * (EPSILON * 100.0);
         mc.pos_2d = mc.pos_2d + inwards;
 
-        size_t n = f.v.size();
-        Vector2 base_dir = (f.v_2d[(local_idx + 1) % n] - f.v_2d[local_idx]).normalized();
+        // Base direction in 2D face space
+        Vector2 base_dir = (f.v_2d[(local_idx + 1) % 3] - f.v_2d[local_idx]).normalized();
         double cos_a = std::cos(angle_rad);
         double sin_a = std::sin(angle_rad);
         mc.dir_2d = Vector2(
@@ -323,6 +329,8 @@ public:
         mc.active = true;
 
         motorcycles.push_back(mc);
+
+        // Predict first event
         schedule_next_event(mc.id);
 
         return mc.id;
@@ -334,7 +342,7 @@ public:
 
         const MeshFace& f = mesh.faces[mc.current_face];
 
-        // 1. Check for collision with existing trail walls inside current polygon
+        // 1. Check for collision with existing trail walls inside current triangle
         double min_crash_time = std::numeric_limits<double>::infinity();
         Vector2 crash_pos_2d(0, 0);
         int crashed_into_id = -1;
@@ -343,6 +351,7 @@ public:
             for (int trail_idx : face_trails[f.id]) {
                 const TrailSegment& existing = all_trails[trail_idx];
                 
+                // Avoid self-collision with segment created in current face step
                 if (existing.motorcycle_id == mc.id && existing.start_time >= mc.time) continue;
 
                 auto inter = intersect_segments_2d(
@@ -355,6 +364,7 @@ public:
                     double travel_time = dist / mc.speed;
                     double arrival_time = mc.time + travel_time;
 
+                    // The motorcycle only crashes if wall was created BEFORE arrival time!
                     double wall_creation_time = existing.start_time + inter.t_second * (existing.end_time - existing.start_time);
                     if (arrival_time >= wall_creation_time - EPSILON) {
                         if (travel_time > EPSILON && arrival_time < min_crash_time) {
@@ -367,15 +377,14 @@ public:
             }
         }
 
-        // 2. Compute intersection with polygon bounding edges
+        // 2. Compute intersection with triangle edges
         double min_edge_dist = std::numeric_limits<double>::infinity();
         Vector2 edge_exit_2d(0, 0);
         int hit_edge_id = -1;
 
-        size_t num_edges = f.v.size();
-        for (size_t i = 0; i < num_edges; ++i) {
+        for (int i = 0; i < 3; ++i) {
             Vector2 e1 = f.v_2d[i];
-            Vector2 e2 = f.v_2d[(i + 1) % num_edges];
+            Vector2 e2 = f.v_2d[(i + 1) % 3];
 
             auto inter = intersect_segments_2d(
                 mc.pos_2d, mc.pos_2d + mc.dir_2d * 1e6,
@@ -395,6 +404,7 @@ public:
         double edge_travel_time = min_edge_dist / mc.speed;
         double edge_crossing_time = mc.time + edge_travel_time;
 
+        // Schedule crash if hit wall before edge
         if (min_crash_time < edge_crossing_time) {
             Event ev;
             ev.type = EventType::CRASH;
@@ -406,6 +416,7 @@ public:
             return;
         }
 
+        // Otherwise schedule edge crossing and triangle unfolding
         if (hit_edge_id != -1 && edge_crossing_time < std::numeric_limits<double>::infinity()) {
             int next_face = mesh.get_adjacent_face(mc.current_face, hit_edge_id);
 
@@ -418,14 +429,17 @@ public:
             ev.exit_pos_2d = edge_exit_2d;
 
             if (next_face != -1) {
+                // Perform intrinsic unfolding onto target triangle face
                 const MeshFace& f_next = mesh.faces[next_face];
+                const MeshEdge& edge = mesh.edges[hit_edge_id];
 
+                // Parameter s along shared edge [0, 1]
                 Vector2 e_start = f.v_2d[0];
                 Vector2 e_end = f.v_2d[1];
-                for (size_t i = 0; i < f.v.size(); ++i) {
+                for (int i = 0; i < 3; ++i) {
                     if (f.e[i] == hit_edge_id) {
                         e_start = f.v_2d[i];
-                        e_end = f.v_2d[(i + 1) % f.v.size()];
+                        e_end = f.v_2d[(i + 1) % 3];
                         break;
                     }
                 }
@@ -434,11 +448,13 @@ public:
                 double param = (edge_exit_2d - e_start).norm() / edge_len;
                 param = std::clamp(param, 0.0, 1.0);
 
+                // Entry point in next face 2D space
                 Vector2 n_start = f_next.v_2d[0];
                 Vector2 n_end = f_next.v_2d[1];
-                for (size_t i = 0; i < f_next.v.size(); ++i) {
+                for (int i = 0; i < 3; ++i) {
                     if (f_next.e[i] == hit_edge_id) {
-                        n_start = f_next.v_2d[(i + 1) % f_next.v.size()];
+                        // Reverse orientation for neighboring face loop
+                        n_start = f_next.v_2d[(i + 1) % 3];
                         n_end = f_next.v_2d[i];
                         break;
                     }
@@ -446,6 +462,7 @@ public:
 
                 ev.enter_pos_2d = n_start + (n_end - n_start) * param;
 
+                // Unfold velocity vector across edge alignment
                 Vector2 edge_dir_curr = (e_end - e_start).normalized();
                 Vector2 edge_dir_next = (n_end - n_start).normalized();
 
@@ -541,11 +558,7 @@ public:
 
         out << "\n# Base Mesh Faces\n";
         for (const auto& f : mesh.faces) {
-            out << "f";
-            for (int v_idx : f.v) {
-                out << " " << (v_idx + 1);
-            }
-            out << "\n";
+            out << "f " << (f.v[0] + 1) << " " << (f.v[1] + 1) << " " << (f.v[2] + 1) << "\n";
         }
 
         out << "\n# Motorcycle Graph Trail Segments (Lines)\n";
@@ -577,8 +590,8 @@ public:
     }
 };
 
-PolygonalMesh create_quad_torus_mesh(double r_major = 2.5, double r_minor = 1.0, int n_major = 12, int n_minor = 8) {
-    PolygonalMesh mesh;
+TriangleMesh create_torus_mesh(double r_major = 2.0, double r_minor = 0.8, int n_major = 12, int n_minor = 8) {
+    TriangleMesh mesh;
 
     for (int i = 0; i < n_major; ++i) {
         double u = i * 2.0 * PI / n_major;
@@ -608,74 +621,84 @@ PolygonalMesh create_quad_torus_mesh(double r_major = 2.5, double r_minor = 1.0,
             int v2 = i_next * n_minor + j_next;
             int v3 = i * n_minor + j_next;
 
-            // Add 4-sided Quad face
-            mesh.add_face({v0, v1, v2, v3});
+            mesh.add_face(v0, v1, v2);
+            mesh.add_face(v0, v2, v3);
         }
     }
 
     return mesh;
 }
 
-PolygonalMesh create_quad_cube_mesh(double side = 2.0) {
-    PolygonalMesh mesh;
-    double h = side / 2.0;
+TriangleMesh create_ico_sphere() {
+    TriangleMesh mesh;
+    const double phi = (1.0 + std::sqrt(5.0)) / 2.0;
 
-    // 8 vertices of a cube
-    mesh.add_vertex(Vector3(-h, -h, -h)); // 0
-    mesh.add_vertex(Vector3( h, -h, -h)); // 1
-    mesh.add_vertex(Vector3( h,  h, -h)); // 2
-    mesh.add_vertex(Vector3(-h,  h, -h)); // 3
-    mesh.add_vertex(Vector3(-h, -h,  h)); // 4
-    mesh.add_vertex(Vector3( h, -h,  h)); // 5
-    mesh.add_vertex(Vector3( h,  h,  h)); // 6
-    mesh.add_vertex(Vector3(-h,  h,  h)); // 7
+    std::vector<Vector3> pts = {
+        {-1,  phi, 0}, { 1,  phi, 0}, {-1, -phi, 0}, { 1, -phi, 0},
+        { 0, -1,  phi}, { 0,  1,  phi}, { 0, -1, -phi}, { 0,  1, -phi},
+        { phi, 0, -1}, { phi, 0,  1}, {-phi, 0, -1}, {-phi, 0,  1}
+    };
 
-    // 6 quad faces
-    mesh.add_face({0, 3, 2, 1}); // Bottom (-Z)
-    mesh.add_face({4, 5, 6, 7}); // Top (+Z)
-    mesh.add_face({0, 1, 5, 4}); // Front (-Y)
-    mesh.add_face({2, 3, 7, 6}); // Back (+Y)
-    mesh.add_face({0, 4, 7, 3}); // Left (-X)
-    mesh.add_face({1, 2, 6, 5}); // Right (+X)
+    for (auto& p : pts) mesh.add_vertex(p.normalized() * 2.0);
+
+    std::vector<std::vector<int>> faces = {
+        {0, 11, 5}, {0, 5, 1}, {0, 1, 7}, {0, 7, 10}, {0, 10, 11},
+        {1, 5, 9}, {5, 11, 4}, {11, 10, 2}, {10, 7, 6}, {7, 1, 8},
+        {3, 9, 4}, {3, 4, 2}, {3, 2, 6}, {3, 6, 8}, {3, 8, 9},
+        {4, 9, 5}, {2, 4, 11}, {6, 2, 10}, {8, 6, 7}, {9, 8, 1}
+    };
+
+    for (const auto& f : faces) {
+        mesh.add_face(f[0], f[1], f[2]);
+    }
 
     return mesh;
 }
 
 int main() {
     std::cout << "======================================================\n";
-    std::cout << "     3D Motorcycle Graph Construction on Quad Mesh    \n";
+    std::cout << "       3D Motorcycle Graph Construction in C++        \n";
     std::cout << "======================================================\n";
 
-    // 1. Construct Quad Torus Mesh
-    std::cout << " Building Quad Torus mesh...\n";
-    PolygonalMesh quad_torus = create_quad_torus_mesh(2.5, 1.0, 16, 12);
-    std::cout << " Mesh built with " << quad_torus.vertices.size() << " vertices, "
-              << quad_torus.faces.size() << " quad faces, " << quad_torus.edges.size() << " edges.\n";
+    // 1. Construct Procedural Test Mesh (Torus Mesh)
+    std::cout << " Building Torus triangular mesh...\n";
+    TriangleMesh mesh = create_torus_mesh(2.5, 1.0, 16, 12);
+    std::cout << " Mesh built with " << mesh.vertices.size() << " vertices, "
+              << mesh.faces.size() << " faces, " << mesh.edges.size() << " edges.\n";
 
-    MotorcycleGraphBuilder builder(quad_torus);
+    // 2. Initialize Motorcycle Graph Builder
+    MotorcycleGraphBuilder builder(mesh);
 
-    std::cout << " Initializing seed motorcycles on Quad Torus...\n";
+    // 3. Spawn Motorcycles with Initial Tangent Field Directions
+    std::cout << " Initializing seed motorcycles at surface singularities...\n";
+
+    // Spawn 4 motorcycles starting from different vertices around the torus
     builder.add_motorcycle(0, 0, 0.25 * PI, 1.0);
     builder.add_motorcycle(10, 15, 0.75 * PI, 1.0);
     builder.add_motorcycle(25, 35, 1.25 * PI, 1.0);
     builder.add_motorcycle(40, 55, 1.75 * PI, 1.0);
 
+    // 4. Run discrete event simulation
     builder.run_simulation();
+
+    // 5. Output Summary Stats
     builder.print_summary();
-    builder.export_to_obj("motorcycle_graph_quad_torus.obj");
 
-    // 2. Construct Quad Cube Mesh
-    std::cout << "\n Running test case 2: Quad Cube Mesh...\n";
-    PolygonalMesh quad_cube = create_quad_cube_mesh(3.0);
-    MotorcycleGraphBuilder cube_builder(quad_cube);
+    // 6. Export results to Wavefront OBJ format for 3D visualizers (e.g. Blender, MeshLab)
+    builder.export_to_obj("motorcycle_graph_output.obj");
 
-    cube_builder.add_motorcycle(0, 0, 0.2 * PI, 1.0);
-    cube_builder.add_motorcycle(2, 2, 0.7 * PI, 1.0);
-    cube_builder.add_motorcycle(5, 4, 1.1 * PI, 1.0);
+    // 7. Second Test Case: Icosphere
+    std::cout << "\n Running test case 2: Icosahedral Sphere...\n";
+    TriangleMesh sphere = create_ico_sphere();
+    MotorcycleGraphBuilder sphere_builder(sphere);
 
-    cube_builder.run_simulation();
-    cube_builder.export_to_obj("motorcycle_graph_quad_cube.obj");
+    sphere_builder.add_motorcycle(0, 0, 0.1 * PI, 1.0);
+    sphere_builder.add_motorcycle(3, 10, 0.6 * PI, 1.0);
+    sphere_builder.add_motorcycle(6, 15, 1.1 * PI, 1.0);
 
-    std::cout << "\nQuad mesh motorcycle graph simulation completed successfully.\n";
+    sphere_builder.run_simulation();
+    sphere_builder.export_to_obj("motorcycle_graph_sphere.obj");
+
+    std::cout << "\nProgram execution completed successfully.\n";
     return 0;
 }

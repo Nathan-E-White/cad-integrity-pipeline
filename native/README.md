@@ -155,9 +155,11 @@ remains responsible for constrained harmonic solves. See
 [the slice design](../docs/reviews/native-surface/DESIGN.md) and
 [binding/accounting contract](bindings/README.md).
 
-Point3D dump files and unqualified motorcycle source files remain in the repository
-but are excluded from every active native library/test target and Python extension.
-Source lists are explicit. They are not compiled by scaffold checks either.
+Point3D dump files remain here but are excluded from every active native
+library/test target and Python extension. The unqualified standalone motorcycle
+sources are preserved under `reference/developer-prototypes/`; they are not
+compiled by scaffold checks or usable as product contracts. Source lists are
+explicit.
 
 ## Owned UV location
 
@@ -168,9 +170,9 @@ unique or agreeing queries. The installed host interface is
 queries. See [slice 5](../docs/reviews/native-uv/IMPLEMENTATION.md) and the
 [binding accounting contract](bindings/README.md#uv-location-slice-5).
 
-Point3D v5/v6 informed the median-split tree structure. Useful routines from the
-Point3D and motorcycle files may be extracted and qualified; their demonstration
-translation units are not enabled wholesale.
+Point3D v5/v6 informed the median-split tree structure. Historical motorcycle
+demonstrations remain read-only references under `reference/developer-prototypes/`;
+their translation units are not enabled wholesale.
 
 ## Conforming BRep realization
 

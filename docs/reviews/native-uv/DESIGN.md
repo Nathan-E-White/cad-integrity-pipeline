@@ -44,8 +44,8 @@ is a qualification state, not a prohibition on reuse. Targeted inspection found:
 | Source | Useful material | Adaptation needed for this slice |
 |---|---|---|
 | `Point3D_v5.tcc` and `Point3D_v6.tcc` | Templated box accumulation and recursive median split by centroid | Use chart UV and tolerance envelopes; bounded flat storage, checked centroid arithmetic, deterministic ties and budget accounting. The prototype fully sorts each range and stores a vector in every leaf. Compare this with the active flat BVH before selecting mechanics. |
-| `motorcycle_graph_trig.cpp::map_2d_to_3d` | Explicit barycentric interpolation algebra | Consume the existing admitted chart rather than recomputing intrinsic face coordinates. Its small-denominator fallback returns vertex zero; replace this with checked numerical failure. |
-| `motorcycle_graph_quad.c++::map_2d_to_3d` | Local tangent-basis mapping | Not equivalent to the retained piecewise-linear triangulation on warped polygons; do not substitute it for chart interpolation. |
+| `reference/developer-prototypes/motorcycle_graph_trig.cpp::map_2d_to_3d` | Explicit barycentric interpolation algebra | Consume the existing admitted chart rather than recomputing intrinsic face coordinates. Its small-denominator fallback returns vertex zero; replace this with checked numerical failure. |
+| `reference/developer-prototypes/motorcycle_graph_quad.c++::map_2d_to_3d` | Local tangent-basis mapping | Not equivalent to the retained piecewise-linear triangulation on warped polygons; do not substitute it for chart interpolation. |
 | Motorcycle `Vector2` and segment predicates | Small double arithmetic helpers | Reuse only where helpful internally. Fixed EPSILON, clamping and parallel/collinear handling do not establish the locator's conservative predicate contract. |
 
 Extract and qualify useful routines under the locator's existing interface rather

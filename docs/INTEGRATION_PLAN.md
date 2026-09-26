@@ -56,7 +56,7 @@ are proposed work; this update performs no source deletion or application integr
 | `integration/mesh_healing_extension` | Cotangent assembly, harmonic systems, explicit seam operations, UV validation/interpolation, quad-strip tracing, derived STEP export | Extract coherent surface-workflow modules in stages; retain numerical regression tests; keep broad preprocessing out of existing repair defaults |
 | `integration/nurbs_core_professionalized` | Python NURBS evaluator, bounded STL reader, local features, plane/cylinder extraction, geometry cards | Keep evaluator as a reference/parity candidate for native NURBS; qualify STL reconstruction as a separate approximate workflow; retain tested standalone STEP export, with host coordination and release qualification still required |
 | `components/topological_delta_audit`, `components/verification_grid` | Existing Gradio display packages already used by the host app; frontend/wheel builds now pass | Reuse their packaging experience and existing display responsibilities; decide ownership of overlapping metric panels |
-| `src/cad_integrity/mesh_motorcycle.py` | Unused prototype helper | Exclude from integration; replace with qualified trace-result projection only if needed |
+| retired `src/cad_integrity/mesh_motorcycle.py` | Unused broken prototype helper | Removed from the package; use the qualified `cad_integrity.quad` trace-result projection |
 | `reference/archive-delete`, bundle `originals/`, generated examples | Historical originals and evidence | Preserve provenance; not runtime dependencies or proof of current qualification |
 
 ## Deduplication findings
