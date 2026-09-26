@@ -140,6 +140,15 @@ not enable sharing, and is not a public-upload deployment boundary.
 pixi run gradio
 ```
 
+This canonical task builds all three custom components, reports the absolute
+repository root, branch, commit, tracked state, and selected port, verifies that
+the launcher is running from `main` and that the app and component packages come
+from this checkout, and then starts the lab.
+Set `CAD_INTEGRITY_PREVIEW_PORT` to select another free port. Qualification uses
+`CAD_INTEGRITY_REQUIRE_CLEAN=1`; ordinary local development reports tracked
+changes without refusing to start. The internal `pixi run inspection-preview`
+task runs the same launcher without rebuilding components.
+
 The **Local STEP workbench** accepts a local `.step` or `.stp` file, displays an
 original audit, and attempts only the configured conservative native repair. Its
 collapsed Advanced repair policy panel exposes precision, maximum entity

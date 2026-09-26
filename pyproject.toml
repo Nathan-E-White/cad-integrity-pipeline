@@ -101,6 +101,7 @@ build-delta-component = "gradio cc build components/topological_delta_audit --no
 build-verification-component = "gradio cc build components/verification_grid --no-generate-docs"
 build-inspection-component = "gradio cc build components/inspection_workspace --no-generate-docs"
 build-components = { depends-on = ["build-delta-component", "build-verification-component", "build-inspection-component"] }
+inspection-preview = "python scripts/run_inspection_preview.py"
 test-mesh-healing = { cmd = "python -m pytest -q", cwd = "integration/mesh_healing_extension", depends-on = ["check-cad"] }
 test-nurbs = { cmd = "python -m pytest -q", cwd = "integration/nurbs_core_professionalized", depends-on = ["check-cad"] }
 check-artifacts = "python scripts/verify_artifacts.py"
@@ -109,4 +110,4 @@ test = "python -m pytest --cov=cad_integrity --cov-report=term-missing"
 lint = "ruff check src scripts"
 typecheck = "mypy"
 build = "python -m build"
-gradio = "python -m cad_integrity.gradio_app"
+gradio = { cmd = "python scripts/run_inspection_preview.py", depends-on = ["build-components"] }

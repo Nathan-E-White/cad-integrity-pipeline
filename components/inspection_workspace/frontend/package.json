@@ -48,6 +48,6 @@
   "scripts": {
     "test": "bun test tests/*.test.ts",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test:browser": "playwright test"
+    "test:browser": "pixi run build-components && playwright test"
   }
 }

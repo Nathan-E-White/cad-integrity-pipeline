@@ -20,13 +20,20 @@ remain unimplemented until an authoritative versioned projection supplies them.
 
 The existing report components remain separate. The installed workspace is the default polygonal and STEP display after local qualification.
 `build_app(inspection_enabled=False)` retains the legacy display path. Run the installed-parent
-preview with `.pixi/envs/default/bin/python scripts/run_inspection_preview.py`
-from the repository root; it binds only to `127.0.0.1:7863`.
+preview from the repository root with `pixi run gradio`; this builds all three
+custom components before running the checkout-aware launcher. It binds only to
+`127.0.0.1:7863` unless `CAD_INTEGRITY_PREVIEW_PORT` selects another free port.
+The internal `pixi run inspection-preview` task uses the same launcher without
+rebuilding and is reserved for Playwright after an explicit component build.
+The launcher reports repository identity in the terminal only, requires the
+canonical `main` branch, verifies all four Python package origins, and refuses occupied ports. Set
+`CAD_INTEGRITY_REQUIRE_CLEAN=1` for qualification runs that must reject tracked
+changes.
 
 Build with `pixi run build-inspection-component`. From the frontend directory,
 `bun run check`, `bun run test`, and `bun run test:browser` perform type, public
 contract/state, and installed-parent browser checks. Browser tests start and stop
-their own parent server on port 7863.
+the same checkout-aware parent launcher on port 7864 and require a clean checkout.
 
 Geometry travels as a bounded gzip document through Gradio-managed file delivery;
 interaction stays local after the initial fetch. This cache is distinct from
