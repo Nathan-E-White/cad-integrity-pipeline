@@ -6,7 +6,9 @@ const mesh = { id: 'original', revision: 'r1', stage: 'original', frame_id: 'sou
     boundary_source_faces: [0, 0, 0, 0], categories: [{ id: 'boundary_edges', kind: 'edge', entity_ids: [0, 1, 2, 3] }], issues: [] };
 export const square = () => structuredClone(mesh);
 test('A01: V2 preserves source face identity and rejects malformed references', () => {
-    expect(parseInspection({ schema_version: 2, meshes: [square()] }).meshes[0].face_count).toBe(1);
+    const document = parseInspection({ schema_version: 2, meshes: [{ ...square(), revision: '9f27ac481bde' }] });
+    expect(document.meshes[0].face_count).toBe(1);
+    expect(document.meshes[0].revision).toBe('9f27ac481bde');
     expect(() => parseInspection({ schema_version: 1, meshes: [square()] })).toThrow();
     expect(() => parseInspection({ schema_version: 2, meshes: [{ ...square(), triangles: [0, 1, 9] }] })).toThrow();
 });

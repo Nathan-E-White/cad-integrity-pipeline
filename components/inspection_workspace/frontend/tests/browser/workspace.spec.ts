@@ -70,6 +70,40 @@ test('evidence dock retains each tab and its selected state', async ({ page }) =
     await expect(evidence).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('region', { name: 'Topological & Geometric Delta Audit' })).toBeVisible();
 });
+
+test('workspace presents human geometry identity without rendering revision digests', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Run this example', exact: true }).click();
+    const workspace = page.getByRole('region', { name: 'Polygonal inspection' });
+    await workspace.getByRole('button', { name: 'Expand docks', exact: true }).click();
+
+    await expect(workspace.locator('.identity .geometry-identity')).toHaveText('Original geometry');
+    await expect(workspace.getByRole('status', { name: 'Active geometry identity' })).toHaveText('Original geometry');
+    await expect(workspace.locator('.tree-row').filter({ hasText: 'Original geometry' })).toBeVisible();
+    await expect(workspace.locator('.tree-row').filter({ hasText: 'Candidate geometry' })).toBeVisible();
+    const visibleIdentityChrome = [
+        await workspace.innerText(),
+        ...(await page.locator('#cad-evidence-dock [role="tab"]').allInnerTexts()),
+    ].join('\n');
+    expect(visibleIdentityChrome).not.toMatch(/\b[0-9a-f]{7,64}\b/i);
+
+    await workspace.getByRole('button', { name: 'Candidate', exact: true }).click();
+    await expect(workspace.locator('.identity .geometry-identity')).toHaveText('Candidate geometry');
+    await expect(workspace.getByRole('status', { name: 'Active geometry identity' })).toHaveText('Candidate geometry');
+
+    await page.getByRole('tab', { name: 'Artifacts', exact: true }).click();
+    await expect(page.getByText('Raw JSON evidence', { exact: true })).toBeVisible();
+    const downloads = page.locator('#cad-evidence-dock a[href*="/file="]');
+    await expect(downloads).toHaveCount(4);
+    const hrefs = await downloads.evaluateAll(anchors =>
+        anchors.map(anchor => (anchor as HTMLAnchorElement).href)
+    );
+    expect(hrefs.some(href => href.endsWith('/decision-brief.md'))).toBe(true);
+    expect(hrefs.some(href => href.endsWith('/evidence.json'))).toBe(true);
+    for (const href of hrefs) {
+        expect((await page.request.get(href)).ok()).toBe(true);
+    }
+});
 test('installed parent renders both panes, selects a face, preserves selection and clears on a new run', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', e => { errors.push(e.message); console.error(e.stack || String(e)); });
@@ -203,6 +237,7 @@ test('rejected candidate leaves its pane vacant and a subsequent invalid start c
     await page.getByRole('button', { name: 'Run this example', exact: true }).click();
     await expect(page.getByRole('table', { name: 'Original entities' })).toBeVisible();
     await expect(page.locator('canvas')).toHaveCount(1);
+    await expect(page.getByRole('region', { name: 'Candidate' }).locator('.vacant')).toHaveText('Candidate geometry unavailable');
     await expect(page.getByRole('button', { name: 'Maximize', exact: true }).last()).toBeDisabled();
     const widths = await page.locator('.pane').evaluateAll(nodes => nodes.map(n => n.getBoundingClientRect().width));
     expect(Math.abs(widths[0] - widths[1])).toBeLessThan(2);

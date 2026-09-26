@@ -64,7 +64,7 @@ test('refused native candidate keeps face-only picking across the vacant pane', 
     await expect(workspace.getByRole('table', { name: 'Original entities' })).toBeVisible();
     await expect(workspace.locator('canvas')).toHaveCount(1);
     await workspace.getByRole('button', { name: 'Candidate', exact: true }).click();
-    await expect(workspace.getByRole('status', { name: 'Active geometry identity' })).toHaveText('candidate unavailable');
+    await expect(workspace.getByRole('status', { name: 'Active geometry identity' })).toHaveText('Candidate geometry unavailable');
     await expect(workspace.getByLabel('Picking', { exact: true }).locator('option')).toHaveText(['Native face']);
     await expect(workspace.getByLabel('Defects only', { exact: true })).toHaveCount(0);
     await workspace.getByLabel('Picking', { exact: true }).selectOption('native_face');

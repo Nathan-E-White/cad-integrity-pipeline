@@ -40,6 +40,7 @@
     });
     const act = (action: Action) => ui = transition(ui, action);
     const select = (target: Target) => act({type: 'select', pane: ui.active, target});
+    const geometryLabel = (pane: Pane) => pane === 'original' ? 'Original geometry' : 'Candidate geometry';
     $effect(() => {
         const first = parsed.doc.meshes[0];
         ui = {...initialState(first?.face_kind, parsed.doc.meshes.length === 2), active: first?.stage ?? 'original'};
@@ -64,7 +65,7 @@
         <div class="identity">
             <strong>Topology workbench</strong>
             <span>{parsed.doc.schema_version === 3 ? 'Native inspection' : 'Polygonal inspection'}</span>
-            <span class="revision">{active?.revision ?? `${ui.active} unavailable`}</span>
+            <span class="geometry-identity">{geometryLabel(ui.active)}</span>
         </div>
         <div class="command-group">
             <label>Pick <select aria-label="Picking" value={ui.mode}
@@ -92,13 +93,14 @@
         <section class="model-dock" aria-label="Model and entities">
             <h2>Model / entities</h2>
             <div class="dock-badge">M</div>
-            <div class="model-name" role="status" aria-label="Active geometry identity">{active?.id ?? `${ui.active} unavailable`}</div>
+            <div class="model-name" role="status" aria-label="Active geometry identity">{geometryLabel(ui.active)}{active ? '' : ' unavailable'}</div>
             {#each ['original', 'candidate'] as stage}
-                {@const mesh = parsed.doc.meshes.find(candidate => candidate.stage === stage)}
+                {@const pane = stage as Pane}
+                {@const mesh = parsed.doc.meshes.find(candidate => candidate.stage === pane)}
                 <div class="tree-row" class:unavailable={!mesh}>
                     <span class="status-dot" class:ready={!!mesh}></span>
-                    <span>{stage}</span>
-                    <span>{mesh ? `rev ${mesh.revision}` : 'unavailable'}</span>
+                    <span>{geometryLabel(pane)}</span>
+                    <span>{mesh ? 'available' : 'unavailable'}</span>
                 </div>
             {/each}
             {#if active}
@@ -132,7 +134,7 @@
                                  aria-label={pane==='original'?'Original':'Candidate'}>
                             <header class="pane-header">
                                 <button class="stage-button" onclick={()=>act({type:'active',pane})}>{pane === 'original' ? 'Original' : 'Candidate'}</button>
-                                <span>{mesh ? `${mesh.face_count} faces` : 'no admitted geometry'}</span>
+                                <span>{mesh ? `${mesh.face_count} faces` : `${geometryLabel(pane)} unavailable`}</span>
                                 <button disabled={!mesh}
                                         onclick={()=>act({type:'maximize',pane:ui.maximized===pane?null:pane})}>{ui.maximized === pane ? 'Restore' : 'Maximize'}</button>
                             </header>
@@ -160,7 +162,7 @@
                                     <div class="view-telemetry">{mesh.length_unit} · {ui.linkedCameras ? 'linked camera' : 'independent orbit'}</div>
                                 </div>
                             {:else}
-                                <div class="vacant"><span>Candidate viewport reserved</span></div>
+                                <div class="vacant"><span>{geometryLabel(pane)} unavailable</span></div>
                             {/if}
                         </section>
                     {/each}
@@ -222,7 +224,7 @@
     .identity, .command-group, .view-hud, .pane-header, .instrument-dock > header { display: flex; align-items: center; gap: 8px; }
     .identity strong { letter-spacing: .08em; text-transform: uppercase; }
     .identity span { color: var(--muted); }
-    .revision, .command-status, .view-telemetry, .tree-row span:last-child, dl, .selection-readout, .instrument-dock > header span { font-family: "SFMono-Regular", Consolas, monospace; font-variant-numeric: tabular-nums; }
+    .geometry-identity, .command-status, .view-telemetry, .tree-row span:last-child, dl, .selection-readout, .instrument-dock > header span { font-family: "SFMono-Regular", Consolas, monospace; font-variant-numeric: tabular-nums; }
     .command-status { color: var(--muted); font-size: 9px; text-transform: uppercase; }
     button, select, input[type=number] { color: var(--text); background: #0b1422; border: 1px solid var(--line); border-radius: 0; min-height: 24px; }
     button { cursor: pointer; text-transform: uppercase; font-size: 10px; letter-spacing: .04em; }
@@ -279,6 +281,6 @@
     @media (max-width: 1050px) {
         .workspace { min-width: 680px; }
         .workspace-grid { grid-template-columns: 150px minmax(360px, 1fr) 210px; }
-        .identity span:not(.revision) { display: none; }
+        .identity span:not(.geometry-identity) { display: none; }
     }
 </style>
