@@ -7,6 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
@@ -21,12 +23,18 @@ jobs:
           -c requirements/constraints.txt
           -e ./components/topological_delta_audit
           -e ./components/verification_grid
+          -e ./components/inspection_workspace
           -e ".[algebra,cad,notebook,ui,dev]"
+      - name: Enforce prototype status
+        env:
+          PROTOTYPE_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: python scripts/check_prototype_status.py --base "$PROTOTYPE_BASE"
       - run: bun install --frozen-lockfile --ignore-scripts
       - run: python scripts/check_dependencies.py --environment
       - run: python scripts/check_cad_environment.py
       - run: gradio cc build components/topological_delta_audit --no-generate-docs
       - run: gradio cc build components/verification_grid --no-generate-docs
+      - run: gradio cc build components/inspection_workspace --no-generate-docs
       - run: python scripts/verify_artifacts.py
       - run: python -m compileall -q src tests examples scripts
       - run: python -m pytest --cov=cad_integrity --cov-report=term-missing

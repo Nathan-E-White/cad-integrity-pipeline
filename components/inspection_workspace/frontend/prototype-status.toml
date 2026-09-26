@@ -1,0 +1,9 @@
+version = 1
+
+[[prototype]]
+path = "components/inspection_workspace/frontend/prototypes/desktop-engineering"
+status = "read_only"
+
+[[prototype]]
+path = "components/inspection_workspace/frontend/prototypes/layer2-dashboard"
+status = "read_only"
