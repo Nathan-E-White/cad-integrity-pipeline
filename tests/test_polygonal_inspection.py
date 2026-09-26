@@ -151,6 +151,123 @@ def test_wire_payload_retains_source_faces_units_and_stage_scopes():
     assert candidate["positions"][0] != 700
 
 
+def test_pure_quad_projection_carries_revision_scoped_canonical_trace_evidence():
+    """Q01/Q02: canonical native output is projected, not recomputed in the UI."""
+    from cad_integrity import inspection
+    from cad_integrity.fixtures import cube
+    from cad_integrity.pipeline import RepairPipeline
+
+    snapshot = inspection.project_polygonal_inspection(
+        RepairPipeline().run(cube()), include_quad_trace=True
+    )
+    trace = snapshot.original.quad_trace
+    assert trace is not None
+    assert trace.scope == snapshot.original.scope
+    assert trace.length_unit == snapshot.original.length_unit == "mm"
+    assert trace.canonical is True
+    assert trace.complete is True
+    assert trace.stop == "none"
+    assert trace.unfinished_trace_ids == ()
+    assert trace.usage.output_bytes > 0
+    assert len(trace.traces) == 24
+    assert len(trace.segments) == 24
+    assert {segment.segment_id for segment in trace.segments} == set(range(24))
+    assert {segment.trace_id for segment in trace.segments} == {
+        row.trace_id for row in trace.traces
+    }
+    assert all(len(segment.coordinates) == 2 for segment in trace.segments)
+    assert all(len(point) == 3 for segment in trace.segments for point in segment.coordinates)
+
+
+def test_quad_trace_budget_exhaustion_is_explicit_and_retains_unfinished_ids():
+    """Q03: a bounded trace is incomplete evidence, never fabricated completion."""
+    from cad_integrity import inspection
+    from cad_integrity.fixtures import cube
+    from cad_integrity.pipeline import RepairPipeline
+    from cad_integrity.quad import TraceLimits
+
+    trace = inspection.project_polygonal_inspection(
+        RepairPipeline().run(cube()),
+        include_quad_trace=True,
+        trace_limits=TraceLimits(max_events=1),
+    ).original.quad_trace
+    assert trace is not None
+    assert trace.complete is False
+    assert trace.stop == "event_budget"
+    assert trace.segments == ()
+    assert trace.unfinished_trace_ids == tuple(range(24))
+
+
+def test_explicit_quad_trace_projection_rejects_triangle_meshes():
+    """Q04: trace admission stays pure-quad; no inferred quadrangulation is allowed."""
+    from cad_integrity import inspection
+    from cad_integrity.errors import InvalidGeometry
+    from cad_integrity.models import PolyhedralBRep
+    from cad_integrity.pipeline import RepairPipeline
+
+    mesh = PolyhedralBRep.from_polygons(
+        [(0, 0, 0), (1, 0, 0), (0, 1, 0)], [(0, 1, 2)]
+    )
+    with pytest.raises(InvalidGeometry):
+        inspection.project_polygonal_inspection(
+            RepairPipeline().run(mesh), include_quad_trace=True
+        )
+
+
+def test_v4_wire_carries_trace_identity_coordinates_termination_and_usage():
+    """Q05: browser evidence has stable trace IDs and the source revision guard."""
+    from cad_integrity import inspection
+    from cad_integrity.fixtures import cube
+    from cad_integrity.pipeline import RepairPipeline
+
+    payload = inspection.encode_inspection(
+        inspection.project_polygonal_inspection(
+            RepairPipeline().run(cube()), include_quad_trace=True
+        )
+    )
+    assert payload["schema_version"] == 4
+    original = payload["meshes"][0]
+    trace = original["quad_trace"]
+    assert trace["mesh_id"] == original["id"]
+    assert trace["revision"] == original["revision"]
+    assert trace["complete"] is True
+    assert trace["stop"] == "none"
+    assert trace["usage"]["work_steps"] > 0
+    assert trace["traces"][0]["trace_id"] == 0
+    assert trace["segments"][0]["segment_id"] == 0
+    assert len(trace["segments"][0]["coordinates"]) == 6
+
+
+def test_saved_canonical_quad_example_retains_source_candidate_and_trace_evidence(tmp_path):
+    """Q06/Q07: the installed example reaches controller, wire, and downloads."""
+    import json
+
+    from cad_integrity.gradio_app import run_polygonal_fixture
+    from cad_integrity.inspection import encode_inspection
+    from cad_integrity.workbench_results import ArtifactStore
+
+    outcome = run_polygonal_fixture(
+        "03_canonical_quad_cube", artifact_store=ArtifactStore(tmp_path),
+        include_legacy_figures=False,
+    )
+    assert outcome.completion == "completed"
+    assert outcome.inspection is not None
+    assert outcome.inspection.original.quad_trace is not None
+    assert encode_inspection(outcome.inspection)["schema_version"] == 4
+    assert outcome.release is not None
+    assert outcome.release.source.role == "source.json"
+    assert outcome.release.source.path.is_file()
+    assert outcome.release.candidate is not None
+    assert outcome.release.candidate.role == "candidate.json"
+    assert outcome.release.candidate.path.is_file()
+    evidence_path = next(
+        artifact.path for artifact in outcome.release.derived if artifact.role == "evidence.json"
+    )
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))["evidence"]
+    assert evidence["inspection"]["schema_version"] == 4
+    assert evidence["inspection"]["meshes"][0]["quad_trace"]["canonical"] is True
+
+
 def test_broken_wire_keeps_only_resolvable_segments_and_reported_face():
     """P19/P24: no invented closure or topology reclassification."""
 

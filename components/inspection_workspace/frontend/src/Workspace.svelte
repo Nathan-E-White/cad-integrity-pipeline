@@ -4,6 +4,7 @@
     import GeometryView from './components/GeometryViewport/GeometryViewport.svelte';
     import MetricTable from './components/MetricTable/MetricTable.svelte';
     import EntityTable from './components/EntityTable/EntityTable.svelte';
+    import TraceTable from './components/TraceTable/TraceTable.svelte';
     import {GeometryViewport} from './render/GeometryViewport';
     import {linkCameras} from '../../../../integration/mesh-diagnostics-seam/src/render/CameraLink';
     import type {DisplayFrame} from '../../../../integration/mesh-diagnostics-seam/src/core/math';
@@ -20,6 +21,8 @@
     });
     let ui = $state(initialState());
     let ports = $state<Partial<Record<Pane, GeometryViewport>>>({});
+    let traceSelection = $state<Record<Pane, number | null>>({original:null,candidate:null});
+    let traceHover = $state<Record<Pane, number | null>>({original:null,candidate:null});
     const active = $derived(parsed.doc.meshes.find(mesh => mesh.stage === ui.active));
     const controlMesh = $derived(active ?? parsed.doc.meshes[0]);
     const diagnosticSummary = $derived.by(() => active ? {
@@ -44,6 +47,7 @@
     $effect(() => {
         const first = parsed.doc.meshes[0];
         ui = {...initialState(first?.face_kind, parsed.doc.meshes.length === 2), active: first?.stage ?? 'original'};
+        traceSelection={original:null,candidate:null}; traceHover={original:null,candidate:null};
     });
     $effect(() => {
         const available = Object.values(ports).filter((viewport): viewport is GeometryViewport => !!viewport);
@@ -141,6 +145,7 @@
                             {#if mesh}
                                 <div class="viewport-shell" role="group" onpointerdown={()=>act({type:'active',pane})}>
                                     <GeometryView {mesh} {frame} {ui} muted={muted(pane)}
+                                                  traceId={traceHover[pane]??traceSelection[pane]}
                                                   onpick={target=>act({type:'select',pane,target})}
                                                   onready={viewport=>{ports={...ports,[pane]:viewport??undefined};}}/>
                                     {#if ui.active===pane}
@@ -200,8 +205,12 @@
         </section>
 
         <section class="instrument-dock" aria-label="Analytical instruments">
-            <header><h2>Entity register</h2><span>{active ? `${active.stage} · ${active.length_unit}` : 'No active result'}</span></header>
-            {#if active}
+            <header><h2>{active?.quad_trace?'Canonical trace register':'Entity register'}</h2><span>{active ? `${active.stage} · ${active.length_unit}` : 'No active result'}</span></header>
+            {#if active?.quad_trace}
+                <TraceTable trace={active.quad_trace} stage={active.stage} selected={traceSelection[ui.active]}
+                            onselect={traceId=>traceSelection={...traceSelection,[ui.active]:traceId}}
+                            onhover={traceId=>traceHover={...traceHover,[ui.active]:traceId}}/>
+            {:else if active}
                 <EntityTable mesh={active} category={ui.category} defectsOnly={ui.defectsOnly}
                              selection={ui.selections[ui.active]} onselect={select}
                              onhover={target=>act({type:'hover',pane:ui.active,target})}

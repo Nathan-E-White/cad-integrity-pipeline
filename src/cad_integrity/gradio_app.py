@@ -67,6 +67,7 @@ _FIXTURE_EXAMPLES = (
     ("01_welded_not_oriented", "Welded but unoriented", "A weldable mesh whose face orientation needs synchronization."),
     ("01_repaired_cap", "Already repaired cap", "A mesh already repaired under its recorded policy."),
     ("02_pinched_vertex", "Pinched vertex", "A pinched vertex that requires review."),
+    ("03_canonical_quad_cube", "Canonical quad traces", "A saved pure-quad cube with canonical topology-driven traces."),
 )
 _FIXTURE_NAMES = tuple(example[0] for example in _FIXTURE_EXAMPLES)
 _FIXTURE_LABELS = {name: label for name, label, _ in _FIXTURE_EXAMPLES}
@@ -91,8 +92,15 @@ def _example_description(name: str) -> str:
 def _load_qualified_fixture(name: str) -> PolyhedralBRep:
     if name not in _FIXTURE_NAMES:
         raise ValueError(f"Unknown qualified fixture {name!r}")
-    import numpy as np
+    if name == "03_canonical_quad_cube":
+        source = json.loads(_quad_fixture_path().read_text(encoding="utf-8"))
+        if source.get("length_unit") != "mm":
+            raise ValueError("Canonical quad fixture is not measured in millimetres")
+        return PolyhedralBRep.from_polygons(
+            source["vertices"], source["polygons"], length_unit=source["length_unit"]
+        )
 
+    import numpy as np
     with np.load(_fixture_root() / "meshes" / f"{name}.npz", allow_pickle=False) as data:
         vertices = data["vertices"].copy()
         triangles = data["triangles"].copy()
@@ -100,6 +108,10 @@ def _load_qualified_fixture(name: str) -> PolyhedralBRep:
     if length_unit != "mm":
         raise ValueError(f"Qualified fixture {name!r} is not measured in millimetres")
     return PolyhedralBRep.from_polygons(vertices, triangles, length_unit=length_unit)
+
+
+def _quad_fixture_path() -> Path:
+    return Path(__file__).with_name("data") / "canonical_quad_cube.json"
 
 
 def _qualified_fixture_policy() -> RepairPolicy:
@@ -656,6 +668,18 @@ def _write_polygonal_candidate(path: Path, candidate: PolyhedralBRep) -> None:
              length_unit=np.array(candidate.length_unit))
 
 
+def _write_polygonal_json(path: Path, candidate: PolyhedralBRep) -> None:
+    """Persist the value-owned polygon carrier without triangulating its faces."""
+    content = {
+        "schema_version": 1,
+        "length_unit": candidate.length_unit,
+        "vertices": candidate.vertices.tolist(),
+        "polygons": [list(candidate.face_vertices(face))
+                     for face in range(candidate.face_count)],
+    }
+    path.write_text(dumps(content) + "\n", encoding="utf-8")
+
+
 def _polygonal_checks(result: Any) -> tuple[CheckResult, ...]:
     report = result.report
     if report.decision == "rejected":
@@ -679,7 +703,9 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
                                 requires_review_outcome: str = "Fixture requires review",
                                 limitations_scope: str = "qualified polygonal fixture",
                                 source_evidence: dict[str, str] | None = None,
-                                include_legacy_figures: bool = True
+                                include_legacy_figures: bool = True,
+                                include_quad_trace: bool = False,
+                                candidate_format: Literal["npz", "json"] = "npz",
                                 ) -> WorkbenchOutcome:
     brief = project_polygonal_evidence(
         result,
@@ -706,10 +732,15 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
     diagnostics: tuple[Diagnostic, ...] = ()
     completion = Completion.COMPLETED if result.report.decision != "rejected" else Completion.FAILED
     if result.candidate is not None:
-        candidate_path = draft.source.path.parent / "candidate.npz"
+        candidate_path = draft.source.path.parent / f"candidate.{candidate_format}"
         try:
-            _write_polygonal_candidate(candidate_path, result.candidate)
-            candidate_artifact = RetainedArtifact("candidate.npz", "Polygonal candidate", candidate_path)
+            if candidate_format == "json":
+                _write_polygonal_json(candidate_path, result.candidate)
+            else:
+                _write_polygonal_candidate(candidate_path, result.candidate)
+            candidate_artifact = RetainedArtifact(
+                f"candidate.{candidate_format}", "Polygonal candidate", candidate_path
+            )
         except (OSError, ValueError) as exc:
             completion = Completion.INCOMPLETE
             candidate_figure = None
@@ -726,15 +757,40 @@ def _polygonal_analysis_outcome(result: Any, source_label: str, policy: RepairPo
     }
     inspection = None
     try:
-        inspection = project_polygonal_inspection(result)
+        inspection = project_polygonal_inspection(
+            result, include_quad_trace=include_quad_trace
+        )
     except (IntegrityError, ValueError) as exc:
         diagnostics = (*diagnostics, Diagnostic("inspection", str(exc)))
+    if isinstance(payload, dict) and inspection is not None:
+        try:
+            payload = {**payload, "inspection": encode_inspection(inspection)}
+        except (TypeError, ValueError) as exc:
+            diagnostics = (*diagnostics, Diagnostic("inspection", str(exc)))
+    checks = _polygonal_checks(result)
+    if inspection is not None and inspection.original.quad_trace is not None:
+        trace = inspection.original.quad_trace
+        checks = (*checks, CheckResult(
+            "Canonical quad tracing",
+            CheckState.PASSED if trace.complete else CheckState.UNAVAILABLE,
+            f"{len(trace.traces)} traces, {len(trace.segments)} segments; stop={trace.stop}",
+        ))
+        trace_summary = (
+            "\n\n## Canonical quad traces\n"
+            f"{len(trace.traces)} canonical traces and {len(trace.segments)} segments. "
+            f"Completion: `{'complete' if trace.complete else 'incomplete'}`; stop: `{trace.stop}`."
+        )
+        brief = replace(
+            brief,
+            markdown=brief.markdown + trace_summary,
+            dashboard_markdown=(brief.dashboard_markdown or "") + trace_summary,
+        )
     outcome = _release_outcome(
         draft=draft,
         candidate=candidate_artifact,
         brief=brief,
         completion=completion,
-        checks=_polygonal_checks(result),
+        checks=checks,
         diagnostics=diagnostics,
         original_figure=original_figure,
         candidate_figure=candidate_figure,
@@ -748,19 +804,22 @@ def run_polygonal_fixture(name: str, *, artifact_store: ArtifactStore | None = N
                           include_legacy_figures: bool = True) -> WorkbenchOutcome:
     """Run one saved example through its recorded conservative policy."""
     try:
-        source_path = _fixture_root() / "meshes" / f"{name}.npz"
+        is_quad = name == "03_canonical_quad_cube"
+        source_path = (_quad_fixture_path() if is_quad
+                       else _fixture_root() / "meshes" / f"{name}.npz")
         source = _load_qualified_fixture(name)
-        policy = _qualified_fixture_policy()
+        policy = RepairPolicy() if is_quad else _qualified_fixture_policy()
     except (OSError, ValueError) as exc:
         return failed_outcome("Fixture admission", str(exc))
     store = artifact_store or ArtifactStore()
     request = store.create_request_directory()
-    staged = request / "source.npz"
+    suffix = "json" if is_quad else "npz"
+    staged = request / f"source.{suffix}"
     try:
         shutil.copyfile(source_path, staged)
     except OSError as exc:
         return failed_outcome("Fixture source staging", str(exc))
-    source_artifact = RetainedArtifact("source.npz", "Fixture source", staged)
+    source_artifact = RetainedArtifact(f"source.{suffix}", "Fixture source", staged)
     draft = store.begin_release(source_artifact)
     result = RepairPipeline(policy).run(source)
     return _polygonal_analysis_outcome(
@@ -771,6 +830,8 @@ def run_polygonal_fixture(name: str, *, artifact_store: ArtifactStore | None = N
             "example_id": name,
             "source_sha256": _sha256_file(staged),
         },
+        include_quad_trace=is_quad,
+        candidate_format="json" if is_quad else "npz",
     )
 
 

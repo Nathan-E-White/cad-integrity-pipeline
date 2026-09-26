@@ -24,7 +24,7 @@ cad-integrity = "cad_integrity.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-cad_integrity = ["py.typed"]
+cad_integrity = ["py.typed", "data/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

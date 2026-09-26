@@ -96,6 +96,7 @@ def test_build_app_exposes_all_run_routes_in_the_setup_drawer() -> None:
         ("Welded but unoriented", "01_welded_not_oriented"),
         ("Already repaired cap", "01_repaired_cap"),
         ("Pinched vertex", "02_pinched_vertex"),
+        ("Canonical quad traces", "03_canonical_quad_cube"),
     ]
     tab_groups = [component for component in components if component["type"] == "tabs"]
     assert tab_groups[0]["props"]["selected"] == "examples"

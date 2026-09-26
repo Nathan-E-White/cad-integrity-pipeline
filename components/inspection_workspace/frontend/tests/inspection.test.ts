@@ -1,5 +1,5 @@
 import { test, expect } from 'bun:test';
-import { parseInspection } from '../src/core/inspection';
+import { parseInspection, tracePage } from '../src/core/inspection';
 const mesh = { id: 'original', revision: 'r1', stage: 'original', frame_id: 'source', length_unit: 'mm',
     positions: [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0], edges: [0, 1, 1, 2, 2, 3, 3, 0], face_count: 1,
     triangles: [0, 1, 2, 0, 2, 3], triangle_source_faces: [0, 0], boundary_segments: [0, 1, 1, 2, 2, 3, 3, 0],
@@ -83,4 +83,49 @@ test('v3 validates ownership, projection identity and face-only domain', () => {
     const remeshed = parseInspection({ schema_version: 3, meshes: [{ ...nativeSquare(), projection_id: 'p2', triangles: [0, 1, 3], triangle_source_faces: [0] }] }).meshes[0];
     expect(targetFromTriangle(remeshed, 0, 'p1')).toBeNull();
     expect(targetFromTriangle(remeshed, 0, 'p2')?.type).toBe('entity');
+});
+
+const quadTrace = () => ({
+    mesh_id: 'original', revision: 'r1', length_unit: 'mm', canonical: true,
+    complete: true, stop: 'none', last_committed_time2: 1,
+    unfinished_trace_ids: [], usage: { owned_bytes: 256, work_steps: 12, output_bytes: 96 },
+    traces: [{ trace_id: 0, seed_vertex_id: 0, seed_edge_id: 0, termination: 'opposing', blocker_trace_id: null, segment_ids: [0] }],
+    segments: [{ segment_id: 0, trace_id: 0, edge_id: 0, start2: 0, end2: 1, coordinates: [0, 0, 0, .5, 0, 0] }],
+});
+
+test('v4 accepts bounded revision-scoped canonical trace evidence', () => {
+    const m = parseInspection({ schema_version: 4, meshes: [{ ...square(), quad_trace: quadTrace() }] }).meshes[0];
+    expect(m.quad_trace?.traces[0].segment_ids).toEqual([0]);
+    expect(m.quad_trace?.segments[0].coordinates).toEqual([0, 0, 0, .5, 0, 0]);
+    expect(Object.isFrozen(m.quad_trace?.segments)).toBe(true);
+});
+
+test('v4 rejects stale, malformed, and over-budget trace evidence', () => {
+    for (const change of [
+        { revision: 'old' },
+        { mesh_id: 'candidate' },
+        { complete: true, stop: 'event_budget' },
+        { canonical: false },
+        { segments: [{ ...quadTrace().segments[0], trace_id: 9 }] },
+        { traces: [{ ...quadTrace().traces[0], segment_ids: [2] }] },
+        { traces: [{ ...quadTrace().traces[0], segment_ids: [] }] },
+        { segments: [{ ...quadTrace().segments[0], coordinates: [0, 0, Number.NaN, 1, 0, 0] }] },
+        { usage: { owned_bytes: -1, work_steps: 0, output_bytes: 0 } },
+    ]) {
+        expect(() => parseInspection({ schema_version: 4, meshes: [{ ...square(), quad_trace: { ...quadTrace(), ...change } }] })).toThrow();
+    }
+    const tooMany = Array.from({ length: 100001 }, (_, segment_id) => ({ ...quadTrace().segments[0], segment_id }));
+    expect(() => parseInspection({ schema_version: 4, meshes: [{ ...square(), quad_trace: { ...quadTrace(), segments: tooMany } }] })).toThrow();
+    const manyReferences = Array.from({ length: 2 }, (_, trace_id) => ({ ...quadTrace().traces[0], trace_id, blocker_trace_id: null, segment_ids: Array(50001).fill(0) }));
+    expect(() => parseInspection({ schema_version: 4, meshes: [{ ...square(), quad_trace: { ...quadTrace(), traces: manyReferences } }] })).toThrow(/segment-reference budget/);
+});
+
+test('trace register pages bounded rows and preserves stable IDs', () => {
+    const traces = Array.from({ length: 125 }, (_, trace_id) => ({ ...quadTrace().traces[0], trace_id, blocker_trace_id: null, segment_ids: [] }));
+    const parsed = parseInspection({ schema_version: 4, meshes: [{ ...square(), quad_trace: { ...quadTrace(), traces, segments: [] } }] });
+    const trace = parsed.meshes[0].quad_trace!;
+    expect(tracePage(trace, 0).rows.map(row => row.trace_id)).toEqual(Array.from({ length: 50 }, (_, id) => id));
+    expect(tracePage(trace, 1).rows[0].trace_id).toBe(50);
+    expect(tracePage(trace, 2).rows.length).toBe(25);
+    expect(tracePage(trace, 99).current).toBe(2);
 });

@@ -12,6 +12,7 @@ from .arrays import FloatArray, IntArray, floats, integers
 from .errors import InvalidGeometry, ResourceLimitExceeded
 from .models import PolyhedralBRep
 from .pipeline import RepairResult, fingerprint
+from .quad import TraceLimits, Usage, prepare_quad_patch
 from .topology import TopologyReport
 
 if TYPE_CHECKING:
@@ -282,6 +283,42 @@ class MeshScope:
 
 
 @dataclass(frozen=True, slots=True)
+class QuadTraceRow:
+    trace_id: int
+    seed_vertex_id: int
+    seed_edge_id: int
+    termination: str
+    blocker_trace_id: int | None
+    segment_ids: tuple[int, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class QuadTraceSegment:
+    segment_id: int
+    trace_id: int
+    edge_id: int
+    start2: int
+    end2: int
+    coordinates: tuple[tuple[float, float, float], tuple[float, float, float]]
+
+
+@dataclass(frozen=True, slots=True)
+class QuadTraceInspection:
+    """Owned presentation evidence projected from the authoritative native trace."""
+
+    scope: MeshScope
+    length_unit: str
+    canonical: bool
+    complete: bool
+    stop: str
+    last_committed_time2: int | None
+    unfinished_trace_ids: tuple[int, ...]
+    usage: Usage
+    traces: tuple[QuadTraceRow, ...]
+    segments: tuple[QuadTraceSegment, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class MeshInspection:
     stage: Literal["original", "candidate"]
     scope: MeshScope
@@ -293,9 +330,15 @@ class MeshInspection:
     face_coedges: IntArray
     categories: tuple[CategoryMembership, ...]
     display: DisplayGeometry
+    quad_trace: QuadTraceInspection | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "categories", tuple(self.categories))
+        if self.quad_trace is not None and (
+            self.quad_trace.scope != self.scope
+            or self.quad_trace.length_unit != self.length_unit
+        ):
+            raise InvalidGeometry("Quad trace scope and units must match its inspection mesh")
         # Immutable bytes own the storage: setflags(write=True) cannot reopen it.
         for name in ("vertices", "edges", "face_offsets", "face_coedges"):
             values = getattr(self, name)
@@ -310,7 +353,8 @@ class InspectionSnapshot:
 
 
 def project_polygonal_inspection(
-    result: RepairResult, *, limits: ProjectionLimits = ProjectionLimits()
+    result: RepairResult, *, limits: ProjectionLimits = ProjectionLimits(),
+    include_quad_trace: bool = False, trace_limits: TraceLimits = TraceLimits(),
 ) -> InspectionSnapshot:
     """Own computed polygonal data without backend lookups or side effects."""
     limits.preflight(
@@ -320,9 +364,11 @@ def project_polygonal_inspection(
     def project(
         brep: PolyhedralBRep, report: TopologyReport, stage: Literal["original", "candidate"]
     ) -> MeshInspection:
+        scope = MeshScope(stage, fingerprint(brep))
+        trace = _project_quad_trace(brep, scope, trace_limits) if include_quad_trace else None
         return MeshInspection(
             stage,
-            MeshScope(stage, fingerprint(brep)),
+            scope,
             "source",
             brep.length_unit,
             brep.vertices,
@@ -334,6 +380,7 @@ def project_polygonal_inspection(
                 for name, kind, field in _CATEGORIES
             ),
             triangulate_for_inspection(brep, limits=limits),
+            trace,
         )
 
     return InspectionSnapshot(
@@ -341,6 +388,51 @@ def project_polygonal_inspection(
         project(result.candidate, result.report.after, "candidate")
         if result.candidate is not None and result.report.after is not None
         else None,
+    )
+
+
+def _project_quad_trace(
+    mesh: PolyhedralBRep, scope: MeshScope, limits: TraceLimits
+) -> QuadTraceInspection:
+    result = prepare_quad_patch(mesh).trace(limits=limits)
+    coordinates = result.segment_coordinates()
+    segment_ids: dict[int, list[int]] = {seed.id: [] for seed in result.seeds}
+    segments = []
+    for segment_id, (segment, points) in enumerate(zip(result.segments, coordinates, strict=True)):
+        segment_ids[segment.seed].append(segment_id)
+        segments.append(QuadTraceSegment(
+            segment_id,
+            segment.seed,
+            segment.edge,
+            segment.start2,
+            segment.end2,
+            tuple(tuple(float(value) for value in point) for point in points),  # type: ignore[arg-type]
+        ))
+    terminal = {event.seed: event for event in result.events if event.reason.name != "ADVANCE"}
+    unfinished = set(result.unfinished)
+    traces = tuple(
+        QuadTraceRow(
+            seed.id,
+            seed.vertex,
+            seed.edge,
+            "unfinished" if seed.id in unfinished else terminal[seed.id].reason.name.lower(),
+            None if seed.id in unfinished or terminal[seed.id].blocker < 0
+            else terminal[seed.id].blocker,
+            tuple(segment_ids[seed.id]),
+        )
+        for seed in result.seeds
+    )
+    return QuadTraceInspection(
+        scope,
+        mesh.length_unit,
+        result.canonical,
+        result.complete,
+        result.stop.name.lower(),
+        result.last_committed_time2,
+        result.unfinished,
+        result.usage,
+        traces,
+        tuple(segments),
     )
 
 
@@ -405,8 +497,7 @@ def encode_inspection(snapshot: InspectionSnapshot | NativeInspectionSnapshot | 
         for mesh in (snapshot.original, snapshot.candidate):
             if mesh is None:
                 continue
-            meshes.append(
-                {
+            encoded = {
                     "id": mesh.scope.mesh_id,
                     "revision": mesh.scope.revision,
                     "stage": mesh.stage,
@@ -430,5 +521,48 @@ def encode_inspection(snapshot: InspectionSnapshot | NativeInspectionSnapshot | 
                         for i in mesh.display.issues
                     ],
                 }
-            )
-    return {"schema_version": 3 if isinstance(snapshot, NativeInspectionSnapshot) else 2, "meshes": meshes}
+            trace = getattr(mesh, "quad_trace", None)
+            if trace is not None:
+                encoded["quad_trace"] = {
+                    "mesh_id": trace.scope.mesh_id,
+                    "revision": trace.scope.revision,
+                    "length_unit": trace.length_unit,
+                    "canonical": trace.canonical,
+                    "complete": trace.complete,
+                    "stop": trace.stop,
+                    "last_committed_time2": trace.last_committed_time2,
+                    "unfinished_trace_ids": list(trace.unfinished_trace_ids),
+                    "usage": {
+                        "owned_bytes": trace.usage.owned_bytes,
+                        "work_steps": trace.usage.work_steps,
+                        "output_bytes": trace.usage.output_bytes,
+                    },
+                    "traces": [
+                        {
+                            "trace_id": row.trace_id,
+                            "seed_vertex_id": row.seed_vertex_id,
+                            "seed_edge_id": row.seed_edge_id,
+                            "termination": row.termination,
+                            "blocker_trace_id": row.blocker_trace_id,
+                            "segment_ids": list(row.segment_ids),
+                        }
+                        for row in trace.traces
+                    ],
+                    "segments": [
+                        {
+                            "segment_id": segment.segment_id,
+                            "trace_id": segment.trace_id,
+                            "edge_id": segment.edge_id,
+                            "start2": segment.start2,
+                            "end2": segment.end2,
+                            "coordinates": [
+                                value for point in segment.coordinates for value in point
+                            ],
+                        }
+                        for segment in trace.segments
+                    ],
+                }
+            meshes.append(encoded)
+    schema_version = (3 if isinstance(snapshot, NativeInspectionSnapshot) else
+                      4 if any("quad_trace" in mesh for mesh in meshes) else 2)
+    return {"schema_version": schema_version, "meshes": meshes}

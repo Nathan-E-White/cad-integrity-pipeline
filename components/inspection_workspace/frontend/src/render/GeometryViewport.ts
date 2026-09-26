@@ -6,6 +6,7 @@ import type { CameraPose } from '../../../../../integration/mesh-diagnostics-sea
 import { entityTarget, resolveTarget, targetFromTriangle, type Mesh, type Target } from '../core/inspection';
 import { initialState, type WorkspaceState } from '../core/state';
 import { InspectionOverlay } from './InspectionOverlay';
+import { TraceOverlay } from './TraceOverlay';
 export class GeometryViewport {
     readonly camera = new T.PerspectiveCamera(45, 1, .001, 100);
     readonly renderer: T.WebGLRenderer;
@@ -16,6 +17,7 @@ export class GeometryViewport {
     private gnomonCamera = new T.PerspectiveCamera(34, 1, .1, 10);
     private scope = new ResourceScope();
     private overlay: InspectionOverlay;
+    private traceOverlay: TraceOverlay | null = null;
     private surface: T.Mesh;
     private elementGrid: T.Mesh;
     private crease: T.LineSegments | null = null;
@@ -118,6 +120,10 @@ export class GeometryViewport {
             this.gnomonScene.add(axes);
             this.overlay = new InspectionOverlay(mesh, this.positions);
             this.scene.add(this.overlay.group);
+            if (mesh.quad_trace) {
+                this.traceOverlay = new TraceOverlay(mesh.quad_trace, frame);
+                this.scene.add(this.traceOverlay.group);
+            }
             this.camera.up.set(0, 0, 1);
             this.camera.position.set(2, -3, 2);
             this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -184,7 +190,7 @@ export class GeometryViewport {
         }
         return p;
     }
-    update(state: WorkspaceState, muted = false): void {
+    update(state: WorkspaceState, muted = false, traceId: number | null = null): void {
         this.state = state;
         this.selection = state.hover[this.mesh.stage] ?? state.selections[this.mesh.stage];
         const p = this.plane();
@@ -200,6 +206,7 @@ export class GeometryViewport {
         }
         this.points.visible = state.mode === 'vertex';
         this.overlay.update(state, this.selection, muted, p);
+        this.traceOverlay?.update(traceId, state.xray, p);
         this.invalidate();
     }
     focusSelection(): void {
@@ -282,6 +289,7 @@ export class GeometryViewport {
         for (const [name, fn] of [['pointerdown', this.down], ['pointerup', this.up], ['webglcontextlost', this.lost], ['webglcontextrestored', this.restored]] as const)
             this.renderer.domElement.removeEventListener(name, fn as EventListener);
         this.overlay?.dispose();
+        this.traceOverlay?.dispose();
         this.scope.dispose();
         this.renderer.dispose();
         this.renderer.forceContextLoss();

@@ -71,6 +71,28 @@ test('evidence dock retains each tab and its selected state', async ({ page }) =
     await expect(page.getByRole('region', { name: 'Topological & Geometric Delta Audit' })).toBeVisible();
 });
 
+test('saved pure-quad example renders selectable canonical traces and retained downloads', async ({ page }) => {
+    await page.goto('/');
+    await page.getByRole('combobox').first().click();
+    await page.getByRole('option', { name: 'Canonical quad traces', exact: true }).click();
+    await page.getByRole('button', { name: 'Run this example', exact: true }).click();
+    const workspace = page.getByRole('region', { name: 'Polygonal inspection' });
+    await expect(workspace.getByRole('table', { name: 'Original canonical traces' })).toBeVisible();
+    await expect(workspace.getByRole('status', { name: 'Trace completion' })).toContainText('Complete');
+    await expect(workspace.getByRole('status', { name: 'Trace completion' })).toContainText('24 traces');
+    const canvas = workspace.locator('canvas').first();
+    const before = await canvas.screenshot();
+    await workspace.getByRole('button', { name: 'T0', exact: true }).click();
+    await expect(workspace.getByRole('button', { name: 'T0', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    expect((await canvas.screenshot()).equals(before)).toBe(false);
+    await page.getByRole('tab', { name: 'Artifacts', exact: true }).click();
+    const downloads = page.locator('#cad-evidence-dock a[href*="/file="]');
+    await expect(downloads).toHaveCount(4);
+    for (const href of await downloads.evaluateAll(nodes => nodes.map(node => (node as HTMLAnchorElement).href)))
+        expect((await page.request.get(href)).ok()).toBe(true);
+});
+
 test('workspace presents human geometry identity without rendering revision digests', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Run this example', exact: true }).click();
