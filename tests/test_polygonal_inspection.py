@@ -404,5 +404,7 @@ def test_projection_failure_is_visible_and_retained_without_losing_release(monke
     assert "Inspection unavailable" in delivered[0]
     assert "display allocation limit" in delivered[0]
     assert delivered[6] and delivered[7]
-    assert all(control["interactive"] for control in next(stream)[-3:])
+    assert all(control["interactive"] for control in delivered[-3:])
+    with pytest.raises(StopIteration):
+        next(stream)
     stream.close()

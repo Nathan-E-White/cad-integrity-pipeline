@@ -1149,16 +1149,8 @@ def build_app(*, inspection_enabled: bool = True) -> Any:
                     yield (
                         *values,
                         gr.update(open=not completed),
-                        *(gr.update(interactive=False) for _ in starts),
+                        *(gr.update(interactive=True) for _ in starts),
                     )
-                # Release admission only after result delivery has advanced. The
-                # final generator frame changes controls alone, so Gradio cannot
-                # replay a large geometry value after a subsequent start.
-                yield (
-                    *(gr.skip() for _ in result_outputs),
-                    gr.skip(),
-                    *(gr.update(interactive=True) for _ in starts),
-                )
             except (SessionBusy, ValueError) as exc:
                 raise gr.Error(str(exc)) from exc
 

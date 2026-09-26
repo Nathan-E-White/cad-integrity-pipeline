@@ -95,8 +95,7 @@ def test_installed_routes_share_admission_and_clear_only_after_admission(overlap
     retry = routes["run_upload"](*arguments["run_upload"], request)
     assert next(retry)[-1]["interactive"] is False
     failed = next(retry)
-    assert all(not control["interactive"] for control in failed[-3:])
-    assert all(control["interactive"] for control in next(retry)[-3:])
+    assert all(control["interactive"] for control in failed[-3:])
     assert failed[10]["meshes"] == []
     with pytest.raises(StopIteration):
         next(retry)
@@ -125,8 +124,9 @@ def test_delivery_failure_restores_controls_and_clears_inspection(monkeypatch):
     assert result[9] is not None
     assert result[11] is not None
     assert "delivery failed" in result[0]
-    assert all(not control["interactive"] for control in result[-3:])
-    assert all(control["interactive"] for control in next(stream)[-3:])
+    assert all(control["interactive"] for control in result[-3:])
+    with pytest.raises(StopIteration):
+        next(stream)
     stream.close()
 
 
@@ -141,18 +141,21 @@ def test_run_setup_collapses_only_when_a_result_reaches_the_shared_workspace():
     example = routes["run_example"]("00_clean_boss", gr.Request(session_hash="success"))
     assert "open" not in next(example)[-4]
     assert next(example)[-4]["open"] is False
-    next(example)
+    with pytest.raises(StopIteration):
+        next(example)
 
     rejected = routes["run_example"](
         "02_pinched_vertex", gr.Request(session_hash="rejected")
     )
     assert "open" not in next(rejected)[-4]
     assert next(rejected)[-4]["open"] is True
-    next(rejected)
+    with pytest.raises(StopIteration):
+        next(rejected)
 
     upload = routes["run_upload"](
         None, False, 0.01, 0.1, False, gr.Request(session_hash="failure")
     )
     assert "open" not in next(upload)[-4]
     assert next(upload)[-4]["open"] is True
-    next(upload)
+    with pytest.raises(StopIteration):
+        next(upload)
