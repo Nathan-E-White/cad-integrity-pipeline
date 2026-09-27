@@ -87,6 +87,62 @@ def test_same_change_can_explicitly_promote_prototype_to_active(tmp_path: Path) 
     )
 
 
+def test_removing_read_only_prototype_and_manifest_entry_is_rejected(tmp_path: Path) -> None:
+    repository, base = _prototype_repository(tmp_path)
+    other = repository / "components/widget/frontend/prototypes/active"
+    other.mkdir(parents=True)
+    (other / "index.html").write_text("active\n")
+    manifest = repository / "prototype-status.toml"
+    manifest.write_text(
+        manifest.read_text()
+        + "\n[[prototype]]\n"
+        + 'path = "components/widget/frontend/prototypes/active"\n'
+        + 'status = "active"\n'
+    )
+    _git(repository, "add", ".")
+    _git(repository, "commit", "-q", "-m", "add active prototype")
+    base = _git(repository, "rev-parse", "HEAD")
+
+    (repository / "components/widget/frontend/prototypes/reference/index.html").unlink()
+    manifest.write_text(
+        "version = 1\n\n"
+        "[[prototype]]\n"
+        'path = "components/widget/frontend/prototypes/active"\n'
+        'status = "active"\n'
+    )
+
+    errors = _load_guard().check_repository(
+        repository,
+        manifest_path=Path("prototype-status.toml"),
+        base=base,
+        head=None,
+    )
+
+    assert errors == [
+        "read_only prototype changed: "
+        "components/widget/frontend/prototypes/reference/index.html; "
+        "promote components/widget/frontend/prototypes/reference to active in "
+        "prototype-status.toml in the same change"
+    ]
+
+
+def test_zero_push_base_uses_explicit_default_branch_fallback(tmp_path: Path) -> None:
+    repository, fallback = _prototype_repository(tmp_path)
+    (repository / "components/widget/frontend/prototypes/reference/index.html").write_text(
+        "changed\n"
+    )
+
+    errors = _load_guard().check_repository(
+        repository,
+        manifest_path=Path("prototype-status.toml"),
+        base="0" * 40,
+        fallback_base=fallback,
+        head=None,
+    )
+
+    assert errors and errors[0].startswith("read_only prototype changed:")
+
+
 def test_repository_manifest_covers_each_prototype_directory() -> None:
     guard = _load_guard()
     manifest = Path("components/inspection_workspace/frontend/prototype-status.toml")
@@ -111,3 +167,50 @@ def test_production_svelte_import_graph_excludes_prototypes() -> None:
 
     assert imports
     assert all("prototypes" not in path.parts for path in imports)
+
+
+def test_production_import_graph_follows_new_url_assets(tmp_path: Path) -> None:
+    frontend = tmp_path / "components/widget/frontend"
+    prototype = frontend / "prototypes/reference"
+    prototype.mkdir(parents=True)
+    (frontend / "Index.svelte").write_text(
+        "<script>const reference = new URL("
+        "'./prototypes/reference/data.json', import.meta.url);</script>\n"
+    )
+    (prototype / "data.json").write_text("{}\n")
+
+    imports = _load_guard().production_import_graph(
+        frontend,
+        entrypoints=(Path("Index.svelte"),),
+    )
+
+    assert Path("components/widget/frontend/prototypes/reference/data.json") in imports
+
+
+def test_production_boundary_rejects_prototype_marker_in_generated_bundle(
+    tmp_path: Path,
+) -> None:
+    frontend = tmp_path / "components/widget/frontend"
+    bundles = tmp_path / "components/widget/backend/templates"
+    frontend.mkdir(parents=True)
+    bundles.mkdir(parents=True)
+    (frontend / "Index.svelte").write_text("<p>production</p>\n")
+    (bundles / "index.js").write_text('const title="Prototype-only sentinel";\n')
+    entries = {
+        "components/widget/frontend/prototypes/reference": _load_guard().PrototypeEntry(
+            Path("components/widget/frontend/prototypes/reference"),
+            "read_only",
+            ("Prototype-only sentinel",),
+        )
+    }
+
+    assert _load_guard().production_boundary_errors(
+        frontend,
+        entrypoints=(Path("Index.svelte"),),
+        bundle_root=bundles,
+        entries=entries,
+    ) == [
+        "generated bundle contains marker from "
+        "components/widget/frontend/prototypes/reference: Prototype-only sentinel "
+        "(components/widget/backend/templates/index.js)"
+    ]

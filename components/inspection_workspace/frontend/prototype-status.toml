@@ -3,7 +3,12 @@ version = 1
 [[prototype]]
 path = "components/inspection_workspace/frontend/prototypes/desktop-engineering"
 status = "read_only"
+bundle_markers = ["CAD inspection desktop prototypes", "Bracket_0421"]
 
 [[prototype]]
 path = "components/inspection_workspace/frontend/prototypes/layer2-dashboard"
 status = "read_only"
+bundle_markers = [
+  "Layer 2 dashboard visual prototype",
+  "Throwaway prototype · report-guided",
+]

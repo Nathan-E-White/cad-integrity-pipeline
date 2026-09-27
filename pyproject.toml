@@ -105,7 +105,7 @@ inspection-preview = "python scripts/run_inspection_preview.py"
 test-mesh-healing = { cmd = "python -m pytest -q", cwd = "integration/mesh_healing_extension", depends-on = ["check-cad"] }
 test-nurbs = { cmd = "python -m pytest -q", cwd = "integration/nurbs_core_professionalized", depends-on = ["check-cad"] }
 check-artifacts = "python scripts/verify_artifacts.py"
-check-prototypes = "python scripts/check_prototype_status.py --base HEAD^"
+check-prototypes = "python scripts/check_prototype_status.py --base HEAD^ --check-production-boundary"
 compile = "python -m compileall -q src tests examples"
 test = "python -m pytest --cov=cad_integrity --cov-report=term-missing"
 lint = "ruff check src scripts"
