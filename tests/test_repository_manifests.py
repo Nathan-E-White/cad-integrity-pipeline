@@ -8,6 +8,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -17,6 +18,12 @@ def load_script(name):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def test_hosted_workflow_selects_cpp26_capable_clang_toolchain():
+    workflow = yaml.safe_load((ROOT / '.github/workflows/tests.yml').read_text())
+
+    assert workflow['jobs']['tests']['env'] == {'CC': 'clang', 'CXX': 'clang++'}
 
 
 def test_artifact_inventory_respects_ignore_rules_without_hiding_tracked_files(tmp_path, monkeypatch):
@@ -102,8 +109,6 @@ def test_environment_check_reports_installed_version_drift(tmp_path, monkeypatch
 
 
 def test_dependency_check_rejects_transitive_conda_vtk(tmp_path):
-    import yaml
-
     manifest_copy(tmp_path)
     script = load_script('check_dependencies')
     assert script.check(tmp_path) == []  # The current novtk/PyPI lock is allowed.
@@ -121,7 +126,6 @@ def test_dependency_check_rejects_transitive_conda_vtk(tmp_path):
 ])
 def test_dependency_check_scopes_vtk_to_selected_environment(tmp_path, provider_name, suffix):
     import copy
-    import yaml
 
     manifest_copy(tmp_path)
     script = load_script('check_dependencies')

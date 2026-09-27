@@ -1,6 +1,6 @@
 {
   ".gitattributes": "a9e94900bf216ffbfbd175a9b66c07f0c4c0df063e5bcefc728b756d58629694",
-  ".github/workflows/tests.yml": "00e8757475f250e5395545b6b951313ed520cf797bac3119d8bbedaf12c80e99",
+  ".github/workflows/tests.yml": "5b41404e36d7f30c37e5146b693abf0fe0150626300ba72a05d53402dfbe121d",
   ".gitignore": "336935fcade1634a9fe09a68371cfd855216e4e782a07233290772eacfdeb848",
   "CONTEXT.md": "7a01013c975b521072772fd8a158ddbf8bc77b19247baf860bddc6cece917e09",
   "README.md": "f1f39d1a9ca2200886c3ccc67efd46af9e93f6335b6cae342af2ba0d16d3bfc7",
@@ -630,7 +630,7 @@
   "tests/test_projection_components.py": "5e90154f0ad521e7829595c2f0ee0b43993cb99ec7fc5775527b17dd60efe5be",
   "tests/test_prototype_status.py": "1ee5ab9f8b5f200be176d80564e1845a715aa71be528e18ed84338a5bf35dda9",
   "tests/test_repair_policy_propagation.py": "231b86d165e6bc11b59d437a627b75a860bc14227cf4016fd436c89f2d4130de",
-  "tests/test_repository_manifests.py": "579e593d602796e331b524f51f0b19fb44a86a536eaf5cbeb86acab2c7e96e5a",
+  "tests/test_repository_manifests.py": "6a9b6061622011be657f27f4a61b4080ba8a016bd9f5b241107d4ded3b4eaea1",
   "tests/test_session_admission.py": "4f8182fbf0f48878abe2e15dceb3c2b8ab8d763a7851bd837bb1b9cca0a409ad",
   "tests/test_surface_parity.py": "625f2a2d79ea85f0162fd194c07b1b2faf7e11f31f8590c761077f83ae7284b3",
   "tests/test_topology_repair.py": "ba4d83000ff9d46a11f6bb40cf551ed2ac09432ce37de4df6542aa8ddf934a72",
