@@ -32,6 +32,14 @@ def test_hosted_workflow_selects_and_probes_cpp26_toolchain():
     assert 'g++-14 -std=c++2c -x c++ -fsyntax-only -' in probe['run']
 
 
+def test_brep_realization_declares_integer_comparison_header():
+    source = (ROOT / 'native/brep_realization.cpp').read_text()
+
+    assert '#include <utility>' in source
+    assert 'std::cmp_less' in source
+    assert 'std::cmp_equal' in source
+
+
 def test_artifact_inventory_respects_ignore_rules_without_hiding_tracked_files(tmp_path, monkeypatch):
     subprocess.run(['git', 'init', '-q', str(tmp_path)], check=True)
     (tmp_path / '.gitignore').write_text('.DS_Store\nnode_modules/\n*.generated\n')

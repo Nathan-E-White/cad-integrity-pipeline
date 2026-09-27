@@ -6,6 +6,7 @@
 #include <map>
 #include <numeric>
 #include <set>
+#include <utility>
 
 namespace cad::occt_adapter {
 namespace {
