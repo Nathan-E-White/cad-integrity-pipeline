@@ -20,10 +20,16 @@ def load_script(name):
     return module
 
 
-def test_hosted_workflow_selects_cpp26_capable_clang_toolchain():
+def test_hosted_workflow_selects_and_probes_cpp26_toolchain():
     workflow = yaml.safe_load((ROOT / '.github/workflows/tests.yml').read_text())
 
-    assert workflow['jobs']['tests']['env'] == {'CC': 'clang', 'CXX': 'clang++'}
+    job = workflow['jobs']['tests']
+    assert job['env'] == {'CC': 'gcc-14', 'CXX': 'g++-14'}
+    probe = next(step for step in job['steps']
+                 if step.get('name') == 'Verify hosted C++26 toolchain')
+    assert 'g++-14 --version' in probe['run']
+    assert '#include <expected>' in probe['run']
+    assert 'g++-14 -std=c++2c -x c++ -fsyntax-only -' in probe['run']
 
 
 def test_artifact_inventory_respects_ignore_rules_without_hiding_tracked_files(tmp_path, monkeypatch):

@@ -6,8 +6,8 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     env:
-      CC: clang
-      CXX: clang++
+      CC: gcc-14
+      CXX: g++-14
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,6 +21,11 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.4.0"
+      - name: Verify hosted C++26 toolchain
+        run: |
+          g++-14 --version
+          printf '#include <expected>\nint main(){std::expected<int,int> x=1; return *x-1;}\n' |
+            g++-14 -std=c++2c -x c++ -fsyntax-only -
       - run: >-
           python -m pip install
           -c requirements/constraints.txt
